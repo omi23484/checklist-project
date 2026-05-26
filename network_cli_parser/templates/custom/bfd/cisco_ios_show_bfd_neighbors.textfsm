@@ -1,0 +1,17 @@
+Value NEIGHBOR_ADDR (\d+\.\d+\.\d+\.\d+)
+Value LD (\d+)
+Value RD (\d+)
+Value RH_RS (\S+)
+Value STATE (\S+)
+Value INTERFACE (\S+)
+
+Start
+  ^\s*NeighAddr -> Header
+  ^. -> Continue
+
+Header
+  ^\s*${NEIGHBOR_ADDR}\s+${LD}/${RD}\s+${RH_RS}\s+${STATE}\s+${INTERFACE} -> Record
+  ^\s*${NEIGHBOR_ADDR}\s+${LD}/${RD}\s+${RH_RS}\s+${STATE} -> Record
+  ^. -> Continue
+
+EOF

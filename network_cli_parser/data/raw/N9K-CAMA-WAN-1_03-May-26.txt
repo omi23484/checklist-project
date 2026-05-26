@@ -1,0 +1,228 @@
+N9K-CAMA-WAN-1# show version
+
+Cisco Nexus Operating System (NX-OS) Software
+TAC support: http://www.cisco.com/tac
+Copyright (C) 2002-2024, Cisco and/or its affiliates.
+All rights reserved.
+The copyrights to certain works contained in this software are
+owned by other third parties and used and distributed under their own
+licenses, such as open source. This software is provided "as is" and
+without any express or implied warranties, including, without
+limitation, the implied warranties of merchantability and fitness for
+a particular purpose.
+
+  BIOS: version 07.69
+  NXOS: version 10.3(5)M
+  BIOS compile time:  09/22/2022
+  NXOS image file is: bootflash:///nxos64-cs.10.3.5.M.bin
+  NXOS compile time:  12/06/2023 19:00:00 [12/07/2023 01:22:48]
+
+Hardware
+  cisco Nexus9000 C9364C chassis
+  Intel(R) Xeon(R) CPU D-1526 @ 1.80GHz with 24541516 kB of memory.
+  Processor Board ID FDO25010G9B
+
+  Device name: N9K-CAMA-WAN-1
+  bootflash:    53298520 kB
+  Kernel uptime is 124 day(s), 6 hour(s), 31 minute(s), 49 second(s)
+
+Last reset at 485759 usecs after Tue Jan 28 17:35:01 2025
+  Reason: Reset Requested by CLI command reload
+  System version: 10.3(4)M
+  Service:
+
+plugin
+  Core Plugin, Ethernet Plugin
+
+Active Package(s):
+
+N9K-CAMA-WAN-1#
+N9K-CAMA-WAN-1# show vpc brief
+
+Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 10
+Peer status                       : peer adjacency formed ok
+vPC keep-alive status             : peer is alive
+Configuration consistency status  : success
+Per-vlan consistency status       : success
+Type-2 consistency status         : success
+vPC role                          : primary
+Number of vPCs configured         : 5
+Peer Gateway                      : Disabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+Operational Layer3 Peer-router    : Disabled
+Virtual-peerlink mode             : Disabled
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans
+--    ----   ------ --------------------------------------------------
+1     Po10   up     1,100-110,200-210
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ------------
+10    Po100         up     success     success               100-110
+20    Po200         up     success     success               200-210
+30    Po300         up     success     success               100
+40    Po400         up     success     success               200
+50    Po500         down*  failed      vlan-type mismatch    -
+
+N9K-CAMA-WAN-1#
+N9K-CAMA-WAN-1# show interface description
+
+-------------------------------------------------------------------------------
+Interface                Description
+-------------------------------------------------------------------------------
+Eth1/1                   uplink-to-CORE-SW
+Eth1/2                   uplink-to-DIST-SW-1
+Eth1/3                   uplink-to-DIST-SW-2
+Eth1/4                   server-rack-1-bond0
+Eth1/5                   server-rack-2-bond0
+Eth1/48                  --
+mgmt0                    OOB-MGMT
+Lo0                      router-id-loopback
+Lo1                      mcast-rp-loopback
+Po10                     vpc-peer-link
+Po100                    vpc-to-access-sw-1
+Po200                    vpc-to-access-sw-2
+
+N9K-CAMA-WAN-1#
+N9K-CAMA-WAN-1# show ip pim neigh
+
+PIM Neighbor Status for VRF "default"
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD
+                                                         Priority Capable State
+10.0.0.2        Ethernet1/1          2w3d      00:01:15  1        yes     -
+10.0.0.6        Ethernet1/2          2w3d      00:01:28  1        yes     -
+10.0.0.10       Ethernet1/3          1w5d      00:01:02  1        yes     -
+
+PIM Neighbor Status for VRF "MCAST-VRF"
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD
+                                                         Priority Capable State
+192.168.10.1    Ethernet1/4          3d12h     00:01:45  1        yes     -
+192.168.10.5    Ethernet1/5          3d12h     00:01:30  1        no      -
+
+N9K-CAMA-WAN-1#
+N9K-CAMA-WAN-1# show ip mroute summary
+
+IP Multicast Routing Table for VRF "default"
+Total number of routes: 5
+Total number of (*,G) routes: 2
+Total number of (S,G) routes: 2
+Total number of (*,G-prefix) routes: 1
+
+Group: 239.255.0.1/32, Source count: 2
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           12450      1805650    0          5          320.000 bps       3
+(10.1.1.100,G)  12450      1805650    0          5          320.000 bps       3
+
+Group: 239.255.0.2/32, Source count: 0
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           0          0          0          0          0.000 bps         0
+
+Group: 232.0.0.0/8, Source count: 0
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           0          0          0          0          0.000 bps         0
+
+IP Multicast Routing Table for VRF "MCAST-VRF"
+Total number of routes: 2
+Total number of (*,G) routes: 1
+Total number of (S,G) routes: 1
+Total number of (*,G-prefix) routes: 0
+
+Group: 239.100.0.1/32, Source count: 1
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           5000       725000     0          2          128.000 bps       2
+(192.168.10.10,G) 5000     725000     0          2          128.000 bps       2
+
+N9K-CAMA-WAN-1#
+N9K-CAMA-WAN-1# show ip mroute
+
+IP Multicast Routing Table for VRF "default"
+
+(*,239.255.0.1/32), uptime: 2w3d, igmp ip pim
+  Incoming interface: Ethernet1/1, RPF nbr: 10.0.0.2
+  Outgoing interface list: (count: 3)
+    Ethernet1/2, uptime: 2w3d, expires: 00:02:30
+    Ethernet1/3, uptime: 1w5d, expires: 00:02:15
+    Ethernet1/4, uptime: 3d12h, expires: 00:02:45
+
+(10.1.1.100,239.255.0.1/32), uptime: 5d14h, ip mrib pim
+  Incoming interface: Ethernet1/1, RPF nbr: 10.0.0.2
+  Outgoing interface list: (count: 2)
+    Ethernet1/2, uptime: 5d14h, expires: 00:02:00
+    Ethernet1/3, uptime: 5d14h, expires: 00:02:00
+
+(*,232.0.0.0/8), uptime: 2w3d, pim
+  Incoming interface: Null, RPF nbr: 0.0.0.0
+  Outgoing interface list: (count: 0)
+
+N9K-CAMA-WAN-1#
+N9K-CAMA-WAN-1# show processes cpu history
+
+CPU% per second (last 60 seconds)
+100
+ 90
+ 80
+ 70
+ 60
+ 50    *                                         *
+ 40    *  **        *       *    *    *          **
+ 30   ***  **  *   ** *   ***   ** * ***  *  * ****
+ 20  ***** *** ** ****** ****  **** **** ** ******** *
+ 10 *****************************  ******* ********** *
+   0....5....1....1....2....2....3....3....4....4....5....5....6
+             0    5    0    5    0    5    0    5    0    5    0
+
+N9K-CAMA-WAN-1#
+N9K-CAMA-WAN-1# show logging last 100
+
+2026 May 26 03:10:01 N9K-CAMA-WAN-1 %ETHPORT-5-IF_UP: Interface Ethernet1/1 is up in mode trunk
+2026 May 26 03:10:02 N9K-CAMA-WAN-1 %ETHPORT-5-IF_UP: Interface Ethernet1/2 is up in mode trunk
+2026 May 26 03:15:44 N9K-CAMA-WAN-1 %BGP-5-ADJCHANGE: bgp-100 [inst] default-vrf - peer 10.0.0.2 Up
+2026 May 26 03:15:47 N9K-CAMA-WAN-1 %BGP-5-ADJCHANGE: bgp-100 [inst] default-vrf - peer 10.0.0.6 Up
+2026 May 26 03:16:01 N9K-CAMA-WAN-1 %PIM-5-NBRCHANGE: VRF default: neighbor 10.0.0.2 added on Ethernet1/1
+2026 May 26 03:16:02 N9K-CAMA-WAN-1 %PIM-5-NBRCHANGE: VRF default: neighbor 10.0.0.6 added on Ethernet1/2
+2026 May 26 04:22:33 N9K-CAMA-WAN-1 %SYSLOG-1-SYSTEM_MSG: Switchover initiated due to manual request
+2026 May 26 05:01:18 N9K-CAMA-WAN-1 %PLATFORM-2-PS_FAULT: Power supply 2 absent
+2026 May 26 05:30:00 N9K-CAMA-WAN-1 %PLATFORM-2-PS_FAULT: Power supply 2 absent
+2026 May 26 06:00:00 N9K-CAMA-WAN-1 %PLATFORM-2-PS_FAULT: Power supply 2 absent
+
+N9K-CAMA-WAN-1#
+N9K-CAMA-WAN-1# show ip ospf neighbors
+
+OSPF Process ID 1 VRF default
+Total number of neighbors: 2
+
+Neighbor ID     Pri State            Up Time  Address         Interface
+10.0.0.2          1 FULL/ -         2w3d     10.0.0.2        Eth1/1
+10.0.0.6          1 FULL/ -         2w3d     10.0.0.6        Eth1/2
+
+N9K-CAMA-WAN-1#
+N9K-CAMA-WAN-1# show ip pim rp
+
+PIM RP Status Information for VRF "default"
+BSR disabled
+Auto-RP disabled
+BSR RP Candidate policy: None
+BSR RP policy: None
+Auto-RP Announce policy: None
+Auto-RP Discovery policy: None
+
+Anycast-RP disabled
+
+RP: 10.1.1.1*, (0),
+  uptime: 2w3d   priority: 255,
+  RP-source: (local),
+  group ranges:
+  224.0.0.0/4   (Active)
+
+N9K-CAMA-WAN-1#

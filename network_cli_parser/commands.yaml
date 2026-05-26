@@ -1,0 +1,105 @@
+# Network CLI Parser — Command Registry
+#
+# Keys are the raw command strings exactly as they appear in the CLI dump.
+# The mapper normalizes to underscores internally (spaces → underscores).
+#
+# Strategy shapes:
+#   parser: ntc          + template: <ntc template string>
+#   parser: custom       + template: <textfsm file stem, no extension>
+#   parser: hierarchical + func: <function name in multicast_parser.py>
+#   parser: raw_only     (preserve raw text, skip structured parsing)
+#
+# To add a new command:
+#   Option A (explicit): add an entry here + a .textfsm file if parser: custom
+#   Option B (auto-discover): just drop a {platform}_{normalized_cmd}.textfsm
+#     file anywhere under templates/custom/ — no YAML edit required
+
+cisco_nxos:
+  show version:
+    parser: ntc
+    template: show version
+  show env:
+    parser: ntc
+    template: show environment
+  show module:
+    parser: ntc
+    template: show module
+  show processes cpu sort:
+    parser: ntc
+    template: show processes cpu
+  show port-channel summary:
+    parser: ntc
+    template: show port-channel summary
+  show int brief:
+    parser: ntc
+    template: show interface brief
+  show interface brief:
+    parser: ntc
+    template: show interface brief
+  show ip bgp summary vrf all:
+    parser: ntc
+    template: show ip bgp summary
+  show ip bgp neigh vrf all:
+    parser: ntc
+    template: show ip bgp neighbors
+  show interface description:
+    parser: ntc
+    template: show interface description
+  show vpc brief:
+    parser: ntc
+    template: show vpc brief
+  show ip msdp summary:
+    parser: ntc
+    template: show ip msdp summary
+  show int loopback1:
+    parser: ntc
+    template: show interface
+  show ip pim neigh:
+    parser: custom
+    template: cisco_nxos_show_ip_pim_neigh
+  show ip mroute summary:
+    parser: hierarchical
+    func: parse_mroute_summary
+  show ip mroute:
+    parser: hierarchical
+    func: parse_mroute
+  show processes cpu history:
+    parser: raw_only
+  show logging last 100:
+    parser: raw_only
+
+cisco_ios:
+  show version:
+    parser: ntc
+    template: show version
+  show env all:
+    parser: ntc
+    template: show environment all
+  show ip int brief:
+    parser: ntc
+    template: show ip interface brief
+  show ip bgp summary:
+    parser: ntc
+    template: show ip bgp summary
+  show ip route:
+    parser: ntc
+    template: show ip route
+  show ip bgp neighbor:
+    parser: ntc
+    template: show ip bgp neighbors
+  show interface description:
+    parser: ntc
+    template: show interface description
+  show processes cpu sort:
+    parser: ntc
+    template: show processes cpu
+  show bfd neighbors:
+    parser: custom
+    template: cisco_ios_show_bfd_neighbors
+  show bfd neighbors details:
+    parser: custom
+    template: cisco_ios_show_bfd_neighbors_details
+  show logging:
+    parser: raw_only
+  show processes cpu history:
+    parser: raw_only
