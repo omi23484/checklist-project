@@ -1,0 +1,42 @@
+Value NEIGHBOR_ADDR (\d+\.\d+\.\d+\.\d+)
+Value LD (\d+)
+Value RD (\d+)
+Value RH_RS (\S+)
+Value STATE (\S+)
+Value INTERFACE (\S+)
+Value SESSION_STATE (\S+)
+Value ECHO_INTERVAL (\d+)
+Value DETECT_MULTIPLIER (\d+)
+Value LOCAL_DIAG (\S+)
+Value DEMAND_MODE (\S+)
+Value POLL_BIT (\S+)
+Value MIN_TX (\d+)
+Value MIN_RX (\d+)
+Value MULTIPLIER (\d+)
+Value REGISTERED_PROTOCOLS (.*?)
+
+Start
+  ^\s*NeighAddr -> NeighborTable
+
+NeighborTable
+  ^\s*${NEIGHBOR_ADDR}\s+${LD}/${RD}\s+${RH_RS}\s+${STATE}\s+${INTERFACE} -> Details
+  ^\s*${NEIGHBOR_ADDR}\s+${LD}/${RD}\s+${RH_RS}\s+${STATE} -> Details
+  ^. -> Continue
+
+Details
+  ^Session state is\s+${SESSION_STATE} -> Continue
+  ^Echo\s+function\s+with\s+${ECHO_INTERVAL}\s+ms -> Continue
+  ^.*?Detect\s+Mult:\s+${DETECT_MULTIPLIER} -> Continue
+  ^.*?Local\s+Diag:\s+${LOCAL_DIAG} -> Continue
+  ^Demand\s+mode:\s+${DEMAND_MODE} -> Continue
+  ^Poll\s+bit:\s+${POLL_BIT} -> Continue
+  ^Min\s+tx\s+interval:\s+${MIN_TX} -> Continue
+  ^Min\s+rx\s+interval:\s+${MIN_RX} -> Continue
+  ^Multiplier:\s+${MULTIPLIER} -> Continue
+  ^Registered\s+protocols:\s+${REGISTERED_PROTOCOLS} -> Continue
+  ^\s*${NEIGHBOR_ADDR}\s+${LD}/${RD}\s+${RH_RS}\s+${STATE}\s+${INTERFACE} -> Record
+  ^\s*${NEIGHBOR_ADDR}\s+${LD}/${RD}\s+${RH_RS}\s+${STATE} -> Record
+  ^NeighAddr -> Record NeighborTable
+  ^. -> Continue
+
+EOF
