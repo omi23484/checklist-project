@@ -6,13 +6,16 @@
 # Strategy shapes:
 #   parser: ntc          + template: <ntc template string>
 #   parser: custom       + template: <textfsm file stem, no extension>
+#   parser: ttp          + template: <ttp file stem, no extension>
 #   parser: hierarchical + func: <function name in multicast_parser.py>
 #   parser: raw_only     (preserve raw text, skip structured parsing)
 #
 # To add a new command:
-#   Option A (explicit): add an entry here + a .textfsm file if parser: custom
-#   Option B (auto-discover): just drop a {platform}_{normalized_cmd}.textfsm
+#   Option A (explicit): add an entry here + a template file
+#   Option B (auto-discover TextFSM): drop a {platform}_{normalized_cmd}.textfsm
 #     file anywhere under templates/custom/ — no YAML edit required
+#   Option B (auto-discover TTP):     drop a {platform}_{normalized_cmd}.ttp
+#     file anywhere under templates/ttp/ — no YAML edit required
 
 cisco_nxos:
   show version:

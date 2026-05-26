@@ -12,40 +12,56 @@ import os
 import sys
 import traceback
 
-from parsers import command_mapper, custom_engine, ntc_engine, splitter
+from parsers import command_mapper, custom_engine, ntc_engine, splitter, ttp_engine
 from parsers import multicast_parser as mp
 from utils import json_builder, normalization
 
 
 def _auto_discover(platform: str, normalized_cmd: str, raw: str) -> tuple[dict, str]:
     """
-    Attempt to parse an unregistered command using two heuristics:
+    Attempt to parse an unregistered command using three heuristics in order:
 
     1. NTC Templates — try the denormalized command string.
-    2. Convention-based TextFSM — look for {platform}_{cmd}.textfsm in templates/custom/.
+    2. Convention-based TextFSM — {platform}_{cmd}.textfsm in templates/custom/.
+    3. Convention-based TTP      — {platform}_{cmd}.ttp    in templates/ttp/.
 
     Returns (parsed_data, status) where status is one of:
         parsed | partial | no_template | failed
     """
-    # Step 1: Try NTC Templates with the reconstructed command string
+    # Step 1: Try NTC Templates with the reconstructed command string.
+    # Only accept the result if NTC returned actual rows — if it returned empty
+    # we fall through so a custom TextFSM or TTP template can take over.
     denorm_cmd = normalization.denormalize_command(normalized_cmd)
     try:
         rows = ntc_engine.parse(platform, denorm_cmd, raw)
-        return rows, "parsed" if rows else "partial"
+        if rows:
+            return rows, "parsed"
+        # NTC found a template but matched nothing — try custom parsers next
     except Exception:
-        pass  # No NTC template or NTC parse error — try convention TextFSM
+        pass  # No NTC template — try convention TextFSM
 
     # Step 2: Try convention-based custom TextFSM
-    convention_stem = custom_engine.find_by_convention(platform, normalized_cmd)
-    if convention_stem is None:
-        return {}, "no_template"
+    textfsm_stem = custom_engine.find_by_convention(platform, normalized_cmd)
+    if textfsm_stem is not None:
+        try:
+            rows = custom_engine.parse(textfsm_stem, raw)
+            return rows, "parsed" if rows else "partial"
+        except Exception:
+            traceback.print_exc()
+            return {}, "failed"
 
-    try:
-        rows = custom_engine.parse(convention_stem, raw)
-        return rows, "parsed" if rows else "partial"
-    except Exception:
-        traceback.print_exc()
-        return {}, "failed"
+    # Step 3: Try convention-based TTP
+    ttp_stem = ttp_engine.find_by_convention(platform, normalized_cmd)
+    if ttp_stem is not None:
+        try:
+            result = ttp_engine.parse(ttp_stem, raw)
+            return result, "parsed" if result else "partial"
+        except Exception:
+            traceback.print_exc()
+            return {}, "failed"
+
+    # Nothing found — raw is preserved by caller
+    return {}, "no_template"
 
 
 def _parse_command(platform: str, cmd: str, raw: str) -> tuple[dict, str]:
@@ -96,6 +112,14 @@ def _parse_command(platform: str, cmd: str, raw: str) -> tuple[dict, str]:
             rows = custom_engine.parse(strategy["template"], raw)
             status = "parsed" if rows else "partial"
             return rows, status
+        except Exception:
+            traceback.print_exc()
+            return {}, "failed"
+
+    if parser_type == "ttp":
+        try:
+            result = ttp_engine.parse(strategy["template"], raw)
+            return result, "parsed" if result else "partial"
         except Exception:
             traceback.print_exc()
             return {}, "failed"

@@ -1,3 +1,4 @@
 ntc-templates>=4.0.0
 textfsm>=1.1.0
 pyyaml>=6.0
+ttp>=0.9.0
