@@ -37,3 +37,16 @@ def extract_collection_time(filename: str) -> str:
     base = os.path.basename(filename).rsplit(".", 1)[0]
     parts = base.rsplit("_", 1)
     return parts[1] if len(parts) == 2 else ""
+
+
+def denormalize_command(normalized_cmd: str) -> str:
+    """
+    Convert a normalized command key back to a space-separated string.
+
+    Inverse of normalize_command() for NTC Templates lookup.
+    Hyphens are preserved (normalize_command never touches them).
+
+    Example: 'show_ip_bgp_summary_vrf_all' -> 'show ip bgp summary vrf all'
+             'show_port-channel_summary'   -> 'show port-channel summary'
+    """
+    return normalized_cmd.replace("_", " ")

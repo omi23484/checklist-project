@@ -373,6 +373,24 @@
       "status": "raw_only",
       "raw": "\n2026 May 26 03:10:01 N9K-CAMA-WAN-1 %ETHPORT-5-IF_UP: Interface Ethernet1/1 is up in mode trunk\n2026 May 26 03:10:02 N9K-CAMA-WAN-1 %ETHPORT-5-IF_UP: Interface Ethernet1/2 is up in mode trunk\n2026 May 26 03:15:44 N9K-CAMA-WAN-1 %BGP-5-ADJCHANGE: bgp-100 [inst] default-vrf - peer 10.0.0.2 Up\n2026 May 26 03:15:47 N9K-CAMA-WAN-1 %BGP-5-ADJCHANGE: bgp-100 [inst] default-vrf - peer 10.0.0.6 Up\n2026 May 26 03:16:01 N9K-CAMA-WAN-1 %PIM-5-NBRCHANGE: VRF default: neighbor 10.0.0.2 added on Ethernet1/1\n2026 May 26 03:16:02 N9K-CAMA-WAN-1 %PIM-5-NBRCHANGE: VRF default: neighbor 10.0.0.6 added on Ethernet1/2\n2026 May 26 04:22:33 N9K-CAMA-WAN-1 %SYSLOG-1-SYSTEM_MSG: Switchover initiated due to manual request\n2026 May 26 05:01:18 N9K-CAMA-WAN-1 %PLATFORM-2-PS_FAULT: Power supply 2 absent\n2026 May 26 05:30:00 N9K-CAMA-WAN-1 %PLATFORM-2-PS_FAULT: Power supply 2 absent\n2026 May 26 06:00:00 N9K-CAMA-WAN-1 %PLATFORM-2-PS_FAULT: Power supply 2 absent",
       "parsed": {}
+    },
+    "show_ip_ospf_neighbors": {
+      "status": "partial",
+      "raw": "\nOSPF Process ID 1 VRF default\nTotal number of neighbors: 2\n\nNeighbor ID     Pri State            Up Time  Address         Interface\n10.0.0.2          1 FULL/ -         2w3d     10.0.0.2        Eth1/1\n10.0.0.6          1 FULL/ -         2w3d     10.0.0.6        Eth1/2",
+      "parsed": []
+    },
+    "show_ip_pim_rp": {
+      "status": "parsed",
+      "raw": "\nPIM RP Status Information for VRF \"default\"\nBSR disabled\nAuto-RP disabled\nBSR RP Candidate policy: None\nBSR RP policy: None\nAuto-RP Announce policy: None\nAuto-RP Discovery policy: None\n\nAnycast-RP disabled\n\nRP: 10.1.1.1*, (0),\n  uptime: 2w3d   priority: 255,\n  RP-source: (local),\n  group ranges:\n  224.0.0.0/4   (Active)",
+      "parsed": [
+        {
+          "RP": "10.1.1.1",
+          "UPTIME": "2w3d",
+          "PRIORITY": "255",
+          "SOURCE": "(local)",
+          "GROUP_RANGE": "224.0.0.0/4"
+        }
+      ]
     }
   }
 }

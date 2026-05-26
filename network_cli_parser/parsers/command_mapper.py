@@ -1,65 +1,85 @@
 """
 Maps normalized command names to their parsing strategy.
 
-Strategy dict shapes:
+Strategy dict shapes (from commands.yaml):
   {"parser": "ntc",          "template": "<ntc command string>"}
   {"parser": "custom",       "template": "<template file stem>"}
   {"parser": "hierarchical", "func":     "<multicast_parser function name>"}
   {"parser": "raw_only"}
+  {"parser": "auto_discover"}   # returned for commands not in commands.yaml
 """
 
-_NXOS_MAP = {
-    "show_version":                    {"parser": "ntc", "template": "show version"},
-    "show_env":                        {"parser": "ntc", "template": "show environment"},
-    "show_module":                     {"parser": "ntc", "template": "show module"},
-    "show_processes_cpu_sort":         {"parser": "ntc", "template": "show processes cpu"},
-    "show_port-channel_summary":       {"parser": "ntc", "template": "show port-channel summary"},
-    "show_int_brief":                  {"parser": "ntc", "template": "show interface brief"},
-    "show_interface_brief":            {"parser": "ntc", "template": "show interface brief"},
-    "show_ip_bgp_summary_vrf_all":     {"parser": "ntc", "template": "show ip bgp summary"},
-    "show_ip_bgp_neigh_vrf_all":       {"parser": "ntc", "template": "show ip bgp neighbors"},
-    "show_interface_description":      {"parser": "ntc", "template": "show interface description"},
-    "show_vpc_brief":                  {"parser": "ntc", "template": "show vpc brief"},
-    "show_ip_msdp_summary":            {"parser": "ntc", "template": "show ip msdp summary"},
-    "show_int_loopback1":              {"parser": "ntc", "template": "show interface"},
-    # Custom TextFSM
-    "show_ip_pim_neigh":               {"parser": "custom", "template": "cisco_nxos_show_ip_pim_neigh"},
-    # Hierarchical Python parsers
-    "show_ip_mroute_summary":          {"parser": "hierarchical", "func": "parse_mroute_summary"},
-    "show_ip_mroute":                  {"parser": "hierarchical", "func": "parse_mroute"},
-    # Raw-only
-    "show_processes_cpu_history":      {"parser": "raw_only"},
-    "show_logging_last_100":           {"parser": "raw_only"},
-}
+import warnings
+from pathlib import Path
 
-_IOS_MAP = {
-    "show_version":                    {"parser": "ntc", "template": "show version"},
-    "show_env_all":                    {"parser": "ntc", "template": "show environment all"},
-    "show_ip_int_brief":               {"parser": "ntc", "template": "show ip interface brief"},
-    "show_ip_bgp_summary":             {"parser": "ntc", "template": "show ip bgp summary"},
-    "show_ip_route":                   {"parser": "ntc", "template": "show ip route"},
-    "show_ip_bgp_neighbor":            {"parser": "ntc", "template": "show ip bgp neighbors"},
-    "show_interface_description":      {"parser": "ntc", "template": "show interface description"},
-    "show_processes_cpu_sort":         {"parser": "ntc", "template": "show processes cpu"},
-    # Custom TextFSM
-    "show_bfd_neighbors":              {"parser": "custom", "template": "cisco_ios_show_bfd_neighbors"},
-    "show_bfd_neighbors_details":      {"parser": "custom", "template": "cisco_ios_show_bfd_neighbors_details"},
-    # Raw-only
-    "show_logging":                    {"parser": "raw_only"},
-    "show_processes_cpu_history":      {"parser": "raw_only"},
-}
+import yaml
 
-_PLATFORM_MAP = {
-    "cisco_nxos": _NXOS_MAP,
-    "cisco_ios":  _IOS_MAP,
-}
+from utils.normalization import normalize_command
 
-_RAW_ONLY = {"parser": "raw_only"}
+_YAML_PATH = Path(__file__).parent.parent / "commands.yaml"
+_AUTO_DISCOVER = {"parser": "auto_discover"}
+
+
+def _load_registry(yaml_path: Path) -> dict:
+    """
+    Load commands.yaml and return {platform: {normalized_cmd: strategy_dict}}.
+
+    Raises FileNotFoundError if commands.yaml is absent.
+    Raises ValueError on invalid YAML or wrong top-level type.
+    Warns when two raw keys normalize to the same string (last one wins).
+    """
+    with open(yaml_path, encoding="utf-8") as fh:
+        raw_data = yaml.safe_load(fh)
+
+    if not isinstance(raw_data, dict):
+        raise ValueError(
+            f"commands.yaml must be a top-level mapping, got {type(raw_data).__name__}"
+        )
+
+    platform_map: dict = {}
+    for platform, commands in raw_data.items():
+        if commands is None:
+            platform_map[platform] = {}
+            continue
+        normalized: dict = {}
+        for raw_cmd, strategy in commands.items():
+            norm_key = normalize_command(str(raw_cmd))
+            if norm_key in normalized:
+                warnings.warn(
+                    f"commands.yaml [{platform}]: '{raw_cmd}' normalizes to '{norm_key}' "
+                    f"which already exists — keeping last entry.",
+                    stacklevel=2,
+                )
+            # A bare key with no value (e.g. "show logging last 100:") is None in YAML.
+            normalized[norm_key] = strategy if strategy is not None else {"parser": "raw_only"}
+        platform_map[platform] = normalized
+
+    return platform_map
+
+
+try:
+    _REGISTRY: dict = _load_registry(_YAML_PATH)
+except FileNotFoundError:
+    raise FileNotFoundError(
+        f"commands.yaml not found at {_YAML_PATH}. "
+        "This file is required to run the parser."
+    ) from None
+except yaml.YAMLError as exc:
+    raise ValueError(f"commands.yaml contains invalid YAML: {exc}") from exc
 
 
 def get_strategy(platform: str, normalized_cmd: str) -> dict:
     """
-    Return the parsing strategy for a command on a given platform.
-    Falls back to raw_only for unknown commands.
+    Return the parsing strategy for a command on the given platform.
+
+    Returns {"parser": "auto_discover"} for commands not in commands.yaml,
+    which triggers NTC + convention-TextFSM auto-discovery in main.py.
+    This is distinct from {"parser": "raw_only"}, which is an explicit
+    registry entry meaning "skip parsing intentionally".
     """
-    return _PLATFORM_MAP.get(platform, {}).get(normalized_cmd, _RAW_ONLY)
+    return _REGISTRY.get(platform, {}).get(normalized_cmd, _AUTO_DISCOVER)
+
+
+def list_commands(platform: str) -> list:
+    """Return all registered normalized command names for a platform."""
+    return list(_REGISTRY.get(platform, {}).keys())

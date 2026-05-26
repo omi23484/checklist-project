@@ -197,3 +197,32 @@ N9K-CAMA-WAN-1# show logging last 100
 2026 May 26 06:00:00 N9K-CAMA-WAN-1 %PLATFORM-2-PS_FAULT: Power supply 2 absent
 
 N9K-CAMA-WAN-1#
+N9K-CAMA-WAN-1# show ip ospf neighbors
+
+OSPF Process ID 1 VRF default
+Total number of neighbors: 2
+
+Neighbor ID     Pri State            Up Time  Address         Interface
+10.0.0.2          1 FULL/ -         2w3d     10.0.0.2        Eth1/1
+10.0.0.6          1 FULL/ -         2w3d     10.0.0.6        Eth1/2
+
+N9K-CAMA-WAN-1#
+N9K-CAMA-WAN-1# show ip pim rp
+
+PIM RP Status Information for VRF "default"
+BSR disabled
+Auto-RP disabled
+BSR RP Candidate policy: None
+BSR RP policy: None
+Auto-RP Announce policy: None
+Auto-RP Discovery policy: None
+
+Anycast-RP disabled
+
+RP: 10.1.1.1*, (0),
+  uptime: 2w3d   priority: 255,
+  RP-source: (local),
+  group ranges:
+  224.0.0.0/4   (Active)
+
+N9K-CAMA-WAN-1#

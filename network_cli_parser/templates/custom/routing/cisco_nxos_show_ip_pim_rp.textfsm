@@ -1,0 +1,18 @@
+Value RP (\d+\.\d+\.\d+\.\d+)
+Value UPTIME (\S+)
+Value PRIORITY (\d+)
+Value SOURCE (\S+)
+Value GROUP_RANGE (\S+)
+
+Start
+  ^RP:\s+${RP}\*?, -> RPInfo
+  ^. -> Continue
+
+RPInfo
+  ^RP:\s+${RP}\*?, -> RPInfo
+  ^\s+uptime:\s+${UPTIME}\s+priority:\s+${PRIORITY}, -> Continue
+  ^\s+RP-source:\s+${SOURCE}, -> Continue
+  ^\s+${GROUP_RANGE}\s+\(Active\) -> Record
+  ^. -> Continue
+
+EOF

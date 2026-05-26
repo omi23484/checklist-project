@@ -17,18 +17,52 @@ from parsers import multicast_parser as mp
 from utils import json_builder, normalization
 
 
+def _auto_discover(platform: str, normalized_cmd: str, raw: str) -> tuple[dict, str]:
+    """
+    Attempt to parse an unregistered command using two heuristics:
+
+    1. NTC Templates — try the denormalized command string.
+    2. Convention-based TextFSM — look for {platform}_{cmd}.textfsm in templates/custom/.
+
+    Returns (parsed_data, status) where status is one of:
+        parsed | partial | no_template | failed
+    """
+    # Step 1: Try NTC Templates with the reconstructed command string
+    denorm_cmd = normalization.denormalize_command(normalized_cmd)
+    try:
+        rows = ntc_engine.parse(platform, denorm_cmd, raw)
+        return rows, "parsed" if rows else "partial"
+    except Exception:
+        pass  # No NTC template or NTC parse error — try convention TextFSM
+
+    # Step 2: Try convention-based custom TextFSM
+    convention_stem = custom_engine.find_by_convention(platform, normalized_cmd)
+    if convention_stem is None:
+        return {}, "no_template"
+
+    try:
+        rows = custom_engine.parse(convention_stem, raw)
+        return rows, "parsed" if rows else "partial"
+    except Exception:
+        traceback.print_exc()
+        return {}, "failed"
+
+
 def _parse_command(platform: str, cmd: str, raw: str) -> tuple[dict, str]:
     """
     Dispatch a single command to the appropriate parser.
 
     Returns (parsed_data, status) where status is one of:
-        parsed | partial | raw_only | failed
+        parsed | partial | raw_only | no_template | failed
     """
     strategy = command_mapper.get_strategy(platform, cmd)
     parser_type = strategy["parser"]
 
     if parser_type == "raw_only":
         return {}, "raw_only"
+
+    if parser_type == "auto_discover":
+        return _auto_discover(platform, cmd, raw)
 
     if parser_type == "hierarchical":
         func_name = strategy["func"]
@@ -66,7 +100,8 @@ def _parse_command(platform: str, cmd: str, raw: str) -> tuple[dict, str]:
             traceback.print_exc()
             return {}, "failed"
 
-    return {}, "raw_only"
+    # Unknown parser type in strategy dict — should not happen with valid commands.yaml
+    return {}, "failed"
 
 
 def process_file(input_path: str, output_dir: str) -> str:
