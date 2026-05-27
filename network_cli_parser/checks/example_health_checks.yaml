@@ -1,0 +1,68 @@
+# Network CLI Health Checks
+#
+# Run:
+#   python report.py health --snapshot data/json/<snapshot>.json --checks checks/example_health_checks.yaml
+#   python report.py health --snapshot data/json/<snapshot>.json --checks checks/example_health_checks.yaml --output data/reports/health.json
+#
+# Path syntax:
+#   [N]       - list index N  (e.g. [0].VERSION)
+#   [*]       - all list items (condition applied to each; fail if any fails)
+#   .key      - dict key access
+#   key[*]    - key access then expand list  (e.g. vrfs[*].neighbors[*].state_pfx)
+#
+# Conditions:
+#   eq / ne             - exact equality / not equal
+#   gt / lt / gte / lte - numeric comparison (values are cast to float)
+#   contains            - substring present
+#   not_contains        - substring absent
+#   matches             - regex search (re.search)
+
+checks:
+
+  # ---- show version -------------------------------------------------------
+  - name: "Show version has OS version"
+    command: show_version
+    path: "[0].os"
+    condition: matches
+    value: '^\d+'
+
+  - name: "Hostname is set"
+    command: show_version
+    path: "[0].hostname"
+    condition: matches
+    value: '^\S+'
+
+  # ---- VPC ----------------------------------------------------------------
+  - name: "VPC peer link status is up"
+    command: show_vpc_brief
+    path: "[*].status"
+    condition: not_contains
+    value: "down"
+
+  # ---- Interfaces ---------------------------------------------------------
+  - name: "No interface description contains DECOM"
+    command: show_interface_description
+    path: "[*].description"
+    condition: not_contains
+    value: "DECOM"
+
+  # ---- Multicast ----------------------------------------------------------
+  - name: "Multicast routes present"
+    command: show_ip_mroute_summary
+    path: "vrfs[*].summary.total_routes"
+    condition: gt
+    value: 0
+
+  # ---- OSPF ---------------------------------------------------------------
+  - name: "All OSPF neighbors in FULL state"
+    command: show_ip_ospf_neighbors
+    path: "neighbors[*].state"
+    condition: matches
+    value: "^FULL"
+
+  # ---- PIM ----------------------------------------------------------------
+  - name: "PIM neighbors present"
+    command: show_ip_pim_neigh
+    path: "[*].NEIGHBOR"
+    condition: matches
+    value: '^\d+\.\d+\.\d+\.\d+$'
