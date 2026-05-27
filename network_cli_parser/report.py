@@ -2,8 +2,11 @@
 Network CLI Report Generator
 
 Usage:
-    python report.py delta  --before <old.json> --after <new.json> [--output delta.json]
-    python report.py health --snapshot <snap.json> --checks <checks.yaml> [--output health.json]
+    python report.py delta  --before <old.json> --after <new.json> [--output delta.json|delta.html]
+    python report.py health --snapshot <snap.json> --checks <checks.yaml> [--output health.json|health.html]
+
+Output format is inferred from the --output extension (.html or .json).
+When --output is omitted, JSON is printed to stdout.
 """
 
 import argparse
@@ -15,6 +18,7 @@ import yaml
 
 from utils.delta import compute_delta
 from utils.health import evaluate_checks
+from utils import html_report
 
 
 def _load_json(path: str) -> dict:
@@ -31,6 +35,10 @@ def _write_output(data: dict, output: str | None) -> None:
         print(f"  -> {output}")
     else:
         print(text)
+
+
+def _is_html(path: str | None) -> bool:
+    return bool(path and path.lower().endswith(".html"))
 
 
 # ---------------------------------------------------------------------------
@@ -71,7 +79,13 @@ def cmd_delta(args: argparse.Namespace) -> None:
                 print(f"            after:  {diff['after']}")
 
     print()
-    _write_output(report, args.output)
+    if _is_html(args.output):
+        out = Path(args.output)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(html_report.render_delta(report, before, after), encoding="utf-8")
+        print(f"  -> {args.output}")
+    else:
+        _write_output(report, args.output)
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +122,13 @@ def cmd_health(args: argparse.Namespace) -> None:
             print(f"          note: {r['note']}")
 
     print()
-    _write_output(report, args.output)
+    if _is_html(args.output):
+        out = Path(args.output)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(html_report.render_health(report, snapshot), encoding="utf-8")
+        print(f"  -> {args.output}")
+    else:
+        _write_output(report, args.output)
 
     if s["failed"] > 0 or s["error"] > 0:
         sys.exit(1)
