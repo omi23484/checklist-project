@@ -321,14 +321,20 @@ def _health_check_list(results: list) -> str:
         check  = r.get("check", {})
         cmd    = check.get("command", "")
         path   = check.get("path", "")
-        cond   = check.get("condition", "")
-        val    = check.get("value", "")
+        cond       = check.get("condition", "")
+        val        = check.get("value", "")
+        match_mode = check.get("match", "all")
+        match_tag  = (
+            f' <span style="font-size:.65rem;background:#ede9fe;color:#7c3aed;'
+            f'padding:1px 5px;border-radius:3px;font-weight:700">match:{match_mode}</span>'
+            if match_mode != "all" else ""
+        )
 
         detail_rows = f"""
 <div class="dg">
   <span class="dk">Command</span><code>{_e(cmd)}</code>
   <span class="dk">Path</span><code>{_e(path)}</code>
-  <span class="dk">Condition</span><code>{_e(cond)} {_e(str(val))}</code>
+  <span class="dk">Condition</span><code>{_e(cond)} {_e(str(val))}</code>{match_tag}
 </div>"""
 
         extra = ""

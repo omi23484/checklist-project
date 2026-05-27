@@ -487,6 +487,28 @@ When `[*]` expands multiple values, `contains`/`not_contains` and `matches` chec
 | `not_contains` | no value contains expected substring |
 | `matches` | value matches expected regex (full `re.search`) |
 
+### `match` field — any vs all
+
+When a path uses `[*]` and expands to multiple values, the optional `match` field controls how many must satisfy the condition.
+
+| `match` value | Default? | Passes when |
+|---------------|----------|-------------|
+| `all` | Yes | **Every** expanded value satisfies the condition |
+| `any` | No | **At least one** expanded value satisfies the condition |
+
+Use `match: any` when you want a check that passes as long as at least one instance is healthy (e.g. at least one IKE peer is `Established`).
+
+```yaml
+- name: "At least one IKE peer is Established"
+  command: show_crypto_gkm_ks_coop_detail
+  path: "goid[*].peer[*].ike_status"
+  condition: matches
+  value: "Established"
+  match: any
+```
+
+Omitting `match` (or setting it to `all`) preserves the original behaviour — all values must pass.
+
 ### 12.3 Full Example
 
 ```yaml
