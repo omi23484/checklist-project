@@ -6,6 +6,9 @@ Usage:
     python report.py delta-all  --before-dir <dir> --after-dir <dir> [--output-dir out/] [--format html|json|both]
     python report.py health     --snapshot <snap.json> --checks <checks.yaml> [--device-checks <dev.yaml>] [--output out.html]
     python report.py health-all --dir <dir> --default-checks <checks.yaml> [--device-checks-dir <dir>] [--output-dir out/] [--format html|json|both]
+    python report.py baseline   --snapshot <snap.json> [--output checks/baseline.yaml]
+    python report.py collect    --devices <devices.yaml> [--raw-dir data/raw/] [--output-dir data/json/] [--password <pw>]
+    python report.py collect    --from-dir <dir> [--output-dir data/json/]
 
 Output format is inferred from the --output extension (.html or .json).
 When --output is omitted, JSON is printed to stdout.
@@ -14,6 +17,8 @@ When --output is omitted, JSON is printed to stdout.
 import argparse
 import json
 import sys
+import tempfile
+from datetime import datetime
 from pathlib import Path
 
 import yaml
@@ -242,7 +247,7 @@ def cmd_health(args: argparse.Namespace) -> None:
         _write_output(report, args.output)
 
     s = report["summary"]
-    if s["failed"] > 0 or s["error"] > 0:
+    if s.get("failed_critical", s["failed"]) > 0 or s["error"] > 0:
         sys.exit(1)
 
 
@@ -253,10 +258,15 @@ def _print_health_summary(report: dict) -> None:
     print(f"  host:      {meta.get('hostname', '?')}")
     print(f"  timestamp: {meta.get('collection_time', '?')}")
     print(f"  checks:    {s['total']}  passed: {s['passed']}  failed: {s['failed']}  error: {s['error']}")
+    fc, fw, fi = s.get("failed_critical", 0), s.get("failed_warn", 0), s.get("failed_info", 0)
+    if s["failed"] > 0:
+        print(f"             critical: {fc}  warn: {fw}  info: {fi}")
     print()
     for r in report["results"]:
-        status = r["status"].upper()
-        print(f"  [{status:5s}] {r['name']}")
+        status   = r["status"].upper()
+        severity = r.get("severity", "critical")
+        sev_tag  = f" [{severity}]" if severity != "critical" else ""
+        print(f"  [{status:5s}]{sev_tag} {r['name']}")
         if r["status"] == "fail":
             for f in r.get("failures", []):
                 print(f"          path:    {f['path']}")
@@ -298,7 +308,7 @@ def cmd_health_all(args: argparse.Namespace) -> None:
         report = evaluate_checks(snap, checks)
         s      = report["summary"]
 
-        if s["failed"] > 0 or s["error"] > 0:
+        if s.get("failed_critical", s["failed"]) > 0 or s["error"] > 0:
             any_failure = True
 
         report_path = None
@@ -330,6 +340,159 @@ def cmd_health_all(args: argparse.Namespace) -> None:
     print(f"  -> {index_path}")
 
     if any_failure:
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# baseline subcommand
+# ---------------------------------------------------------------------------
+
+def cmd_baseline(args: argparse.Namespace) -> None:
+    snapshot = _load_json(args.snapshot)
+    meta     = snapshot.get("metadata", {})
+    commands = snapshot.get("commands", {})
+    hostname = meta.get("hostname", "unknown")
+    snap_src = Path(args.snapshot).name
+
+    checks = []
+    cmd_count = 0
+
+    for cmd_key, data in sorted(commands.items()):
+        if data.get("status") != "parsed":
+            continue
+        parsed = data.get("parsed", {})
+
+        rows = None
+        path_prefix = None
+
+        if isinstance(parsed, list) and parsed and isinstance(parsed[0], dict):
+            rows = parsed[0]
+            path_prefix = "[0]"
+        elif isinstance(parsed, dict):
+            rows = {k: v for k, v in parsed.items() if isinstance(v, (str, int, float, bool))}
+            path_prefix = ""
+
+        if not rows:
+            continue
+
+        cmd_checks = 0
+        for field, value in rows.items():
+            if not isinstance(value, (str, int, float, bool)):
+                continue
+            path = f"{path_prefix}.{field}" if path_prefix else field
+            checks.append({
+                "name":      f"[{cmd_key}] {field} baseline",
+                "command":   cmd_key,
+                "path":      path,
+                "condition": "eq",
+                "value":     value,
+                "severity":  "warn",
+            })
+            cmd_checks += 1
+
+        if cmd_checks:
+            cmd_count += 1
+
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    header = (
+        f"# AUTO-GENERATED baseline — review before use.\n"
+        f"# Delete or adjust dynamic fields (counters, uptime, timestamps).\n"
+        f"# Generated: {ts}  Source: {snap_src}  Host: {hostname}\n\n"
+    )
+    body = yaml.dump({"checks": checks}, default_flow_style=False, allow_unicode=True, sort_keys=False)
+    out_text = header + body
+
+    if args.output:
+        out = Path(args.output)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(out_text, encoding="utf-8")
+        print(f"\nGenerated {len(checks)} checks across {cmd_count} commands -> {args.output}")
+    else:
+        print(out_text)
+        print(f"# Generated {len(checks)} checks across {cmd_count} commands")
+
+
+# ---------------------------------------------------------------------------
+# collect subcommand
+# ---------------------------------------------------------------------------
+
+def _load_devices_yaml(path: str) -> list:
+    """Load devices.yaml; merge top-level defaults into each device entry."""
+    with open(path, encoding="utf-8") as fh:
+        data = yaml.safe_load(fh)
+    defaults = data.get("defaults", {})
+    return [{**defaults, **dev} for dev in data.get("devices", [])]
+
+
+def _load_platform_commands() -> dict:
+    """Return {platform: [raw_command_str]} for all non-raw_only registered commands."""
+    from parsers.command_mapper import _REGISTRY
+    from utils.normalization import denormalize_command
+    result = {}
+    for platform, cmds in _REGISTRY.items():
+        result[platform] = [
+            denormalize_command(norm_cmd)
+            for norm_cmd, strategy in cmds.items()
+            if isinstance(strategy, dict) and strategy.get("parser") != "raw_only"
+        ]
+    return result
+
+
+def cmd_collect(args: argparse.Namespace) -> None:
+    from utils import collector
+
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    if getattr(args, "from_dir", None):
+        # Offline mode — parse existing .txt dumps
+        import main as _main
+        txt_files = sorted(Path(args.from_dir).glob("*.txt"))
+        if not txt_files:
+            print(f"No .txt files found in {args.from_dir}")
+            sys.exit(1)
+        print(f"\nCollect (offline): {len(txt_files)} file(s) from {args.from_dir}\n")
+        for txt in txt_files:
+            print(f"\nProcessing: {txt.name}")
+            _main.process_file(str(txt), str(output_dir))
+        return
+
+    # SSH mode
+    if not collector.HAS_NETMIKO:
+        print("ERROR: netmiko is not installed.\n  pip install netmiko")
+        sys.exit(1)
+
+    devices  = _load_devices_yaml(args.devices)
+    if args.password:
+        for dev in devices:
+            dev["password"] = args.password
+
+    platform_commands = _load_platform_commands()
+    ts      = datetime.now().strftime("%d-%b-%y")
+    raw_dir = Path(args.raw_dir) if args.raw_dir else None
+
+    print(f"\nCollect (SSH): {len(devices)} device(s)\n")
+
+    import main as _main
+    failed = []
+    for dev in devices:
+        hostname = dev["hostname"]
+        platform = dev.get("platform", "cisco_ios")
+        cmds     = dev.get("commands") or platform_commands.get(platform, [])
+        eff_raw  = raw_dir or output_dir
+
+        print(f"  {hostname} ({dev.get('host', '?')}) ...", end=" ", flush=True)
+        try:
+            outputs = collector.collect_device(dev, cmds)
+            txt     = collector.write_txt_dump(hostname, ts, outputs, eff_raw)
+            _main.process_file(str(txt), str(output_dir))
+            print(f"OK ({len(outputs)} commands)")
+        except Exception as exc:
+            print(f"FAILED: {exc}")
+            failed.append(hostname)
+
+    if failed:
+        print(f"\n  [WARN] Failed: {', '.join(failed)}")
         sys.exit(1)
 
 
@@ -392,6 +555,22 @@ def main() -> None:
     p_hall.add_argument("--format", choices=["html", "json", "both"], default="html",
                         help="Per-device report format (default: html)")
     p_hall.set_defaults(func=cmd_health_all)
+
+    # baseline
+    p_base = sub.add_parser("baseline", help="Auto-generate check YAML from a snapshot's current values")
+    p_base.add_argument("--snapshot", required=True, help="Snapshot JSON file")
+    p_base.add_argument("--output",   default=None,  help="Output YAML file; default: stdout")
+    p_base.set_defaults(func=cmd_baseline)
+
+    # collect
+    p_col = sub.add_parser("collect", help="Collect snapshots via SSH or process existing .txt dumps")
+    grp = p_col.add_mutually_exclusive_group(required=True)
+    grp.add_argument("--devices",  help="devices.yaml (SSH mode)")
+    grp.add_argument("--from-dir", help="Directory of .txt dumps (offline mode)")
+    p_col.add_argument("--raw-dir",    default=None,         help="Where to write .txt dumps (SSH mode; default: output-dir)")
+    p_col.add_argument("--output-dir", default="data/json/", help="Where to write JSON snapshots (default: data/json/)")
+    p_col.add_argument("--password",   default=None,         help="Override password for all devices (SSH mode)")
+    p_col.set_defaults(func=cmd_collect)
 
     args = parser.parse_args()
     args.func(args)

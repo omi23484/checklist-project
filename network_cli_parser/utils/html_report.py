@@ -162,6 +162,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 .badge.clean{background:var(--pass-bg);color:var(--pass)}
 .badge.warn,.badge.unmatched{background:var(--warn-bg);color:var(--warn)}
 .badge.unchanged{background:#f1f5f9;color:var(--muted)}
+.badge.sev-warn{background:var(--warn-bg);color:var(--warn)}
+.badge.sev-info{background:var(--info-bg);color:var(--info)}
 
 /* ---- raw output blocks ---- */
 .raw-list{display:flex;flex-direction:column;gap:8px}
@@ -316,11 +318,12 @@ def _health_check_list(results: list) -> str:
         return "<p style='color:var(--muted)'>No checks defined.</p>"
     items = []
     for r in results:
-        status = r.get("status", "error")
-        name   = r.get("name", "(unnamed)")
-        check  = r.get("check", {})
-        cmd    = check.get("command", "")
-        path   = check.get("path", "")
+        status   = r.get("status", "error")
+        name     = r.get("name", "(unnamed)")
+        check    = r.get("check", {})
+        cmd      = check.get("command", "")
+        path     = check.get("path", "")
+        severity = r.get("severity", "critical")
         cond       = check.get("condition", "")
         val        = check.get("value", "")
         match_mode = check.get("match", "all")
@@ -329,6 +332,7 @@ def _health_check_list(results: list) -> str:
             f'padding:1px 5px;border-radius:3px;font-weight:700">match:{match_mode}</span>'
             if match_mode != "all" else ""
         )
+        sev_badge = f" {_badge('sev-' + severity, severity.upper())}" if severity != "critical" else ""
 
         detail_rows = f"""
 <div class="dg">
@@ -358,7 +362,7 @@ def _health_check_list(results: list) -> str:
         items.append(f"""
 <div class="check-card {_e(status)}">
   <div class="check-hdr">
-    {_badge(status)}
+    {_badge(status)}{sev_badge}
     <span class="check-name">{_e(name)}</span>
     <span class="check-cmd">{_e(cmd)}</span>
   </div>
