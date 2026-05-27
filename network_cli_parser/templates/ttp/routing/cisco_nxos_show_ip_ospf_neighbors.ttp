@@ -1,0 +1,3 @@
+<group name="neighbors">
+{{ neighbor_id }}  {{ priority }}  {{ state | re("\\S+/\\s*\\S*") }}  {{ uptime }}  {{ address }}  {{ interface }}
+</group>

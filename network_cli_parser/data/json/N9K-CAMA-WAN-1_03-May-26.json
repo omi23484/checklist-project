@@ -375,9 +375,28 @@
       "parsed": {}
     },
     "show_ip_ospf_neighbors": {
-      "status": "partial",
+      "status": "parsed",
       "raw": "\nOSPF Process ID 1 VRF default\nTotal number of neighbors: 2\n\nNeighbor ID     Pri State            Up Time  Address         Interface\n10.0.0.2          1 FULL/ -         2w3d     10.0.0.2        Eth1/1\n10.0.0.6          1 FULL/ -         2w3d     10.0.0.6        Eth1/2",
-      "parsed": []
+      "parsed": {
+        "neighbors": [
+          {
+            "neighbor_id": "10.0.0.2",
+            "priority": "1",
+            "state": "FULL/ -",
+            "uptime": "2w3d",
+            "address": "10.0.0.2",
+            "interface": "Eth1/1"
+          },
+          {
+            "neighbor_id": "10.0.0.6",
+            "priority": "1",
+            "state": "FULL/ -",
+            "uptime": "2w3d",
+            "address": "10.0.0.6",
+            "interface": "Eth1/2"
+          }
+        ]
+      }
     },
     "show_ip_pim_rp": {
       "status": "parsed",

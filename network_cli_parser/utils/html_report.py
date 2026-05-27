@@ -1,0 +1,731 @@
+"""Self-contained HTML report renderer for health and delta reports."""
+
+import html as _html
+import json
+from datetime import datetime
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _e(text) -> str:
+    return _html.escape(str(text) if text is not None else "")
+
+
+def _badge(cls: str, label: str | None = None) -> str:
+    return f'<span class="badge {_e(cls)}">{_e(label or cls.upper())}</span>'
+
+
+def _json_block(data) -> str:
+    return f'<pre class="raw-output">{_e(json.dumps(data, indent=2))}</pre>'
+
+
+def _raw_block(cmd: str, status: str, raw_text: str, extra_html: str = "") -> str:
+    return f"""
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">{_e(cmd)}</span>
+    {_badge(status)}
+  </summary>
+  <pre class="raw-output">{_e(raw_text.strip())}</pre>
+  {extra_html}
+</details>"""
+
+
+# ---------------------------------------------------------------------------
+# CSS + JS (embedded, no external deps)
+# ---------------------------------------------------------------------------
+
+_CSS = """
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f1f5f9;--surface:#fff;--border:#e2e8f0;
+  --text:#0f172a;--muted:#64748b;--faint:#94a3b8;
+  --pass:#16a34a;--pass-bg:#dcfce7;
+  --fail:#dc2626;--fail-bg:#fee2e2;
+  --warn:#d97706;--warn-bg:#fef3c7;
+  --info:#2563eb;--info-bg:#dbeafe;
+  --added:#059669;--added-bg:#d1fae5;
+  --removed:#dc2626;--removed-bg:#fee2e2;
+  --changed:#7c3aed;--changed-bg:#ede9fe;
+  --code-bg:#0f172a;--code-fg:#e2e8f0;
+  --r:8px;--r-sm:4px;--r-lg:12px;
+  --sh:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+  --sh-sm:0 1px 2px rgba(0,0,0,.05)
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:var(--text);line-height:1.5;font-size:14px}
+
+/* ---- header ---- */
+.page-header{
+  background:linear-gradient(135deg,#1e293b 0%,#334155 100%);
+  color:#f8fafc;padding:20px 32px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:16px;flex-wrap:wrap
+}
+.header-left h1{font-size:1.2rem;font-weight:700;letter-spacing:-.02em;margin-bottom:2px}
+.header-left .sub{font-size:.78rem;color:#94a3b8}
+.header-right{font-size:.78rem;color:#94a3b8;text-align:right}
+
+/* ---- layout ---- */
+.container{max-width:1080px;margin:0 auto;padding:28px 24px}
+
+/* ---- stat cards ---- */
+.summary-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+  gap:12px;margin-bottom:32px
+}
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:16px 18px;box-shadow:var(--sh)
+}
+.stat-card .lbl{font-size:.68rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--faint);margin-bottom:4px}
+.stat-card .val{font-size:2rem;font-weight:800;line-height:1}
+.stat-card.total  .val{color:var(--text)}
+.stat-card.pass   .val{color:var(--pass)}
+.stat-card.fail   .val{color:var(--fail)}
+.stat-card.error  .val{color:var(--warn)}
+.stat-card.added  .val{color:var(--added)}
+.stat-card.removed .val{color:var(--removed)}
+.stat-card.changed .val{color:var(--changed)}
+.stat-card.unchanged .val{color:var(--muted)}
+
+/* ---- section title ---- */
+.sec-title{
+  font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--faint);margin:28px 0 10px;padding-bottom:7px;border-bottom:1px solid var(--border)
+}
+
+/* ---- toolbar ---- */
+.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.toolbar-label{font-size:.78rem;color:var(--muted)}
+.btn{
+  font-size:.75rem;font-weight:500;padding:5px 12px;
+  border:1px solid var(--border);border-radius:6px;
+  background:var(--surface);cursor:pointer;color:var(--text);line-height:1
+}
+.btn:hover{background:#f8fafc;border-color:#cbd5e1}
+
+/* ---- check cards ---- */
+.check-list{display:flex;flex-direction:column;gap:8px}
+.check-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-left:4px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-sm)
+}
+.check-card.pass {border-left-color:var(--pass)}
+.check-card.fail {border-left-color:var(--fail)}
+.check-card.error{border-left-color:var(--warn)}
+.check-hdr{display:flex;align-items:center;gap:10px;padding:11px 15px;flex-wrap:wrap}
+.check-name{font-weight:500;flex:1}
+.check-cmd{
+  font-family:'SFMono-Regular',Consolas,monospace;font-size:.72rem;
+  color:var(--muted);background:#f8fafc;border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:2px 6px
+}
+.check-body{padding:2px 15px 12px}
+
+/* detail grid inside check cards */
+.dg{display:grid;grid-template-columns:max-content 1fr;gap:3px 14px;font-size:.82rem}
+.dg .dk{
+  color:var(--faint);font-size:.7rem;text-transform:uppercase;
+  letter-spacing:.05em;font-weight:600;padding-top:1px
+}
+.dg code{
+  font-family:'SFMono-Regular',Consolas,monospace;
+  background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:.82em;word-break:break-all
+}
+
+/* failures */
+.failure-row{
+  background:var(--fail-bg);border-radius:var(--r-sm);
+  padding:8px 11px;margin-bottom:5px;font-size:.8rem
+}
+.failure-row .fp{font-family:monospace;color:var(--fail);font-weight:600;margin-bottom:2px}
+.failure-row .fa{margin-bottom:1px}
+.failure-row .fa span{font-family:monospace}
+.failure-row .fr{color:#7f1d1d;font-size:.78rem}
+
+/* badge */
+.badge{
+  font-size:.62rem;font-weight:800;letter-spacing:.07em;
+  padding:3px 7px;border-radius:var(--r-sm);white-space:nowrap;flex-shrink:0
+}
+.badge.PASS,.badge.pass,.badge.parsed{background:var(--pass-bg);color:var(--pass)}
+.badge.FAIL,.badge.fail,.badge.failed{background:var(--fail-bg);color:var(--fail)}
+.badge.ERROR,.badge.error,.badge.partial{background:var(--warn-bg);color:var(--warn)}
+.badge.raw_only,.badge.no_template{background:var(--info-bg);color:var(--info)}
+.badge.added{background:var(--added-bg);color:var(--added)}
+.badge.removed{background:var(--removed-bg);color:var(--removed)}
+.badge.changed{background:var(--changed-bg);color:var(--changed)}
+.badge.clean{background:var(--pass-bg);color:var(--pass)}
+.badge.warn,.badge.unmatched{background:var(--warn-bg);color:var(--warn)}
+.badge.unchanged{background:#f1f5f9;color:var(--muted)}
+
+/* ---- raw output blocks ---- */
+.raw-list{display:flex;flex-direction:column;gap:8px}
+details.raw-block{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);box-shadow:var(--sh-sm);overflow:hidden
+}
+details.raw-block>summary{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 15px;cursor:pointer;user-select:none;list-style:none
+}
+details.raw-block>summary::-webkit-details-marker{display:none}
+.arrow-icon{
+  font-size:.6rem;color:var(--faint);
+  transition:transform .15s ease;display:inline-block;flex-shrink:0;width:12px
+}
+details[open]>summary .arrow-icon{transform:rotate(90deg)}
+.summary-cmd{font-family:'SFMono-Regular',Consolas,monospace;font-size:.85rem;font-weight:500;flex:1}
+pre.raw-output{
+  background:var(--code-bg);color:var(--code-fg);
+  padding:14px 18px;margin:0;overflow-x:auto;
+  font-size:.77rem;line-height:1.65;
+  font-family:'SFMono-Regular',Consolas,'Courier New',monospace;
+  white-space:pre;border-top:1px solid #1e3a5f
+}
+
+/* ---- delta specific ---- */
+.meta-compare{
+  display:grid;grid-template-columns:1fr auto 1fr;
+  gap:14px;align-items:center;margin-bottom:28px
+}
+.meta-box{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:15px 18px;box-shadow:var(--sh-sm)
+}
+.meta-box .mb-label{
+  font-size:.68rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--faint);margin-bottom:6px
+}
+.meta-box .mb-host{font-size:.95rem;font-weight:600;margin-bottom:3px}
+.meta-box .mb-ts{font-size:.82rem;color:var(--muted)}
+.meta-arrow{font-size:1.4rem;color:var(--faint);text-align:center}
+
+.cmd-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-left:4px solid var(--border);border-radius:var(--r);
+  box-shadow:var(--sh-sm);margin-bottom:10px;overflow:hidden
+}
+.cmd-card.changed {border-left-color:var(--changed)}
+.cmd-card.added   {border-left-color:var(--added)}
+.cmd-card.removed {border-left-color:var(--removed)}
+.cmd-hdr{display:flex;align-items:center;gap:10px;padding:11px 15px}
+.cmd-name{font-family:monospace;font-size:.88rem;font-weight:500;flex:1}
+.diff-count{font-size:.75rem;color:var(--muted)}
+
+.diff-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.diff-table th{
+  text-align:left;padding:7px 15px;
+  background:#f8fafc;border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--faint)
+}
+.diff-table td{padding:7px 15px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+.diff-table tr:last-child td{border-bottom:none}
+.diff-table .dp{font-family:monospace;color:var(--muted);font-size:.79rem}
+.diff-table .db{font-family:monospace;color:var(--fail)}
+.diff-table .da{font-family:monospace;color:var(--pass)}
+.diff-table .null{color:var(--faint);font-style:italic;font-family:sans-serif;font-size:.8rem}
+
+.pill-list{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}
+.pill{font-family:monospace;font-size:.78rem;padding:3px 9px;border-radius:var(--r-sm)}
+.pill.added  {background:var(--added-bg);  color:var(--added)}
+.pill.removed{background:var(--removed-bg);color:var(--removed)}
+
+@media(max-width:640px){
+  .page-header{padding:14px 18px}
+  .container{padding:18px 14px}
+  .meta-compare{grid-template-columns:1fr}
+  .meta-arrow{display:none}
+}
+"""
+
+_JS = """
+function setAllRaw(open) {
+  document.querySelectorAll('details.raw-block').forEach(d => { d.open = open; });
+}
+"""
+
+
+def _page(title: str, body: str) -> str:
+    ts = datetime.now().strftime("%Y-%m-%d %H:%M")
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{_e(title)}</title>
+<style>{_CSS}</style>
+</head>
+<body>
+{body}
+<script>{_JS}</script>
+</body>
+</html>"""
+
+
+# ---------------------------------------------------------------------------
+# Health report
+# ---------------------------------------------------------------------------
+
+def render_health(report: dict, snapshot: dict) -> str:
+    meta = report.get("metadata", {})
+    s    = report.get("summary", {})
+    hostname = meta.get("hostname", "Unknown")
+    ts       = meta.get("collection_time", "")
+
+    # Summary cards
+    cards = _summary_cards([
+        ("total",   "Total",   s.get("total",  0)),
+        ("pass",    "Passed",  s.get("passed", 0)),
+        ("fail",    "Failed",  s.get("failed", 0)),
+        ("error",   "Errors",  s.get("error",  0)),
+    ])
+
+    # Check result cards
+    checks_html = _health_check_list(report.get("results", []))
+
+    # Raw output section (all commands in snapshot)
+    raw_html = _raw_outputs_section(snapshot.get("commands", {}))
+
+    body = f"""
+<div class="page-header">
+  <div class="header-left">
+    <h1>Health Report</h1>
+    <div class="sub">{_e(hostname)} &nbsp;·&nbsp; {_e(ts)}</div>
+  </div>
+  <div class="header-right">
+    Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}
+  </div>
+</div>
+<div class="container">
+  {cards}
+  <div class="sec-title">Check Results</div>
+  {checks_html}
+  {raw_html}
+</div>"""
+
+    return _page(f"Health Report — {hostname}", body)
+
+
+def _health_check_list(results: list) -> str:
+    if not results:
+        return "<p style='color:var(--muted)'>No checks defined.</p>"
+    items = []
+    for r in results:
+        status = r.get("status", "error")
+        name   = r.get("name", "(unnamed)")
+        check  = r.get("check", {})
+        cmd    = check.get("command", "")
+        path   = check.get("path", "")
+        cond   = check.get("condition", "")
+        val    = check.get("value", "")
+
+        detail_rows = f"""
+<div class="dg">
+  <span class="dk">Command</span><code>{_e(cmd)}</code>
+  <span class="dk">Path</span><code>{_e(path)}</code>
+  <span class="dk">Condition</span><code>{_e(cond)} {_e(str(val))}</code>
+</div>"""
+
+        extra = ""
+        if status == "fail":
+            failures = r.get("failures", [])
+            rows = "".join(
+                f"""<div class="failure-row">
+  <div class="fp">{_e(f["path"])}</div>
+  <div class="fa">Actual: <span>{_e(str(f["actual"]))}</span></div>
+  <div class="fr">{_e(f["message"])}</div>
+</div>"""
+                for f in failures
+            )
+            extra = f'<div class="failures">{rows}</div>'
+        elif status == "error":
+            msg = r.get("message", "")
+            extra = f'<div class="failure-row"><div class="fr">{_e(msg)}</div></div>'
+        elif r.get("note"):
+            extra = f'<div style="font-size:.78rem;color:var(--muted);margin-top:4px">ℹ {_e(r["note"])}</div>'
+
+        items.append(f"""
+<div class="check-card {_e(status)}">
+  <div class="check-hdr">
+    {_badge(status)}
+    <span class="check-name">{_e(name)}</span>
+    <span class="check-cmd">{_e(cmd)}</span>
+  </div>
+  <div class="check-body">{detail_rows}{extra}</div>
+</div>""")
+
+    return f'<div class="check-list">{"".join(items)}</div>'
+
+
+# ---------------------------------------------------------------------------
+# Delta report
+# ---------------------------------------------------------------------------
+
+def render_delta(report: dict, before_snap: dict, after_snap: dict) -> str:
+    b_meta = report["metadata"].get("before", {})
+    a_meta = report["metadata"].get("after",  {})
+    s      = report.get("summary", {})
+    hostname = b_meta.get("hostname", a_meta.get("hostname", "Unknown"))
+
+    # Metadata comparison header
+    meta_html = f"""
+<div class="meta-compare">
+  <div class="meta-box">
+    <div class="mb-label">Before</div>
+    <div class="mb-host">{_e(b_meta.get("hostname","?"))}</div>
+    <div class="mb-ts">{_e(b_meta.get("collection_time","?"))}</div>
+  </div>
+  <div class="meta-arrow">→</div>
+  <div class="meta-box">
+    <div class="mb-label">After</div>
+    <div class="mb-host">{_e(a_meta.get("hostname","?"))}</div>
+    <div class="mb-ts">{_e(a_meta.get("collection_time","?"))}</div>
+  </div>
+</div>"""
+
+    cards = _summary_cards([
+        ("added",     "Added",     len(s.get("commands_added",    []))),
+        ("removed",   "Removed",   len(s.get("commands_removed",  []))),
+        ("changed",   "Changed",   len(s.get("commands_changed",  []))),
+        ("unchanged", "Unchanged", len(s.get("commands_unchanged",[]))),
+    ])
+
+    # Added / removed pills
+    added_pills   = _pill_list(s.get("commands_added",   []), "added")
+    removed_pills = _pill_list(s.get("commands_removed", []), "removed")
+    pills_html = ""
+    if added_pills or removed_pills:
+        pills_html = f"""
+<div class="sec-title">Added &amp; Removed Commands</div>
+{added_pills}{removed_pills}"""
+
+    # Changed commands with diffs
+    changes_html = _delta_changes(report.get("changes", {}))
+
+    # Raw outputs from "after" snapshot (changed commands only, then all others)
+    changed_keys = set(report.get("changes", {}).keys())
+    after_cmds   = after_snap.get("commands", {})
+    before_cmds  = before_snap.get("commands", {})
+    raw_html     = _delta_raw_section(changed_keys, before_cmds, after_cmds)
+
+    body = f"""
+<div class="page-header">
+  <div class="header-left">
+    <h1>Delta Report</h1>
+    <div class="sub">{_e(hostname)} &nbsp;·&nbsp; {_e(b_meta.get("collection_time","?"))} → {_e(a_meta.get("collection_time","?"))}</div>
+  </div>
+  <div class="header-right">
+    Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}
+  </div>
+</div>
+<div class="container">
+  {meta_html}
+  {cards}
+  {pills_html}
+  {changes_html}
+  {raw_html}
+</div>"""
+
+    return _page(f"Delta Report — {hostname}", body)
+
+
+def _delta_changes(changes: dict) -> str:
+    if not changes:
+        return ""
+
+    items = []
+    for cmd, data in sorted(changes.items()):
+        diffs = data.get("diffs", [])
+        rows  = "".join(
+            f"""<tr>
+  <td class="dp">{_e(d["path"])}</td>
+  <td class="db">{_e_val(d["before"])}</td>
+  <td class="da">{_e_val(d["after"])}</td>
+</tr>"""
+            for d in diffs
+        )
+        items.append(f"""
+<div class="cmd-card changed">
+  <div class="cmd-hdr">
+    {_badge("changed")}
+    <span class="cmd-name">{_e(cmd)}</span>
+    <span class="diff-count">{len(diffs)} diff(s)</span>
+  </div>
+  <table class="diff-table">
+    <thead><tr><th>Path</th><th>Before</th><th>After</th></tr></thead>
+    <tbody>{rows}</tbody>
+  </table>
+</div>""")
+
+    return f"""
+<div class="sec-title">Changed Commands</div>
+{"".join(items)}"""
+
+
+def _e_val(v) -> str:
+    if v is None:
+        return '<span class="null">— null —</span>'
+    if isinstance(v, (dict, list)):
+        return f"<code>{_e(json.dumps(v))}</code>"
+    return _e(str(v))
+
+
+def _delta_raw_section(changed_keys: set, before_cmds: dict, after_cmds: dict) -> str:
+    all_keys = sorted(set(before_cmds) | set(after_cmds))
+    if not all_keys:
+        return ""
+
+    blocks = []
+    for cmd in all_keys:
+        if cmd in changed_keys:
+            # Show both before and after side by side for changed commands
+            b = before_cmds.get(cmd, {})
+            a = after_cmds.get(cmd, {})
+            inner = f"""
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#1e3a5f">
+  <div>
+    <div style="background:#1e293b;color:#94a3b8;font-size:.68rem;padding:5px 14px;font-family:monospace;text-transform:uppercase;letter-spacing:.07em">Before</div>
+    <pre class="raw-output" style="border-top:none">{_e(b.get("raw","").strip())}</pre>
+  </div>
+  <div>
+    <div style="background:#1e293b;color:#94a3b8;font-size:.68rem;padding:5px 14px;font-family:monospace;text-transform:uppercase;letter-spacing:.07em">After</div>
+    <pre class="raw-output" style="border-top:none">{_e(a.get("raw","").strip())}</pre>
+  </div>
+</div>"""
+            status = a.get("status", b.get("status", ""))
+            blocks.append(f"""
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">{_e(cmd)}</span>
+    {_badge(status)}
+    {_badge("changed")}
+  </summary>
+  {inner}
+</details>""")
+        else:
+            src = after_cmds.get(cmd) or before_cmds.get(cmd, {})
+            blocks.append(_raw_block(cmd, src.get("status", ""), src.get("raw", "")))
+
+    toolbar = """
+<div class="toolbar">
+  <span class="toolbar-label">Raw output:</span>
+  <button class="btn" onclick="setAllRaw(true)">Expand all</button>
+  <button class="btn" onclick="setAllRaw(false)">Collapse all</button>
+</div>"""
+
+    return f"""
+<div class="sec-title">Raw Command Outputs</div>
+{toolbar}
+<div class="raw-list">{"".join(blocks)}</div>"""
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+def _raw_outputs_section(commands: dict) -> str:
+    if not commands:
+        return ""
+    blocks = [
+        _raw_block(cmd, data.get("status", ""), data.get("raw", ""))
+        for cmd, data in sorted(commands.items())
+    ]
+    toolbar = """
+<div class="toolbar">
+  <span class="toolbar-label">Raw output:</span>
+  <button class="btn" onclick="setAllRaw(true)">Expand all</button>
+  <button class="btn" onclick="setAllRaw(false)">Collapse all</button>
+</div>"""
+    return f"""
+<div class="sec-title">Raw Command Outputs</div>
+{toolbar}
+<div class="raw-list">{"".join(blocks)}</div>"""
+
+
+def _summary_cards(items: list[tuple]) -> str:
+    cards = "".join(
+        f"""<div class="stat-card {_e(cls)}">
+  <div class="lbl">{_e(label)}</div>
+  <div class="val">{_e(str(value))}</div>
+</div>"""
+        for cls, label, value in items
+    )
+    return f'<div class="summary-grid">{cards}</div>'
+
+
+def _pill_list(cmds: list, cls: str) -> str:
+    if not cmds:
+        return ""
+    pills = "".join(
+        f'<span class="pill {_e(cls)}">{_e(cmd)}</span>' for cmd in cmds
+    )
+    return f'<div class="pill-list">{pills}</div>'
+
+
+# ---------------------------------------------------------------------------
+# Shared index-table CSS (scoped, injected once per index page)
+# ---------------------------------------------------------------------------
+
+_INDEX_TABLE_CSS = """
+<style>
+.index-table{width:100%;border-collapse:collapse;font-size:.82rem;
+  background:var(--surface);border-radius:var(--r);overflow:hidden;
+  box-shadow:var(--sh);border:1px solid var(--border)}
+.index-table th{text-align:left;padding:9px 14px;background:#f8fafc;
+  border-bottom:1px solid var(--border);font-size:.68rem;
+  text-transform:uppercase;letter-spacing:.07em;color:var(--faint)}
+.index-table td{padding:8px 14px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.index-table tr:last-child td{border-bottom:none}
+.index-table a{color:var(--info);text-decoration:none}
+.index-table a:hover{text-decoration:underline}
+</style>"""
+
+
+# ---------------------------------------------------------------------------
+# Delta index page
+# ---------------------------------------------------------------------------
+
+def render_delta_index(results: list[dict], before_dir: str, after_dir: str) -> str:
+    """Render an HTML index page summarising all per-device delta reports."""
+    total     = len(results)
+    matched   = sum(1 for r in results if r["status"] == "matched")
+    unmatched = total - matched
+
+    cards = _summary_cards([
+        ("total",   "Devices",   total),
+        ("changed", "Matched",   matched),
+        ("removed", "Unmatched", unmatched),
+    ])
+
+    body = f"""
+<div class="page-header">
+  <div class="header-left">
+    <h1>Delta-All Index</h1>
+    <div class="sub">Before: {_e(before_dir)} &nbsp;→&nbsp; After: {_e(after_dir)}</div>
+  </div>
+  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
+</div>
+<div class="container">
+  {cards}
+  <div class="sec-title">Per-Device Summary</div>
+  {_INDEX_TABLE_CSS}
+  {_delta_index_table(results)}
+</div>"""
+
+    return _page("Delta-All Index", body)
+
+
+def _delta_index_table(results: list[dict]) -> str:
+    rows = []
+    for r in results:
+        hostname = _e(r["hostname"])
+        if r["status"] == "unmatched":
+            side = "after only" if r.get("side") == "after-only" else "before only"
+            rows.append(f"""
+<tr style="opacity:.45">
+  <td><code>{hostname}</code></td>
+  <td>{_badge("unmatched", side.upper())}</td>
+  <td style="color:var(--faint)" colspan="4">—</td>
+  <td style="color:var(--faint)">— no report —</td>
+</tr>""")
+        else:
+            s       = r["summary"]
+            added   = len(s["commands_added"])
+            removed = len(s["commands_removed"])
+            changed = len(s["commands_changed"])
+            unch    = len(s["commands_unchanged"])
+            has_changes = (added + removed + changed) > 0
+            row_style   = "" if has_changes else 'style="opacity:.55"'
+            status_badge = _badge("changed", "CHANGED") if has_changes else _badge("clean", "CLEAN")
+            link = f'<a href="{_e(r["report_path"])}">{_e(r["report_path"])}</a>' if r.get("report_path") else "—"
+            rows.append(f"""
+<tr {row_style}>
+  <td><code>{hostname}</code></td>
+  <td>{status_badge}</td>
+  <td style="color:var(--added)">{added}</td>
+  <td style="color:var(--removed)">{removed}</td>
+  <td style="color:var(--changed)">{changed}</td>
+  <td style="color:var(--muted)">{unch}</td>
+  <td>{link}</td>
+</tr>""")
+
+    return f"""<table class="index-table">
+  <thead><tr>
+    <th>Hostname</th><th>Status</th>
+    <th>Added</th><th>Removed</th><th>Changed</th><th>Unchanged</th>
+    <th>Report</th>
+  </tr></thead>
+  <tbody>{"".join(rows)}</tbody>
+</table>"""
+
+
+# ---------------------------------------------------------------------------
+# Health index page
+# ---------------------------------------------------------------------------
+
+def render_health_index(results: list[dict], snapshot_dir: str) -> str:
+    """Render an HTML index page summarising all per-device health reports."""
+    total    = len(results)
+    all_pass = sum(1 for r in results if r["summary"]["failed"] == 0 and r["summary"]["error"] == 0)
+    failures = total - all_pass
+
+    cards = _summary_cards([
+        ("total",  "Devices",      total),
+        ("pass",   "All Pass",     all_pass),
+        ("fail",   "Has Failures", failures),
+    ])
+
+    body = f"""
+<div class="page-header">
+  <div class="header-left">
+    <h1>Health-All Index</h1>
+    <div class="sub">Snapshots: {_e(snapshot_dir)}</div>
+  </div>
+  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
+</div>
+<div class="container">
+  {cards}
+  <div class="sec-title">Per-Device Summary</div>
+  {_INDEX_TABLE_CSS}
+  {_health_index_table(results)}
+</div>"""
+
+    return _page("Health-All Index", body)
+
+
+def _health_index_table(results: list[dict]) -> str:
+    rows = []
+    for r in results:
+        s        = r["summary"]
+        hostname = _e(r["hostname"])
+        ts       = _e(r.get("timestamp", "?"))
+        clean    = s["failed"] == 0 and s["error"] == 0
+        badge    = _badge("pass", "PASS") if clean else _badge("fail", "FAIL")
+        row_style = 'style="opacity:.55"' if clean else ""
+        link = f'<a href="{_e(r["report_path"])}">{_e(r["report_path"])}</a>' if r.get("report_path") else "—"
+        rows.append(f"""
+<tr {row_style}>
+  <td><code>{hostname}</code></td>
+  <td>{ts}</td>
+  <td>{badge}</td>
+  <td>{s["total"]}</td>
+  <td style="color:var(--pass)">{s["passed"]}</td>
+  <td style="color:var(--fail)">{s["failed"]}</td>
+  <td style="color:var(--warn)">{s["error"]}</td>
+  <td>{link}</td>
+</tr>""")
+
+    return f"""<table class="index-table">
+  <thead><tr>
+    <th>Hostname</th><th>Timestamp</th><th>Status</th>
+    <th>Total</th><th>Passed</th><th>Failed</th><th>Errors</th>
+    <th>Report</th>
+  </tr></thead>
+  <tbody>{"".join(rows)}</tbody>
+</table>"""

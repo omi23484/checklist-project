@@ -1,0 +1,43 @@
+# Per-device health checks for N9K-CAMA-WAN-1
+#
+# These checks are merged with the default checks file.
+# When a check name matches a default check, this version takes precedence.
+# All other checks from the default file are included unchanged.
+#
+# Usage (single device):
+#   python report.py health \
+#     --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
+#     --checks   checks/example_health_checks.yaml \
+#     --device-checks checks/devices/N9K-CAMA-WAN-1.yaml
+#
+# Usage (all devices):
+#   python report.py health-all \
+#     --dir data/json/ \
+#     --default-checks checks/example_health_checks.yaml \
+#     --device-checks-dir checks/devices/
+
+checks:
+
+  # ---- OVERRIDE: VPC check is relaxed for this device -------------------
+  # Default check fails when status contains "down".
+  # This device has a known degraded VPC entry that is accepted;
+  # only a full peer-link failure (status "peer-link down") should alert.
+  - name: "VPC peer link status is up"
+    command: show_vpc_brief
+    path: "[*].status"
+    condition: not_contains
+    value: "peer-link down"
+
+  # ---- DEVICE-SPECIFIC: exact hostname check ----------------------------
+  - name: "Hostname matches expected value"
+    command: show_version
+    path: "[0].hostname"
+    condition: eq
+    value: "N9K-CAMA-WAN-1"
+
+  # ---- DEVICE-SPECIFIC: PIM RP reachability -----------------------------
+  - name: "PIM RP count is non-zero"
+    command: show_ip_pim_rp
+    path: "[*].RP"
+    condition: matches
+    value: '^\d+\.\d+\.\d+\.\d+$'

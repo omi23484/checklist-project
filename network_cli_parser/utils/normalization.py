@@ -4,13 +4,29 @@ import re
 
 _NXOS_PREFIXES = ("N9K", "N7K", "N5K", "N3K", "N2K")
 
+_PIPE_FILTER_RE = re.compile(r'\|\s*(\w+)')
+
 
 def normalize_command(cmd: str) -> str:
-    """Lowercase and collapse whitespace to underscores. Strips pipe filters."""
-    cmd = re.sub(r'\s*\|.*$', '', cmd)  # strip pipe filter
+    """
+    Lowercase and collapse whitespace to underscores.
+
+    Pipe filter TYPE is preserved as a suffix; the argument is dropped.
+    This lets piped variants have their own templates while keeping the
+    key stable across different argument values.
+
+    Examples:
+      'show ip bgp summary'                -> 'show_ip_bgp_summary'
+      'show ip bgp summary | include 65001'-> 'show_ip_bgp_summary_include'
+      'show ip route | grep 10.0.0'        -> 'show_ip_route_grep'
+      'show ip route | exclude Connected'  -> 'show_ip_route_exclude'
+    """
+    pipe_m = _PIPE_FILTER_RE.search(cmd)
+    pipe_suffix = f"_{pipe_m.group(1).lower()}" if pipe_m else ""
+    cmd = re.sub(r'\s*\|.*$', '', cmd)
     cmd = cmd.strip().lower()
     cmd = re.sub(r'\s+', '_', cmd)
-    return cmd
+    return cmd + pipe_suffix
 
 
 def detect_platform(filename: str, content: str) -> str:
