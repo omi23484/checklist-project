@@ -48,7 +48,8 @@ JSON output is written to `data/json/` by default, one file per input.
 
 ```
 network_cli_parser/
-├── main.py                     # Entry point — orchestrates per-file processing
+├── main.py                     # Parser entry point — orchestrates per-file processing
+├── report.py                   # Report generator (delta + health subcommands)
 ├── commands.yaml               # Command registry (platform → command → strategy)
 ├── requirements.txt
 │
@@ -68,7 +69,13 @@ network_cli_parser/
 │
 ├── utils/
 │   ├── normalization.py        # Platform detection, hostname extraction, cmd normalization
-│   └── json_builder.py         # Assembles and writes the JSON snapshot
+│   ├── json_builder.py         # Assembles and writes the JSON snapshot
+│   ├── delta.py                # Field-level diff engine between two snapshots
+│   ├── health.py               # YAML-driven check evaluator against a snapshot
+│   └── html_report.py          # Self-contained HTML renderer for both report types
+│
+├── checks/
+│   └── example_health_checks.yaml   # Starter health check definitions
 │
 └── data/
     ├── raw/                    # Input CLI dump .txt files
@@ -370,3 +377,223 @@ Keys are raw command strings (spaces, not underscores). The mapper normalizes th
 | Piped command variant | Drop `{platform}_{cmd}_{filter_type}.textfsm/.ttp`; no YAML edit needed |
 | Command that should never be parsed | Register with `parser: raw_only` in YAML |
 | Hierarchical multicast (VRF nesting) | Register with `parser: hierarchical`, add function to multicast_parser.py |
+
+---
+
+## 11. Report Generator (`report.py`)
+
+`report.py` operates on JSON snapshots produced by `main.py`. It provides two subcommands:
+
+| Subcommand | Purpose |
+|------------|---------|
+| `delta`  | Field-level diff between a before and after snapshot |
+| `health` | Evaluate a YAML check file against a single snapshot |
+
+Output format is controlled by the `--output` file extension:
+
+| Extension | Output |
+|-----------|--------|
+| `.json` | Machine-readable JSON (also printed to stdout when `--output` is omitted) |
+| `.html` | Self-contained HTML report with formatted results and expandable raw output |
+
+```bash
+cd network_cli_parser
+
+# Health check — JSON to stdout
+python report.py health \
+  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
+  --checks   checks/example_health_checks.yaml
+
+# Health check — save HTML report
+python report.py health \
+  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
+  --checks   checks/example_health_checks.yaml \
+  --output   reports/health.html
+
+# Delta between two snapshots — HTML
+python report.py delta \
+  --before data/json/N9K-CAMA-WAN-1_03-May-26.json \
+  --after  data/json/N9K-CAMA-WAN-1_04-May-26.json \
+  --output reports/delta.html
+```
+
+`report.py health` exits with code **1** if any check fails or errors — suitable for CI pipelines.
+
+---
+
+## 12. Writing Health Checks
+
+Health checks live in a YAML file under `checks/`. The top-level key is `checks`, followed by a list of check definitions.
+
+```yaml
+checks:
+  - name: "Human-readable check name"
+    command: show_version          # normalized command key (underscores, no spaces)
+    path: "[0].os"                 # path into parsed data (see Path Syntax below)
+    condition: contains
+    value: "NX-OS"
+```
+
+### 12.1 Path Syntax
+
+Paths navigate the parsed JSON structure returned by the parser.
+
+| Token | Meaning |
+|-------|---------|
+| `[0]` | Index into a list |
+| `[*]` | Expand all items of a list **or** all values of a dict |
+| `.field` | Access a dict key |
+| `field` (no dot) | Same as `.field` at the start of a path |
+
+**Examples:**
+
+| Path | What it accesses |
+|------|-----------------|
+| `[0].os` | First element of a list, `os` field |
+| `[*].status` | `status` field from every row in a list |
+| `vrfs[*].summary.total_routes` | `total_routes` from the summary of every VRF in a dict |
+| `neighbors[*].state` | `state` from every neighbor in a list |
+
+When `[*]` expands multiple values, `contains`/`not_contains` and `matches` check **all** values. Numeric comparisons (`gt`, `lt`, etc.) check that **all** values satisfy the condition.
+
+### 12.2 Conditions
+
+| Condition | Passes when |
+|-----------|-------------|
+| `eq` | value equals expected |
+| `ne` | value does not equal expected |
+| `gt` | value > expected (numeric) |
+| `gte` | value ≥ expected (numeric) |
+| `lt` | value < expected (numeric) |
+| `lte` | value ≤ expected (numeric) |
+| `contains` | string value contains expected substring |
+| `not_contains` | no value contains expected substring |
+| `matches` | value matches expected regex (full `re.search`) |
+
+### 12.3 Full Example
+
+```yaml
+checks:
+  # Scalar field check
+  - name: "Show version has OS version"
+    command: show_version
+    path: "[0].os"
+    condition: matches
+    value: '^\d+'
+
+  # All rows must pass (not_contains scans every row)
+  - name: "No interface description contains DECOM"
+    command: show_interface_description
+    path: "[*].description"
+    condition: not_contains
+    value: "DECOM"
+
+  # Dict VRF expansion — numeric comparison
+  - name: "Multicast routes present"
+    command: show_ip_mroute_summary
+    path: "vrfs[*].summary.total_routes"
+    condition: gt
+    value: 0
+
+  # Regex on every neighbor state
+  - name: "All OSPF neighbors in FULL state"
+    command: show_ip_ospf_neighbors
+    path: "neighbors[*].state"
+    condition: matches
+    value: '^FULL'
+```
+
+> **YAML quoting:** Always use single quotes (`'...'`) for `value` strings that contain regex metacharacters (`\d`, `\S`, `^`, etc.) to avoid YAML escape interpretation.
+
+### 12.4 Check File Structure
+
+```yaml
+# checks/my_device_checks.yaml
+checks:
+  - name: ...
+  - name: ...
+```
+
+Pass any check file with `--checks`. There is no limit on the number of checks per file.
+
+---
+
+## 13. Delta Report
+
+The delta report compares every command present in either snapshot and reports field-level differences.
+
+### How row matching works
+
+When a command's parsed output is a **list of dicts**, the engine looks for a natural key to match rows across snapshots before diffing:
+
+| Natural key tried (in order) | Example |
+|------------------------------|---------|
+| `INTERFACE` / `interface` / `port` | Interface tables |
+| `NEIGHBOR` / `neighbor` / `neighbor_id` | BGP / OSPF neighbor tables |
+| `NETWORK` / `PREFIX` / `network` | Route tables |
+| `VLAN` / `vlan_id` | VLAN tables |
+| Index (fallback) | Any other list |
+
+This means a row moving position in the list is **not** reported as a change — only genuine field value changes are.
+
+### Output structure (JSON)
+
+```json
+{
+  "metadata": {
+    "before": {"hostname": "...", "collection_time": "..."},
+    "after":  {"hostname": "...", "collection_time": "..."}
+  },
+  "summary": {
+    "commands_added":    ["cmd_a"],
+    "commands_removed":  [],
+    "commands_changed":  ["show_vpc_brief"],
+    "commands_unchanged": ["show_version", "..."]
+  },
+  "changes": {
+    "show_vpc_brief": {
+      "diffs": [
+        {
+          "path":   "parsed[port=Po10].status",
+          "before": "up",
+          "after":  "down"
+        }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## 14. HTML Reports
+
+Both `health` and `delta` subcommands produce a self-contained HTML file when `--output` ends in `.html`. No internet connection is required — all CSS and JavaScript are embedded in the file.
+
+### Health report layout
+
+| Section | Description |
+|---------|-------------|
+| Summary cards | Total / Passed / Failed / Errors at a glance |
+| Check results | Color-coded card per check (green = pass, red = fail, amber = error); failures show the offending path, actual value, and reason |
+| Raw command outputs | Every command's raw CLI text, open by default; **Expand All / Collapse All** buttons |
+
+### Delta report layout
+
+| Section | Description |
+|---------|-------------|
+| Metadata comparison | Before → After hostname and timestamp side by side |
+| Summary cards | Added / Removed / Changed / Unchanged |
+| Added & removed pills | Command names that appeared or disappeared |
+| Changed commands | Diff table per command: path / before (red) / after (green) |
+| Raw command outputs | Changed commands show **before and after raw side by side**; unchanged commands show the current snapshot |
+
+### Toggling raw output
+
+Raw output blocks are **open by default**. Two buttons at the top of the raw section let you collapse or expand all blocks at once:
+
+```
+[ Expand all ]  [ Collapse all ]
+```
+
+Individual blocks can also be clicked to toggle.
