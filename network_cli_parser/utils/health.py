@@ -20,6 +20,9 @@ def evaluate_checks(snapshot: dict, checks: list[dict]) -> dict:
             "passed": passed,
             "failed": failed,
             "error":  errored,
+            "failed_critical": sum(1 for r in results if r["status"] == "fail" and r.get("severity", "critical") == "critical"),
+            "failed_warn":     sum(1 for r in results if r["status"] == "fail" and r.get("severity", "critical") == "warn"),
+            "failed_info":     sum(1 for r in results if r["status"] == "fail" and r.get("severity", "critical") == "info"),
         },
         "results": results,
     }
@@ -31,25 +34,27 @@ def _run_check(check: dict, commands: dict) -> dict:
     path      = check.get("path", "")
     condition = check.get("condition", "eq")
     expected  = check.get("value")
+    severity  = check.get("severity", "critical")
 
     if cmd not in commands:
-        return _result_error(name, check, f"Command '{cmd}' not in snapshot")
+        return _result_error(name, check, f"Command '{cmd}' not in snapshot", severity)
 
     parsed = commands[cmd].get("parsed", {})
 
     try:
         values = _resolve_path(parsed, path)
     except (KeyError, IndexError, TypeError) as exc:
-        return _result_error(name, check, f"Path resolution failed: {exc}")
+        return _result_error(name, check, f"Path resolution failed: {exc}", severity)
 
     # [*] expanding an empty list is vacuously true — no items to violate the condition
     if not values:
         return {
-            "name":   name,
-            "status": "pass",
-            "check":  check,
-            "actual": [],
-            "note":   f"Path '{path}' resolved to 0 items (vacuously true)",
+            "name":     name,
+            "status":   "pass",
+            "severity": severity,
+            "check":    check,
+            "actual":   [],
+            "note":     f"Path '{path}' resolved to 0 items (vacuously true)",
         }
 
     match_mode = check.get("match", "all")
@@ -60,13 +65,13 @@ def _run_check(check: dict, commands: dict) -> dict:
 
     if match_mode == "any":
         if passes:
-            return {"name": name, "status": "pass", "check": check,
+            return {"name": name, "status": "pass", "severity": severity, "check": check,
                     "actual": [f["actual"] for f in passes]}
-        return {"name": name, "status": "fail", "check": check, "failures": failures}
+        return {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
     else:  # all (default — preserves existing behaviour exactly)
         if failures:
-            return {"name": name, "status": "fail", "check": check, "failures": failures}
-        return {"name": name, "status": "pass", "check": check,
+            return {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
+        return {"name": name, "status": "pass", "severity": severity, "check": check,
                 "actual": [v for _, v in values]}
 
 
@@ -192,5 +197,5 @@ def merge_checks(default: list[dict], override: list[dict]) -> list[dict]:
     return list(merged.values())
 
 
-def _result_error(name: str, check: dict, message: str) -> dict:
-    return {"name": name, "status": "error", "check": check, "message": message}
+def _result_error(name: str, check: dict, message: str, severity: str = "critical") -> dict:
+    return {"name": name, "status": "error", "severity": severity, "check": check, "message": message}

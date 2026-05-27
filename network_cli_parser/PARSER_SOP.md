@@ -390,6 +390,8 @@ Keys are raw command strings (spaces, not underscores). The mapper normalizes th
 | `delta-all`  | Per-device delta across two directories of snapshots |
 | `health`     | Evaluate a YAML check file against a single snapshot |
 | `health-all` | Run health checks across a directory of snapshots |
+| `baseline`   | Auto-generate a starter check YAML from a snapshot's current values |
+| `collect`    | Collect snapshots via SSH (online) or process existing `.txt` dumps (offline) |
 
 Output format is controlled by the `--output` / `--format` argument:
 
@@ -401,6 +403,22 @@ Output format is controlled by the `--output` / `--format` argument:
 
 ```bash
 cd network_cli_parser
+
+# Auto-generate baseline checks from a snapshot
+python report.py baseline \
+  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
+  --output   checks/baseline_N9K-CAMA-WAN-1.yaml
+
+# Collect snapshots via SSH (requires netmiko)
+python report.py collect \
+  --devices    devices.yaml \
+  --raw-dir    data/raw/ \
+  --output-dir data/json/
+
+# Process existing .txt dumps offline (no SSH needed)
+python report.py collect \
+  --from-dir   data/raw/ \
+  --output-dir data/json/
 
 # Single-device health — JSON to stdout
 python report.py health \
@@ -509,7 +527,28 @@ Use `match: any` when you want a check that passes as long as at least one insta
 
 Omitting `match` (or setting it to `all`) preserves the original behaviour — all values must pass.
 
-### 12.3 Full Example
+### 12.3 Severity levels
+
+The optional `severity` field controls whether a check failure causes `report.py health` / `health-all` to exit with code 1:
+
+| severity | Default? | Exit code on failure |
+|----------|----------|---------------------|
+| `critical` | Yes | exit 1 — blocks CI |
+| `warn` | No | no exit 1 — visible in report only |
+| `info` | No | no exit 1 — informational |
+
+```yaml
+- name: "MTU is jumbo"
+  command: show_interfaces
+  path: "[*].mtu"
+  condition: eq
+  value: 9216
+  severity: warn    # MTU mismatch is a warning, not a blocker
+```
+
+Auto-generated baseline checks (`report.py baseline`) default to `severity: warn` so they never block CI until the user explicitly promotes them to `critical`.
+
+### 12.4 Full Example (checks)
 
 ```yaml
 checks:
@@ -544,7 +583,7 @@ checks:
 
 > **YAML quoting:** Always use single quotes (`'...'`) for `value` strings that contain regex metacharacters (`\d`, `\S`, `^`, etc.) to avoid YAML escape interpretation.
 
-### 12.4 Check File Structure
+### 12.5 Check File Structure
 
 ```yaml
 # checks/my_device_checks.yaml
@@ -555,7 +594,7 @@ checks:
 
 Pass any check file with `--checks`. There is no limit on the number of checks per file.
 
-### 12.5 Per-Device Check Overrides
+### 12.6 Per-Device Check Overrides
 
 In multi-device deployments, checks are split into two tiers:
 
@@ -679,3 +718,96 @@ Raw output blocks are **open by default**. Two buttons at the top of the raw sec
 ```
 
 Individual blocks can also be clicked to toggle.
+
+---
+
+## 15. Snapshot Collector (`report.py collect`)
+
+The `collect` subcommand handles the full data-collection pipeline — from live device to JSON snapshot — without requiring `main.py` to be called separately.
+
+### Offline mode (no SSH required)
+
+Reads existing `.txt` CLI dump files and converts them to JSON snapshots using the same parsing pipeline as `main.py`:
+
+```bash
+python report.py collect \
+  --from-dir data/raw/ \
+  --output-dir data/json/
+```
+
+This is useful when you already have raw dump files (collected manually or via another tool) and just want to produce JSON snapshots for `delta` or `health` reports.
+
+### SSH mode (requires netmiko)
+
+Install the optional SSH dependency first:
+
+```bash
+pip install netmiko
+```
+
+Then run:
+
+```bash
+python report.py collect \
+  --devices    devices.yaml \
+  --raw-dir    data/raw/        # .txt dumps saved here (optional)
+  --output-dir data/json/       # JSON snapshots written here
+  --password   <pw>             # optional: override password for all devices
+```
+
+`--raw-dir` is optional. If omitted, `.txt` dumps are still produced alongside the JSON output.
+
+### `devices.yaml` format
+
+```yaml
+defaults:
+  username: admin
+  password: ""       # leave blank and use --password at runtime
+  timeout: 30
+
+devices:
+  - hostname: N9K-CAMA-WAN-1
+    host: 192.168.1.1
+    platform: cisco_nxos     # determines which commands to run + which template set
+
+  - hostname: IOS-RTR-1
+    host: 10.0.0.1
+    platform: cisco_ios
+    username: ops             # overrides defaults.username
+
+  - hostname: N9K-CAMA-WAN-2
+    host: 192.168.1.2
+    platform: cisco_nxos
+    commands:                 # optional: explicit command list (overrides registry)
+      - show version
+      - show ip bgp summary vrf all
+```
+
+**Platform values:** `cisco_nxos`, `cisco_ios`
+
+**Default commands:** when `commands` is not specified for a device, all non-`raw_only` commands registered in `commands.yaml` for that platform are collected.
+
+**Device-type mapping:**
+| Platform | Netmiko device_type |
+|----------|---------------------|
+| `cisco_nxos` | `cisco_nxos_ssh` |
+| `cisco_ios` | `cisco_ios` |
+
+### End-to-end workflow
+
+```bash
+# 1. Collect snapshots
+python report.py collect --devices devices.yaml --output-dir data/json/
+
+# 2. Compare to previous collection
+python report.py delta-all \
+  --before-dir data/json-prev/ \
+  --after-dir  data/json/ \
+  --output-dir reports/delta/
+
+# 3. Run health checks
+python report.py health-all \
+  --dir data/json/ \
+  --default-checks checks/example_health_checks.yaml \
+  --output-dir reports/health/
+```
