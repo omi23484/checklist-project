@@ -52,20 +52,22 @@ def _run_check(check: dict, commands: dict) -> dict:
             "note":   f"Path '{path}' resolved to 0 items (vacuously true)",
         }
 
-    failures = []
+    match_mode = check.get("match", "all")
+    failures, passes = [], []
     for resolved_path, actual in values:
         ok, msg = _apply_condition(actual, condition, expected)
-        if not ok:
-            failures.append({"path": resolved_path, "actual": actual, "message": msg})
+        (passes if ok else failures).append({"path": resolved_path, "actual": actual, "message": msg})
 
-    if failures:
-        return {"name": name, "status": "fail",  "check": check, "failures": failures}
-    return {
-        "name":   name,
-        "status": "pass",
-        "check":  check,
-        "actual": [v for _, v in values],
-    }
+    if match_mode == "any":
+        if passes:
+            return {"name": name, "status": "pass", "check": check,
+                    "actual": [f["actual"] for f in passes]}
+        return {"name": name, "status": "fail", "check": check, "failures": failures}
+    else:  # all (default — preserves existing behaviour exactly)
+        if failures:
+            return {"name": name, "status": "fail", "check": check, "failures": failures}
+        return {"name": name, "status": "pass", "check": check,
+                "actual": [v for _, v in values]}
 
 
 # ---------------------------------------------------------------------------
