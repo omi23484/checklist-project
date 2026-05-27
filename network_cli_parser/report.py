@@ -34,7 +34,10 @@ def _load_json(path: str) -> dict:
 
 def _load_checks(path: str) -> list:
     with open(path, encoding="utf-8") as fh:
-        return yaml.safe_load(fh).get("checks", [])
+        data = yaml.safe_load(fh)
+    if isinstance(data, list):
+        return data
+    return data.get("checks", [])
 
 
 def _write_output(data: dict, output: str | None) -> None:
