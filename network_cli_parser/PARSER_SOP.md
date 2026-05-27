@@ -386,38 +386,55 @@ Keys are raw command strings (spaces, not underscores). The mapper normalizes th
 
 | Subcommand | Purpose |
 |------------|---------|
-| `delta`  | Field-level diff between a before and after snapshot |
-| `health` | Evaluate a YAML check file against a single snapshot |
+| `delta`      | Field-level diff between two single snapshots |
+| `delta-all`  | Per-device delta across two directories of snapshots |
+| `health`     | Evaluate a YAML check file against a single snapshot |
+| `health-all` | Run health checks across a directory of snapshots |
 
-Output format is controlled by the `--output` file extension:
+Output format is controlled by the `--output` / `--format` argument:
 
-| Extension | Output |
-|-----------|--------|
-| `.json` | Machine-readable JSON (also printed to stdout when `--output` is omitted) |
-| `.html` | Self-contained HTML report with formatted results and expandable raw output |
+| Value | Output |
+|-------|--------|
+| `.json` / `json` | Machine-readable JSON (also printed to stdout when `--output` is omitted) |
+| `.html` / `html` | Self-contained HTML report with formatted results and expandable raw output |
+| `both` | Write both `.html` and `.json` per device (multi-device subcommands only) |
 
 ```bash
 cd network_cli_parser
 
-# Health check — JSON to stdout
+# Single-device health — JSON to stdout
 python report.py health \
   --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
   --checks   checks/example_health_checks.yaml
 
-# Health check — save HTML report
+# Single-device health with per-device overrides — HTML
 python report.py health \
-  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
-  --checks   checks/example_health_checks.yaml \
-  --output   reports/health.html
+  --snapshot      data/json/N9K-CAMA-WAN-1_03-May-26.json \
+  --checks        checks/example_health_checks.yaml \
+  --device-checks checks/devices/N9K-CAMA-WAN-1.yaml \
+  --output        reports/health.html
 
-# Delta between two snapshots — HTML
+# All devices in a directory — one HTML report per device + index.html
+python report.py health-all \
+  --dir              data/json/ \
+  --default-checks   checks/example_health_checks.yaml \
+  --device-checks-dir checks/devices/ \
+  --output-dir       reports/health/
+
+# Single-device delta — HTML
 python report.py delta \
   --before data/json/N9K-CAMA-WAN-1_03-May-26.json \
   --after  data/json/N9K-CAMA-WAN-1_04-May-26.json \
   --output reports/delta.html
+
+# All devices across two collection folders — one HTML report per device + index.html
+python report.py delta-all \
+  --before-dir snapshots/03-May-26/ \
+  --after-dir  snapshots/04-May-26/ \
+  --output-dir reports/delta/
 ```
 
-`report.py health` exits with code **1** if any check fails or errors — suitable for CI pipelines.
+`report.py health` and `report.py health-all` exit with code **1** if any check fails or errors — suitable for CI pipelines.
 
 ---
 
@@ -516,6 +533,38 @@ checks:
 
 Pass any check file with `--checks`. There is no limit on the number of checks per file.
 
+### 12.5 Per-Device Check Overrides
+
+In multi-device deployments, checks are split into two tiers:
+
+- **Default checks** (`--checks` / `--default-checks`) — baseline assertions valid for all devices
+- **Device-specific checks** (`--device-checks` / `--device-checks-dir`) — per-device additions or overrides
+
+**Merge rule:** All checks from both files are included. When the same `name` appears in both, the device-specific check replaces the default. All other checks are unchanged.
+
+```yaml
+# checks/devices/N9K-CAMA-WAN-1.yaml
+
+checks:
+  # OVERRIDE: replaces the default check with the same name
+  - name: "VPC peer link status is up"
+    command: show_vpc_brief
+    path: "[*].status"
+    condition: not_contains
+    value: "peer-link down"   # more permissive than default "down"
+
+  # ADDITION: only evaluated for this device
+  - name: "Hostname matches expected value"
+    command: show_version
+    path: "[0].hostname"
+    condition: eq
+    value: "N9K-CAMA-WAN-1"
+```
+
+**File naming convention for `--device-checks-dir`:** `{hostname}.yaml`
+
+Example: `checks/devices/N9K-CAMA-WAN-1.yaml` is automatically loaded when processing a snapshot whose `metadata.hostname` is `N9K-CAMA-WAN-1`. Devices with no matching file use only the default checks.
+
 ---
 
 ## 13. Delta Report
@@ -587,6 +636,17 @@ Both `health` and `delta` subcommands produce a self-contained HTML file when `-
 | Added & removed pills | Command names that appeared or disappeared |
 | Changed commands | Diff table per command: path / before (red) / after (green) |
 | Raw command outputs | Changed commands show **before and after raw side by side**; unchanged commands show the current snapshot |
+
+### Index pages (`health-all` and `delta-all`)
+
+Both multi-device subcommands write an `index.html` to the output directory in addition to the per-device reports.
+
+| Index | Columns | Row color |
+|-------|---------|-----------|
+| `health-all` index | Hostname / Timestamp / Status / Total / Passed / Failed / Errors / Report | Muted if all-pass; normal if any failure |
+| `delta-all` index | Hostname / Status / Added / Removed / Changed / Unchanged / Report | Muted if zero changes; normal if changes; faded if unmatched |
+
+Devices that appear in only one directory (`delta-all`) or have no snapshot file (`health-all`) are listed as **UNMATCHED** with no report link.
 
 ### Toggling raw output
 

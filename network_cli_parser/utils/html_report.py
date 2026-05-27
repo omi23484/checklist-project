@@ -159,6 +159,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 .badge.added{background:var(--added-bg);color:var(--added)}
 .badge.removed{background:var(--removed-bg);color:var(--removed)}
 .badge.changed{background:var(--changed-bg);color:var(--changed)}
+.badge.clean{background:var(--pass-bg);color:var(--pass)}
+.badge.warn,.badge.unmatched{background:var(--warn-bg);color:var(--warn)}
+.badge.unchanged{background:#f1f5f9;color:var(--muted)}
 
 /* ---- raw output blocks ---- */
 .raw-list{display:flex;flex-direction:column;gap:8px}
@@ -563,3 +566,166 @@ def _pill_list(cmds: list, cls: str) -> str:
         f'<span class="pill {_e(cls)}">{_e(cmd)}</span>' for cmd in cmds
     )
     return f'<div class="pill-list">{pills}</div>'
+
+
+# ---------------------------------------------------------------------------
+# Shared index-table CSS (scoped, injected once per index page)
+# ---------------------------------------------------------------------------
+
+_INDEX_TABLE_CSS = """
+<style>
+.index-table{width:100%;border-collapse:collapse;font-size:.82rem;
+  background:var(--surface);border-radius:var(--r);overflow:hidden;
+  box-shadow:var(--sh);border:1px solid var(--border)}
+.index-table th{text-align:left;padding:9px 14px;background:#f8fafc;
+  border-bottom:1px solid var(--border);font-size:.68rem;
+  text-transform:uppercase;letter-spacing:.07em;color:var(--faint)}
+.index-table td{padding:8px 14px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
+.index-table tr:last-child td{border-bottom:none}
+.index-table a{color:var(--info);text-decoration:none}
+.index-table a:hover{text-decoration:underline}
+</style>"""
+
+
+# ---------------------------------------------------------------------------
+# Delta index page
+# ---------------------------------------------------------------------------
+
+def render_delta_index(results: list[dict], before_dir: str, after_dir: str) -> str:
+    """Render an HTML index page summarising all per-device delta reports."""
+    total     = len(results)
+    matched   = sum(1 for r in results if r["status"] == "matched")
+    unmatched = total - matched
+
+    cards = _summary_cards([
+        ("total",   "Devices",   total),
+        ("changed", "Matched",   matched),
+        ("removed", "Unmatched", unmatched),
+    ])
+
+    body = f"""
+<div class="page-header">
+  <div class="header-left">
+    <h1>Delta-All Index</h1>
+    <div class="sub">Before: {_e(before_dir)} &nbsp;→&nbsp; After: {_e(after_dir)}</div>
+  </div>
+  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
+</div>
+<div class="container">
+  {cards}
+  <div class="sec-title">Per-Device Summary</div>
+  {_INDEX_TABLE_CSS}
+  {_delta_index_table(results)}
+</div>"""
+
+    return _page("Delta-All Index", body)
+
+
+def _delta_index_table(results: list[dict]) -> str:
+    rows = []
+    for r in results:
+        hostname = _e(r["hostname"])
+        if r["status"] == "unmatched":
+            side = "after only" if r.get("side") == "after-only" else "before only"
+            rows.append(f"""
+<tr style="opacity:.45">
+  <td><code>{hostname}</code></td>
+  <td>{_badge("unmatched", side.upper())}</td>
+  <td style="color:var(--faint)" colspan="4">—</td>
+  <td style="color:var(--faint)">— no report —</td>
+</tr>""")
+        else:
+            s       = r["summary"]
+            added   = len(s["commands_added"])
+            removed = len(s["commands_removed"])
+            changed = len(s["commands_changed"])
+            unch    = len(s["commands_unchanged"])
+            has_changes = (added + removed + changed) > 0
+            row_style   = "" if has_changes else 'style="opacity:.55"'
+            status_badge = _badge("changed", "CHANGED") if has_changes else _badge("clean", "CLEAN")
+            link = f'<a href="{_e(r["report_path"])}">{_e(r["report_path"])}</a>' if r.get("report_path") else "—"
+            rows.append(f"""
+<tr {row_style}>
+  <td><code>{hostname}</code></td>
+  <td>{status_badge}</td>
+  <td style="color:var(--added)">{added}</td>
+  <td style="color:var(--removed)">{removed}</td>
+  <td style="color:var(--changed)">{changed}</td>
+  <td style="color:var(--muted)">{unch}</td>
+  <td>{link}</td>
+</tr>""")
+
+    return f"""<table class="index-table">
+  <thead><tr>
+    <th>Hostname</th><th>Status</th>
+    <th>Added</th><th>Removed</th><th>Changed</th><th>Unchanged</th>
+    <th>Report</th>
+  </tr></thead>
+  <tbody>{"".join(rows)}</tbody>
+</table>"""
+
+
+# ---------------------------------------------------------------------------
+# Health index page
+# ---------------------------------------------------------------------------
+
+def render_health_index(results: list[dict], snapshot_dir: str) -> str:
+    """Render an HTML index page summarising all per-device health reports."""
+    total    = len(results)
+    all_pass = sum(1 for r in results if r["summary"]["failed"] == 0 and r["summary"]["error"] == 0)
+    failures = total - all_pass
+
+    cards = _summary_cards([
+        ("total",  "Devices",      total),
+        ("pass",   "All Pass",     all_pass),
+        ("fail",   "Has Failures", failures),
+    ])
+
+    body = f"""
+<div class="page-header">
+  <div class="header-left">
+    <h1>Health-All Index</h1>
+    <div class="sub">Snapshots: {_e(snapshot_dir)}</div>
+  </div>
+  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
+</div>
+<div class="container">
+  {cards}
+  <div class="sec-title">Per-Device Summary</div>
+  {_INDEX_TABLE_CSS}
+  {_health_index_table(results)}
+</div>"""
+
+    return _page("Health-All Index", body)
+
+
+def _health_index_table(results: list[dict]) -> str:
+    rows = []
+    for r in results:
+        s        = r["summary"]
+        hostname = _e(r["hostname"])
+        ts       = _e(r.get("timestamp", "?"))
+        clean    = s["failed"] == 0 and s["error"] == 0
+        badge    = _badge("pass", "PASS") if clean else _badge("fail", "FAIL")
+        row_style = 'style="opacity:.55"' if clean else ""
+        link = f'<a href="{_e(r["report_path"])}">{_e(r["report_path"])}</a>' if r.get("report_path") else "—"
+        rows.append(f"""
+<tr {row_style}>
+  <td><code>{hostname}</code></td>
+  <td>{ts}</td>
+  <td>{badge}</td>
+  <td>{s["total"]}</td>
+  <td style="color:var(--pass)">{s["passed"]}</td>
+  <td style="color:var(--fail)">{s["failed"]}</td>
+  <td style="color:var(--warn)">{s["error"]}</td>
+  <td>{link}</td>
+</tr>""")
+
+    return f"""<table class="index-table">
+  <thead><tr>
+    <th>Hostname</th><th>Timestamp</th><th>Status</th>
+    <th>Total</th><th>Passed</th><th>Failed</th><th>Errors</th>
+    <th>Report</th>
+  </tr></thead>
+  <tbody>{"".join(rows)}</tbody>
+</table>"""

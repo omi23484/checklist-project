@@ -178,5 +178,17 @@ def _apply_condition(actual: Any, condition: str, expected: Any) -> tuple[bool, 
         return False, f"Condition error: {exc}"
 
 
+def merge_checks(default: list[dict], override: list[dict]) -> list[dict]:
+    """
+    Union of two check lists; override wins on name clash.
+
+    All checks from both lists are included. When the same `name` appears
+    in both, the override version replaces the default.
+    """
+    merged = {c["name"]: c for c in default}
+    merged.update({c["name"]: c for c in override})
+    return list(merged.values())
+
+
 def _result_error(name: str, check: dict, message: str) -> dict:
     return {"name": name, "status": "error", "check": check, "message": message}
