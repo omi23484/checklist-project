@@ -157,6 +157,41 @@ def _resolve(data: Any, tokens: list, current_path: str) -> list[tuple[str, Any]
 # Conditions
 # ---------------------------------------------------------------------------
 
+_DURATION_UNITS = [
+    (re.compile(r'(\d+)\s*y(?:ear)?s?',           re.IGNORECASE), 365 * 86400),
+    (re.compile(r'(\d+)\s*w(?:eek)?s?',           re.IGNORECASE), 7   * 86400),
+    (re.compile(r'(\d+)\s*d(?:ay)?s?',            re.IGNORECASE), 86400),
+    (re.compile(r'(\d+)\s*h(?:our)?s?',           re.IGNORECASE), 3600),
+    (re.compile(r'(\d+)\s*m(?:in(?:ute)?)?s?',    re.IGNORECASE), 60),
+    (re.compile(r'(\d+)\s*s(?:ec(?:ond)?)?s?',    re.IGNORECASE), 1),
+]
+_HH_MM_SS = re.compile(r'^(\d+):(\d+):(\d+)$')
+_HH_MM    = re.compile(r'^(\d+):(\d+)$')
+_ZERO_KEYWORDS = {"never", "n/a", "unknown", "-", ""}
+
+
+def _parse_duration(s: str) -> float:
+    s = s.strip().lower()
+    if s in _ZERO_KEYWORDS:
+        return 0.0
+    m = _HH_MM_SS.match(s)
+    if m:
+        return int(m.group(1)) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
+    m = _HH_MM.match(s)
+    if m:
+        return int(m.group(1)) * 60 + int(m.group(2))
+    total = 0.0
+    for pattern, mult in _DURATION_UNITS:
+        for n in pattern.findall(s):
+            total += int(n) * mult
+    if total == 0.0:
+        try:
+            total = float(s)
+        except (ValueError, TypeError):
+            pass
+    return total
+
+
 def _apply_condition(actual: Any, condition: str, expected: Any) -> tuple[bool, str]:
     try:
         if condition == "eq":
@@ -180,18 +215,22 @@ def _apply_condition(actual: Any, condition: str, expected: Any) -> tuple[bool, 
         if condition == "matches":
             ok = bool(re.search(str(expected), str(actual)))
             return ok, f"{actual!r} does not match pattern {expected!r}"
+        if condition in ("duration_gt", "duration_gte", "duration_lt", "duration_lte"):
+            a_s = _parse_duration(str(actual))
+            e_s = _parse_duration(str(expected))
+            ops = {"duration_gt": a_s > e_s, "duration_gte": a_s >= e_s,
+                   "duration_lt": a_s < e_s, "duration_lte": a_s <= e_s}
+            sym = {"duration_gt": ">", "duration_gte": ">=",
+                   "duration_lt": "<",  "duration_lte": "<="}
+            ok = ops[condition]
+            return ok, (f"duration({actual!r}) = {a_s:.0f}s, "
+                        f"not {sym[condition]} {e_s:.0f}s ({expected!r})")
         return False, f"Unknown condition: {condition!r}"
     except (ValueError, TypeError) as exc:
         return False, f"Condition error: {exc}"
 
 
 def merge_checks(default: list[dict], override: list[dict]) -> list[dict]:
-    """
-    Union of two check lists; override wins on name clash.
-
-    All checks from both lists are included. When the same `name` appears
-    in both, the override version replaces the default.
-    """
     merged = {c["name"]: c for c in default}
     merged.update({c["name"]: c for c in override})
     return list(merged.values())

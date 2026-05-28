@@ -128,7 +128,7 @@ def _parse_command(platform: str, cmd: str, raw: str) -> tuple[dict, str]:
     return {}, "failed"
 
 
-def process_file(input_path: str, output_dir: str) -> str:
+def process_file(input_path: str, output_dir: str, platform_override=None) -> str:
     """
     Parse a single CLI dump file and write a JSON snapshot.
     Returns the path to the written JSON file.
@@ -138,10 +138,15 @@ def process_file(input_path: str, output_dir: str) -> str:
 
     hostname        = normalization.extract_hostname(input_path)
     collection_time = normalization.extract_collection_time(input_path)
-    platform        = normalization.detect_platform(input_path, content)
+    if platform_override:
+        platform = platform_override
+        print(f"  platform:   {platform} (override)")
+    else:
+        platform = normalization.detect_platform(input_path, content)
 
     print(f"  hostname:   {hostname}")
-    print(f"  platform:   {platform}")
+    if not platform_override:
+        print(f"  platform:   {platform}")
     print(f"  timestamp:  {collection_time}")
 
     raw_commands = splitter.split_commands(content)
@@ -174,13 +179,21 @@ def process_file(input_path: str, output_dir: str) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Network CLI Structured Parser")
-    parser.add_argument("--input",  required=True, help="Input .txt file or directory")
-    parser.add_argument("--output", default=None,  help="Output directory (default: data/json/)")
+    parser.add_argument("--input",    required=True, help="Input .txt file or directory")
+    parser.add_argument("--output",   default=None,  help="Output directory (default: data/json/)")
+    parser.add_argument("--platform", default=None,
+                        help="Force platform: cisco_nxos | cisco_ios | cisco_iosxe  "
+                             "(skips auto-detection)")
     args = parser.parse_args()
 
     script_dir  = os.path.dirname(os.path.abspath(__file__))
     default_out = os.path.join(script_dir, "data", "json")
     output_dir  = args.output or default_out
+
+    valid_platforms = {"cisco_nxos", "cisco_ios", "cisco_iosxe"}
+    if args.platform and args.platform not in valid_platforms:
+        print(f"[ERROR] Unknown platform {args.platform!r}. Valid: {', '.join(sorted(valid_platforms))}")
+        sys.exit(1)
 
     input_path = args.input
     if os.path.isdir(input_path):
@@ -194,10 +207,10 @@ def main() -> None:
             sys.exit(1)
         for fpath in txt_files:
             print(f"\nProcessing: {fpath}")
-            process_file(fpath, output_dir)
+            process_file(fpath, output_dir, platform_override=args.platform)
     elif os.path.isfile(input_path):
         print(f"\nProcessing: {input_path}")
-        process_file(input_path, output_dir)
+        process_file(input_path, output_dir, platform_override=args.platform)
     else:
         print(f"Input not found: {input_path}")
         sys.exit(1)

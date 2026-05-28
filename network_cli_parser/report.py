@@ -45,7 +45,7 @@ def _load_checks(path: str) -> list:
     return data.get("checks", [])
 
 
-def _write_output(data: dict, output: str | None) -> None:
+def _write_output(data: dict, output=None) -> None:
     text = json.dumps(data, indent=2)
     if output:
         out = Path(output)
@@ -56,12 +56,11 @@ def _write_output(data: dict, output: str | None) -> None:
         print(text)
 
 
-def _is_html(path: str | None) -> bool:
+def _is_html(path=None) -> bool:
     return bool(path and path.lower().endswith(".html"))
 
 
-def _write_report(report: dict, snap: dict, output: str | None, before_snap: dict | None = None, after_snap: dict | None = None) -> None:
-    """Write a health or delta report to file or stdout."""
+def _write_report(report: dict, snap: dict, output=None, before_snap=None, after_snap=None) -> None:
     if _is_html(output):
         out = Path(output)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -75,9 +74,8 @@ def _write_report(report: dict, snap: dict, output: str | None, before_snap: dic
         _write_output(report, output)
 
 
-def _load_dir_snapshots(d: Path) -> dict[str, tuple[Path, dict]]:
-    """Glob *.json in a directory; return {hostname: (path, snap)} map."""
-    mapping: dict[str, tuple[Path, dict]] = {}
+def _load_dir_snapshots(d: Path) -> dict:
+    mapping = {}
     for p in sorted(d.glob("*.json")):
         try:
             snap = _load_json(str(p))
@@ -417,7 +415,6 @@ def cmd_baseline(args: argparse.Namespace) -> None:
 # ---------------------------------------------------------------------------
 
 def _load_devices_yaml(path: str) -> list:
-    """Load devices.yaml; merge top-level defaults into each device entry."""
     with open(path, encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
     defaults = data.get("defaults", {})
@@ -425,7 +422,6 @@ def _load_devices_yaml(path: str) -> list:
 
 
 def _load_platform_commands() -> dict:
-    """Return {platform: [raw_command_str]} for all non-raw_only registered commands."""
     from parsers.command_mapper import _REGISTRY
     from utils.normalization import denormalize_command
     result = {}
@@ -485,7 +481,7 @@ def cmd_collect(args: argparse.Namespace) -> None:
         try:
             outputs = collector.collect_device(dev, cmds)
             txt     = collector.write_txt_dump(hostname, ts, outputs, eff_raw)
-            _main.process_file(str(txt), str(output_dir))
+            _main.process_file(str(txt), str(output_dir), platform_override=platform)
             print(f"OK ({len(outputs)} commands)")
         except Exception as exc:
             print(f"FAILED: {exc}")

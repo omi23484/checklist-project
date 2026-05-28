@@ -106,3 +106,48 @@ cisco_ios:
     parser: raw_only
   show processes cpu history:
     parser: raw_only
+
+cisco_iosxe:
+  show version:
+    parser: ntc
+    template: show version
+  show ip int brief:
+    parser: ntc
+    template: show ip interface brief
+  show interfaces:
+    parser: ntc
+    template: show interfaces
+  show interface description:
+    parser: ntc
+    template: show interface description
+  show ip bgp summary:
+    parser: ntc
+    template: show ip bgp summary
+  show ip bgp neighbor:
+    parser: ntc
+    template: show ip bgp neighbors
+  show ip route:
+    parser: ntc
+    template: show ip route
+  show ip ospf neighbor:
+    parser: ntc
+    template: show ip ospf neighbor
+  show ip ospf neighbor detail:
+    parser: ntc
+    template: show ip ospf neighbor detail
+  show processes cpu sort:
+    parser: ntc
+    template: show processes cpu
+  show cdp neighbors detail:
+    parser: ntc
+    template: show cdp neighbors detail
+  show bfd neighbors:
+    parser: custom
+    template: cisco_ios_show_bfd_neighbors
+  show bfd neighbors details:
+    parser: custom
+    template: cisco_ios_show_bfd_neighbors_details
+  show logging:
+    parser: raw_only
+  show processes cpu history:
+    parser: raw_only

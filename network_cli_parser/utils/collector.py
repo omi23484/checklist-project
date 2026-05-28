@@ -9,13 +9,13 @@ except ImportError:
     HAS_NETMIKO = False
 
 _PLATFORM_TO_DEVICE_TYPE = {
-    "cisco_nxos": "cisco_nxos_ssh",
-    "cisco_ios":  "cisco_ios",
+    "cisco_nxos":  "cisco_nxos_ssh",
+    "cisco_ios":   "cisco_ios",
+    "cisco_iosxe": "cisco_iosxe_ssh",
 }
 
 
 def collect_device(device_cfg: dict, commands: list) -> dict:
-    """SSH to one device; return {raw_command_str: output_text}."""
     if not HAS_NETMIKO:
         raise RuntimeError("netmiko not installed — run: pip install netmiko")
 
@@ -46,7 +46,6 @@ def collect_device(device_cfg: dict, commands: list) -> dict:
 
 
 def write_txt_dump(hostname: str, ts: str, command_outputs: dict, raw_dir: Path) -> Path:
-    """Write a splitter-compatible .txt dump file; return its path."""
     raw_dir = Path(raw_dir)
     raw_dir.mkdir(parents=True, exist_ok=True)
 
