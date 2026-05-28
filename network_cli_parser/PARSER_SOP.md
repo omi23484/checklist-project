@@ -504,6 +504,36 @@ When `[*]` expands multiple values, `contains`/`not_contains` and `matches` chec
 | `contains` | string value contains expected substring |
 | `not_contains` | no value contains expected substring |
 | `matches` | value matches expected regex (full `re.search`) |
+| `duration_gt` | parsed duration > expected duration |
+| `duration_gte` | parsed duration ≥ expected duration |
+| `duration_lt` | parsed duration < expected duration |
+| `duration_lte` | parsed duration ≤ expected duration |
+
+**Duration conditions** convert both the actual value and the `value` field to seconds before comparing. Use them for uptime, timer, or any field that contains a human-readable duration string.
+
+```yaml
+- name: "BGP session up at least 2 days"
+  command: show_ip_bgp_summary_vrf_all
+  path: "vrfs[*].neighbors[*].updown"
+  condition: duration_gte
+  value: "2d"
+```
+
+**Supported input formats** (both actual values and the `value` threshold accept any of these):
+
+| Example | Meaning |
+|---------|---------|
+| `"5w2d"` | 5 weeks + 2 days |
+| `"2d03h"` | 2 days + 3 hours |
+| `"1y3w2d4h5m6s"` | full decomposition |
+| `"00:03:42"` | HH:MM:SS |
+| `"15:30"` | MM:SS |
+| `"5week2day"` | spelled-out units |
+| `"2day03hour"` | spelled-out variant |
+| `"never"` / `"n/a"` | treated as 0 s |
+| `"42"` | bare integer = 42 seconds |
+
+Recognised unit abbreviations: `y`/`year`, `w`/`week`, `d`/`day`, `h`/`hour`, `m`/`min`/`minute`, `s`/`sec`/`second` — singular or plural, with or without spaces.
 
 ### `match` field — any vs all
 
