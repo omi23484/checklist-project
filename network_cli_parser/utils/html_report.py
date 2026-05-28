@@ -12,7 +12,7 @@ def _e(text) -> str:
     return _html.escape(str(text) if text is not None else "")
 
 
-def _badge(cls: str, label: str | None = None) -> str:
+def _badge(cls: str, label=None) -> str:
     return f'<span class="badge {_e(cls)}">{_e(label or cls.upper())}</span>'
 
 
@@ -602,7 +602,6 @@ _INDEX_TABLE_CSS = """
 # ---------------------------------------------------------------------------
 
 def render_delta_index(results: list[dict], before_dir: str, after_dir: str) -> str:
-    """Render an HTML index page summarising all per-device delta reports."""
     total     = len(results)
     matched   = sum(1 for r in results if r["status"] == "matched")
     unmatched = total - matched
@@ -680,7 +679,6 @@ def _delta_index_table(results: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 
 def render_health_index(results: list[dict], snapshot_dir: str) -> str:
-    """Render an HTML index page summarising all per-device health reports."""
     total    = len(results)
     all_pass = sum(1 for r in results if r["summary"]["failed"] == 0 and r["summary"]["error"] == 0)
     failures = total - all_pass

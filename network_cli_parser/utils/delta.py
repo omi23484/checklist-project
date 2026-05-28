@@ -9,7 +9,6 @@ _NATURAL_KEYS = (
 
 
 def compute_delta(before: dict, after: dict) -> dict:
-    """Compare two JSON snapshots and return a structured delta report."""
     b_cmds = before.get("commands", {})
     a_cmds = after.get("commands", {})
 

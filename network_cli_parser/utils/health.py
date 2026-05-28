@@ -5,7 +5,6 @@ from typing import Any
 
 
 def evaluate_checks(snapshot: dict, checks: list[dict]) -> dict:
-    """Run health checks against a snapshot. Returns a structured results dict."""
     commands = snapshot.get("commands", {})
     results = [_run_check(c, commands) for c in checks]
 
@@ -80,20 +79,6 @@ def _run_check(check: dict, commands: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 def _resolve_path(data: Any, path: str) -> list[tuple[str, Any]]:
-    """
-    Resolve a dot-notation path with optional list indexing into (path, value) pairs.
-
-    Syntax:
-      [N]   — select index N from a list
-      [*]   — expand all items in a list (each becomes a separate result)
-      .key  — dict key access
-
-    Examples:
-      "[0].VERSION"                        -> list index 0, then VERSION field
-      "[*].state_pfx"                      -> all items' state_pfx
-      "vrfs[*].neighbors[*].state_pfx"     -> nested list expansion
-      "vrfs.default.summary.total_groups"  -> nested dict access
-    """
     return _resolve(data, _tokenize(path), "")
 
 
@@ -171,7 +156,6 @@ _ZERO_KEYWORDS = {"never", "n/a", "unknown", "-", ""}
 
 
 def _parse_duration(s: str) -> float:
-    """Parse a duration string to seconds. Returns 0.0 for unknown/never."""
     s = s.strip().lower()
     if s in _ZERO_KEYWORDS:
         return 0.0
@@ -232,12 +216,6 @@ def _apply_condition(actual: Any, condition: str, expected: Any) -> tuple[bool, 
 
 
 def merge_checks(default: list[dict], override: list[dict]) -> list[dict]:
-    """
-    Union of two check lists; override wins on name clash.
-
-    All checks from both lists are included. When the same `name` appears
-    in both, the override version replaces the default.
-    """
     merged = {c["name"]: c for c in default}
     merged.update({c["name"]: c for c in override})
     return list(merged.values())
