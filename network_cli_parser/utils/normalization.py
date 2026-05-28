@@ -2,9 +2,11 @@ import os
 import re
 
 
-_NXOS_PREFIXES = ("N9K", "N7K", "N5K", "N3K", "N2K")
+_NXOS_PREFIXES  = ("N9K", "N7K", "N5K", "N3K", "N2K")
+_IOSXE_PREFIXES = ("CSR", "ISR", "ASR")
 
 _PIPE_FILTER_RE = re.compile(r'\|\s*(\w+)')
+_PROMPT_GT_RE   = re.compile(r'^\S+>\s*show\s', re.MULTILINE)
 
 
 def normalize_command(cmd: str) -> str:
@@ -29,15 +31,42 @@ def normalize_command(cmd: str) -> str:
     return cmd + pipe_suffix
 
 
-def detect_platform(filename: str, content: str) -> str:
-    """Return 'cisco_nxos' or 'cisco_ios' based on filename prefix or file content."""
+def detect_platform(filename: str, content: str, warn: bool = True) -> str:
+    """Detect platform from filename prefix, content keywords, or prompt pattern.
+
+    Detection tiers (first match wins):
+      1. Filename prefix  — N9K/N7K/... → cisco_nxos; CSR/ISR/ASR → cisco_iosxe
+      2. Content keywords — NX-OS / IOS XE / IOS Software strings
+      3. Prompt heuristic — 'hostname> show' indicates classic IOS interactive mode
+      4. Fallback         — cisco_ios with a [WARN] printed (suppressed if warn=False)
+    """
     basename = os.path.basename(filename).upper()
+
+    # Tier 1: filename prefix
     if any(basename.startswith(p) for p in _NXOS_PREFIXES):
         return "cisco_nxos"
+    if any(basename.startswith(p) for p in _IOSXE_PREFIXES):
+        return "cisco_iosxe"
+
+    # Tier 2: content keywords
     if "Cisco NX-OS" in content or "NX-OS Software" in content:
         return "cisco_nxos"
-    if "Cisco IOS Software" in content or "IOS-XE" in content:
+    if ("IOS XE Software" in content or "IOS-XE Software" in content
+            or "Cisco IOS XE" in content):
+        return "cisco_iosxe"
+    if "Cisco IOS Software" in content:
         return "cisco_ios"
+
+    # Tier 3: prompt heuristic — IOS uses 'hostname>' for unprivileged mode
+    if _PROMPT_GT_RE.search(content):
+        return "cisco_ios"
+
+    # Tier 4: fallback
+    if warn:
+        print(
+            f"[WARN] platform detection fell back to 'cisco_ios' for "
+            f"{os.path.basename(filename)!r} — use --platform to override"
+        )
     return "cisco_ios"
 
 

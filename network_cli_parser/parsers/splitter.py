@@ -7,7 +7,7 @@ from utils.normalization import normalize_command
 #   "N9K-DEVICE# show version"
 #   "N9K-DEVICE> show ip bgp summary vrf all"
 _COMMAND_RE = re.compile(
-    r'^(?:[\w\-\.]+[#>]\s+)?(show\s+[\w][\w\s\-\/\.]*?)(?:\s*\|.*)?$',
+    r'^(?:[\w\-\.]+[#>]\s*)?(show\s+[\w][\w\s\-\/\.]*?)(?:\s*\|.*)?$',
     re.IGNORECASE,
 )
 
@@ -25,7 +25,7 @@ def split_commands(content: str) -> dict:
     lines = content.splitlines()
     segments: dict = {}
     counts: dict = {}
-    current_cmd: str | None = None
+    current_cmd = None
     current_lines: list = []
 
     for line in lines:

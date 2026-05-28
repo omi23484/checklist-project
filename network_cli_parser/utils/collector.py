@@ -9,8 +9,9 @@ except ImportError:
     HAS_NETMIKO = False
 
 _PLATFORM_TO_DEVICE_TYPE = {
-    "cisco_nxos": "cisco_nxos_ssh",
-    "cisco_ios":  "cisco_ios",
+    "cisco_nxos":  "cisco_nxos_ssh",
+    "cisco_ios":   "cisco_ios",
+    "cisco_iosxe": "cisco_iosxe_ssh",
 }
 
 

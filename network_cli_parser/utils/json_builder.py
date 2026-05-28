@@ -22,7 +22,8 @@ def build_snapshot(
 
 
 def write_snapshot(snapshot: dict, output_path: str) -> None:
-    """Write snapshot dict as pretty-printed JSON to output_path."""
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    with open(output_path, "w") as fh:
+    dirpart = os.path.dirname(output_path)
+    if dirpart:
+        os.makedirs(dirpart, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as fh:
         json.dump(snapshot, fh, indent=2, default=str)

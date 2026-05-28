@@ -5,7 +5,7 @@ from ttp import ttp as TTP
 _TEMPLATE_DIR = Path(__file__).parent.parent / "templates" / "ttp"
 
 
-def parse(template_name: str, raw: str) -> list | dict:
+def parse(template_name: str, raw: str):
     """
     Parse raw CLI output using a TTP template file.
 
@@ -23,7 +23,7 @@ def parse(template_name: str, raw: str) -> list | dict:
     return result if result != "" else []
 
 
-def find_by_convention(platform: str, normalized_cmd: str) -> str | None:
+def find_by_convention(platform: str, normalized_cmd: str):
     """
     Search templates/ttp/ for a convention-named file:
       {platform}_{normalized_cmd}.ttp
