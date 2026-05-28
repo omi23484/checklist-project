@@ -332,7 +332,11 @@ def _health_check_list(results: list) -> str:
             f'padding:1px 5px;border-radius:3px;font-weight:700">match:{match_mode}</span>'
             if match_mode != "all" else ""
         )
-        sev_badge = f" {_badge('sev-' + severity, severity.upper())}" if severity != "critical" else ""
+        sev_badge = (
+            f" {_badge('sev-' + severity, severity.upper())}"
+            if severity != "critical" and status == "fail"
+            else ""
+        )
 
         detail_rows = f"""
 <div class="dg">
