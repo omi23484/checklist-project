@@ -268,7 +268,7 @@ def _print_health_summary(report: dict) -> None:
     for r in report["results"]:
         status   = r["status"].upper()
         severity = r.get("severity", "critical")
-        sev_tag  = f" [{severity}]" if severity != "critical" else ""
+        sev_tag  = f" [{severity}]" if severity != "critical" and r["status"] == "fail" else ""
         print(f"  [{status:5s}]{sev_tag} {r['name']}")
         if r["status"] == "fail":
             for f in r.get("failures", []):
