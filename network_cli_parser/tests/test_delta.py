@@ -115,6 +115,19 @@ class TestComputeDelta:
         assert result["summary"]["commands_changed"]   == []
         assert result["summary"]["commands_unchanged"] == []
 
+    def test_list_diff_natural_key_integer_values(self):
+        # Non-string natural key values must not crash (_diff_list_by_key KeyError fix)
+        before = _snap("SW1", {"show_ports": _cmd([
+            {"PORT": 1, "STATUS": "up"},
+            {"PORT": 2, "STATUS": "up"},
+        ])})
+        after = _snap("SW1", {"show_ports": _cmd([
+            {"PORT": 1, "STATUS": "up"},
+            {"PORT": 2, "STATUS": "down"},
+        ])})
+        result = compute_delta(before, after)
+        assert "show_ports" in result["summary"]["commands_changed"]
+
     def test_multiple_commands_mixed(self):
         before = _snap("SW1", {
             "show_version": _cmd({"version": "7.0"}),

@@ -104,10 +104,14 @@ def _diff_list(before: list, after: list, path: str) -> list[dict]:
 
 
 def _diff_list_by_key(before: list, after: list, path: str, key_field: str) -> list[dict]:
-    b_map = {row[key_field]: row for row in before if key_field in row}
-    a_map = {row[key_field]: row for row in after  if key_field in row}
+    b_map = {str(row[key_field]): row for row in before if key_field in row}
+    a_map = {str(row[key_field]): row for row in after  if key_field in row}
+    if len(b_map) < sum(1 for r in before if key_field in r):
+        print(f"[WARN] delta: duplicate '{key_field}' values in before '{path}' — last row wins")
+    if len(a_map) < sum(1 for r in after if key_field in r):
+        print(f"[WARN] delta: duplicate '{key_field}' values in after '{path}' — last row wins")
     diffs = []
-    for k in sorted(str(x) for x in set(b_map) | set(a_map)):
+    for k in sorted(set(b_map) | set(a_map)):
         child = f"{path}[{key_field}={k}]"
         if k not in b_map:
             diffs.append({"path": child, "before": None, "after": a_map[k]})
@@ -118,7 +122,7 @@ def _diff_list_by_key(before: list, after: list, path: str, key_field: str) -> l
     return diffs
 
 
-def _detect_key_field(rows: list[dict]) -> str | None:
+def _detect_key_field(rows: list[dict]):
     for field in _NATURAL_KEYS:
         if all(field in row for row in rows):
             return field

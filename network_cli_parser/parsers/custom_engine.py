@@ -14,13 +14,13 @@ def parse(template_name: str, raw: str) -> list:
     Raises textfsm.TextFSMError on template or parse errors.
     """
     template_path = _find_template(template_name)
-    with open(template_path) as fh:
+    with open(template_path, encoding="utf-8") as fh:
         fsm = textfsm.TextFSM(fh)
     rows = fsm.ParseText(raw)
     return [dict(zip(fsm.header, row)) for row in rows]
 
 
-def find_by_convention(platform: str, normalized_cmd: str) -> str | None:
+def find_by_convention(platform: str, normalized_cmd: str):
     """
     Search templates/custom/ for a convention-named file:
       {platform}_{normalized_cmd}.textfsm

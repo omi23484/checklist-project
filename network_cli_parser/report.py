@@ -40,9 +40,13 @@ def _load_json(path: str) -> dict:
 def _load_checks(path: str) -> list:
     with open(path, encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
+    if data is None:
+        return []
     if isinstance(data, list):
         return data
-    return data.get("checks", [])
+    if isinstance(data, dict):
+        return data.get("checks", [])
+    raise ValueError(f"{path}: expected a list or mapping, got {type(data).__name__}")
 
 
 def _write_output(data: dict, output=None) -> None:
@@ -175,19 +179,20 @@ def cmd_delta_all(args: argparse.Namespace) -> None:
         report = compute_delta(before_snap, after_snap)
         s = report["summary"]
 
+        safe = Path(hostname).name
         report_path = None
         if fmt in ("html", "both"):
-            html_path = output_dir / f"{hostname}_delta.html"
+            html_path = output_dir / f"{safe}_delta.html"
             html_path.write_text(
                 html_report.render_delta(report, before_snap, after_snap),
                 encoding="utf-8"
             )
-            report_path = f"{hostname}_delta.html"
+            report_path = f"{safe}_delta.html"
         if fmt in ("json", "both"):
-            json_path = output_dir / f"{hostname}_delta.json"
+            json_path = output_dir / f"{safe}_delta.json"
             _write_output(report, str(json_path))
             if report_path is None:
-                report_path = f"{hostname}_delta.json"
+                report_path = f"{safe}_delta.json"
 
         results.append({"hostname": hostname, "status": "matched", "side": "both",
                         "report_path": report_path, "summary": s})
@@ -309,16 +314,17 @@ def cmd_health_all(args: argparse.Namespace) -> None:
         if s.get("failed_critical", s["failed"]) > 0 or s["error"] > 0:
             any_failure = True
 
+        safe = Path(hostname).name
         report_path = None
         if fmt in ("html", "both"):
-            html_path = output_dir / f"{hostname}_health.html"
+            html_path = output_dir / f"{safe}_health.html"
             html_path.write_text(html_report.render_health(report, snap), encoding="utf-8")
-            report_path = f"{hostname}_health.html"
+            report_path = f"{safe}_health.html"
         if fmt in ("json", "both"):
-            json_path = output_dir / f"{hostname}_health.json"
+            json_path = output_dir / f"{safe}_health.json"
             _write_output(report, str(json_path))
             if report_path is None:
-                report_path = f"{hostname}_health.json"
+                report_path = f"{safe}_health.json"
 
         ts = snap.get("metadata", {}).get("collection_time", "?")
         results.append({
@@ -417,6 +423,8 @@ def cmd_baseline(args: argparse.Namespace) -> None:
 def _load_devices_yaml(path: str) -> list:
     with open(path, encoding="utf-8") as fh:
         data = yaml.safe_load(fh)
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: expected a YAML mapping, got {type(data).__name__ if data is not None else 'empty file'}")
     defaults = data.get("defaults", {})
     return [{**defaults, **dev} for dev in data.get("devices", [])]
 

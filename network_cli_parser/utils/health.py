@@ -58,6 +58,9 @@ def _run_check(check: dict, commands: dict) -> dict:
         }
 
     match_mode = check.get("match", "all")
+    if match_mode not in ("all", "any"):
+        print(f"[WARN] check '{name}': unknown match mode '{match_mode}' — treating as 'all'")
+        match_mode = "all"
     failures, passes = [], []
     for resolved_path, actual in values:
         ok, msg = _apply_condition(actual, condition, expected)
@@ -226,13 +229,20 @@ def _apply_condition(actual: Any, condition: str, expected: Any) -> tuple[bool, 
             return ok, (f"duration({actual!r}) = {a_s:.0f}s, "
                         f"not {sym[condition]} {e_s:.0f}s ({expected!r})")
         return False, f"Unknown condition: {condition!r}"
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, re.error) as exc:
         return False, f"Condition error: {exc}"
 
 
 def merge_checks(default: list[dict], override: list[dict]) -> list[dict]:
-    merged = {c["name"]: c for c in default}
-    merged.update({c["name"]: c for c in override})
+    merged = {}
+    for c in default:
+        if "name" not in c:
+            raise ValueError(f"check entry is missing required 'name' field: {c}")
+        merged[c["name"]] = c
+    for c in override:
+        if "name" not in c:
+            raise ValueError(f"check entry is missing required 'name' field: {c}")
+        merged[c["name"]] = c
     return list(merged.values())
 
 

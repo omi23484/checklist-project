@@ -153,6 +153,11 @@ class TestApplyCondition:
         assert not ok
         assert "Condition error" in msg
 
+    def test_invalid_regex_returns_error_not_crash(self):
+        ok, msg = _apply_condition("hello", "matches", "[invalid")
+        assert not ok
+        assert "Condition error" in msg
+
 
 class TestResolvePath:
     def test_simple_key(self):
@@ -320,3 +325,8 @@ class TestMergeChecks:
         override = [{"name": "x"}]
         merged   = merge_checks([], override)
         assert merged == override
+
+    def test_missing_name_raises(self):
+        import pytest
+        with pytest.raises(ValueError, match="missing required 'name'"):
+            merge_checks([{"value": "x"}], [])

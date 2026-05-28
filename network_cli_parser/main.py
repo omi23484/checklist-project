@@ -81,9 +81,13 @@ def _parse_command(platform: str, cmd: str, raw: str) -> tuple[dict, str]:
         return _auto_discover(platform, cmd, raw)
 
     if parser_type == "hierarchical":
-        func_name = strategy["func"]
+        func_name = strategy.get("func")
+        if not func_name:
+            print(f"[WARN] hierarchical strategy for '{cmd}' missing 'func' key")
+            return {}, "failed"
         func = getattr(mp, func_name, None)
         if func is None:
+            print(f"[WARN] multicast_parser has no function '{func_name}'")
             return {}, "failed"
         try:
             return func(raw), "parsed"
@@ -92,24 +96,24 @@ def _parse_command(platform: str, cmd: str, raw: str) -> tuple[dict, str]:
             return {}, "failed"
 
     if parser_type == "ntc":
+        template = strategy.get("template")
+        if not template:
+            print(f"[WARN] ntc strategy for '{cmd}' missing 'template' key")
+            return {}, "failed"
         try:
-            rows = ntc_engine.parse(platform, strategy["template"], raw)
+            rows = ntc_engine.parse(platform, template, raw)
             status = "parsed" if rows else "partial"
             return rows, status
         except Exception:
-            # NTC template missing or parse error — try custom fallback
-            if "template" in strategy:
-                try:
-                    rows = custom_engine.parse(strategy["template"], raw)
-                    status = "parsed" if rows else "partial"
-                    return rows, status
-                except Exception:
-                    pass
             return {}, "failed"
 
     if parser_type == "custom":
+        template = strategy.get("template")
+        if not template:
+            print(f"[WARN] custom strategy for '{cmd}' missing 'template' key")
+            return {}, "failed"
         try:
-            rows = custom_engine.parse(strategy["template"], raw)
+            rows = custom_engine.parse(template, raw)
             status = "parsed" if rows else "partial"
             return rows, status
         except Exception:
@@ -117,8 +121,12 @@ def _parse_command(platform: str, cmd: str, raw: str) -> tuple[dict, str]:
             return {}, "failed"
 
     if parser_type == "ttp":
+        template = strategy.get("template")
+        if not template:
+            print(f"[WARN] ttp strategy for '{cmd}' missing 'template' key")
+            return {}, "failed"
         try:
-            result = ttp_engine.parse(strategy["template"], raw)
+            result = ttp_engine.parse(template, raw)
             return result, "parsed" if result else "partial"
         except Exception:
             traceback.print_exc()
