@@ -330,3 +330,248 @@ class TestMergeChecks:
         import pytest
         with pytest.raises(ValueError, match="missing required 'name'"):
             merge_checks([{"value": "x"}], [])
+
+
+# ---------------------------------------------------------------------------
+# Plan 10: Compound conditions
+# ---------------------------------------------------------------------------
+
+def _snap(cmd_key, parsed_data):
+    return {
+        "metadata": {"hostname": "TEST"},
+        "commands": {cmd_key: {"parsed": parsed_data}},
+    }
+
+
+class TestOneOf:
+    def test_value_in_list_passes(self):
+        snap = _snap("show_interfaces", [{"status": "up"}])
+        checks = [{"name": "c", "command": "show_interfaces",
+                   "path": "[*].status", "condition": "one_of",
+                   "value": ["up", "connected"]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "pass"
+
+    def test_value_not_in_list_fails(self):
+        snap = _snap("show_interfaces", [{"status": "down"}])
+        checks = [{"name": "c", "command": "show_interfaces",
+                   "path": "[*].status", "condition": "one_of",
+                   "value": ["up", "connected"]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "fail"
+
+    def test_not_one_of_passes_when_absent(self):
+        snap = _snap("show_interfaces", [{"desc": "ACCESS"}])
+        checks = [{"name": "c", "command": "show_interfaces",
+                   "path": "[*].desc", "condition": "not_one_of",
+                   "value": ["DECOM", "DECOMMISSIONED"]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "pass"
+
+    def test_not_one_of_fails_when_present(self):
+        snap = _snap("show_interfaces", [{"desc": "DECOM"}])
+        checks = [{"name": "c", "command": "show_interfaces",
+                   "path": "[*].desc", "condition": "not_one_of",
+                   "value": ["DECOM", "DECOMMISSIONED"]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "fail"
+
+    def test_non_list_value_returns_false(self):
+        ok, msg = _apply_condition("up", "one_of", "up")
+        assert ok is False
+        assert "requires a list" in msg
+
+    def test_not_one_of_non_list_returns_false(self):
+        ok, msg = _apply_condition("up", "not_one_of", "up")
+        assert ok is False
+        assert "requires a list" in msg
+
+
+class TestAndConditions:
+    def test_both_pass(self):
+        snap = _snap("show_bgp", [{"prefixes": 500}])
+        checks = [{"name": "c", "command": "show_bgp",
+                   "path": "[*].prefixes",
+                   "conditions": [
+                       {"condition": "gte", "value": 1},
+                       {"condition": "lte", "value": 1000},
+                   ]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "pass"
+
+    def test_first_fails(self):
+        snap = _snap("show_bgp", [{"prefixes": 0}])
+        checks = [{"name": "c", "command": "show_bgp",
+                   "path": "[*].prefixes",
+                   "conditions": [
+                       {"condition": "gte", "value": 1},
+                       {"condition": "lte", "value": 1000},
+                   ]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "fail"
+        assert len(r["results"][0]["failures"][0]["messages"]) == 1
+
+    def test_second_fails(self):
+        snap = _snap("show_bgp", [{"prefixes": 9999}])
+        checks = [{"name": "c", "command": "show_bgp",
+                   "path": "[*].prefixes",
+                   "conditions": [
+                       {"condition": "gte", "value": 1},
+                       {"condition": "lte", "value": 1000},
+                   ]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "fail"
+
+    def test_both_fail_shows_both_messages(self):
+        snap = _snap("show_bgp", [{"prefixes": -1}])
+        checks = [{"name": "c", "command": "show_bgp",
+                   "path": "[*].prefixes",
+                   "conditions": [
+                       {"condition": "gte", "value": 1},
+                       {"condition": "lte", "value": -2},  # -1 is NOT <= -2
+                   ]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "fail"
+        assert len(r["results"][0]["failures"][0]["messages"]) == 2
+
+    def test_match_any_with_and_conditions(self):
+        snap = _snap("show_bgp", [{"prefixes": 500}, {"prefixes": 0}])
+        checks = [{"name": "c", "command": "show_bgp",
+                   "path": "[*].prefixes",
+                   "match": "any",
+                   "conditions": [
+                       {"condition": "gte", "value": 1},
+                       {"condition": "lte", "value": 1000},
+                   ]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "pass"
+
+
+class TestBranches:
+    def _make_snap(self, rows):
+        return _snap("show_interfaces", rows)
+
+    def test_when_match_then_applied_pass(self):
+        snap = self._make_snap([{"type": "loopback", "mtu": 65535}])
+        checks = [{"name": "c", "command": "show_interfaces", "path": "[*]",
+                   "branches": [
+                       {"when": {"field": "type", "condition": "eq", "value": "loopback"},
+                        "then": {"field": "mtu", "condition": "eq", "value": 65535}},
+                       {"default": {"field": "mtu", "condition": "eq", "value": 9216}},
+                   ]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "pass"
+
+    def test_when_match_then_applied_fail(self):
+        snap = self._make_snap([{"type": "loopback", "mtu": 1500}])
+        checks = [{"name": "c", "command": "show_interfaces", "path": "[*]",
+                   "branches": [
+                       {"when": {"field": "type", "condition": "eq", "value": "loopback"},
+                        "then": {"field": "mtu", "condition": "eq", "value": 65535}},
+                   ]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "fail"
+
+    def test_default_fires_when_no_when_matches(self):
+        snap = self._make_snap([{"type": "ethernet", "mtu": 9216}])
+        checks = [{"name": "c", "command": "show_interfaces", "path": "[*]",
+                   "branches": [
+                       {"when": {"field": "type", "condition": "eq", "value": "loopback"},
+                        "then": {"field": "mtu", "condition": "eq", "value": 65535}},
+                       {"default": {"field": "mtu", "condition": "eq", "value": 9216}},
+                   ]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "pass"
+
+    def test_no_match_no_default_vacuously_passes(self):
+        snap = self._make_snap([{"type": "unknown", "mtu": 1}])
+        checks = [{"name": "c", "command": "show_interfaces", "path": "[*]",
+                   "branches": [
+                       {"when": {"field": "type", "condition": "eq", "value": "loopback"},
+                        "then": {"field": "mtu", "condition": "eq", "value": 65535}},
+                   ]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "pass"
+
+    def test_non_dict_row_fails(self):
+        snap = _snap("show_bgp", ["scalar_not_dict"])
+        checks = [{"name": "c", "command": "show_bgp", "path": "[*]",
+                   "branches": [
+                       {"when": {"field": "x", "condition": "eq", "value": 1},
+                        "then": {"field": "y", "condition": "eq", "value": 1}},
+                   ]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "fail"
+
+    def test_mixed_rows_multiple_when(self):
+        snap = self._make_snap([
+            {"type": "loopback", "mtu": 65535},
+            {"type": "Ethernet", "mtu": 9216},
+        ])
+        checks = [{"name": "c", "command": "show_interfaces", "path": "[*]",
+                   "branches": [
+                       {"when": {"field": "type", "condition": "eq", "value": "loopback"},
+                        "then": {"field": "mtu", "condition": "eq", "value": 65535}},
+                       {"when": {"field": "type", "condition": "eq", "value": "Ethernet"},
+                        "then": {"field": "mtu", "condition": "eq", "value": 9216}},
+                   ]}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "pass"
+
+
+class TestPrintField:
+    def test_print_true_adds_printed_to_result(self):
+        snap = _snap("show_version", [{"version": "17.3.1"}])
+        checks = [{"name": "c", "command": "show_version",
+                   "path": "[*].version", "condition": "matches",
+                   "value": "17\\..*", "print": True}]
+        r = evaluate_checks(snap, checks)
+        res = r["results"][0]
+        assert res["status"] == "pass"
+        assert "printed" in res
+        assert "17.3.1" in res["printed"][0]
+
+    def test_print_template_substitutes_value(self):
+        snap = _snap("show_version", [{"version": "17.3.1"}])
+        checks = [{"name": "c", "command": "show_version",
+                   "path": "[*].version", "condition": "eq",
+                   "value": "17.3.1", "print": "OS version is {value}"}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["printed"][0] == "OS version is 17.3.1"
+
+    def test_print_on_fail_also_present(self):
+        snap = _snap("show_version", [{"version": "16.0"}])
+        checks = [{"name": "c", "command": "show_version",
+                   "path": "[*].version", "condition": "eq",
+                   "value": "17.3.1", "print": "Got: {value}"}]
+        r = evaluate_checks(snap, checks)
+        res = r["results"][0]
+        assert res["status"] == "fail"
+        assert res["printed"][0] == "Got: 16.0"
+
+    def test_print_with_and_conditions(self):
+        snap = _snap("show_bgp", [{"prefixes": 500}])
+        checks = [{"name": "c", "command": "show_bgp",
+                   "path": "[*].prefixes",
+                   "conditions": [{"condition": "gte", "value": 1}],
+                   "print": "Prefixes: {value}"}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["printed"][0] == "Prefixes: 500"
+
+    def test_print_with_branches(self):
+        snap = _snap("show_interfaces", [{"type": "loopback", "mtu": 65535}])
+        checks = [{"name": "c", "command": "show_interfaces", "path": "[*]",
+                   "print": "MTU is {value}",
+                   "branches": [
+                       {"when": {"field": "type", "condition": "eq", "value": "loopback"},
+                        "then": {"field": "mtu", "condition": "eq", "value": 65535}},
+                   ]}]
+        r = evaluate_checks(snap, checks)
+        assert "MTU is 65535" in r["results"][0]["printed"][0]
+
+    def test_no_print_field_no_printed_key(self):
+        snap = _snap("show_version", [{"version": "17.3.1"}])
+        checks = [{"name": "c", "command": "show_version",
+                   "path": "[*].version", "condition": "eq", "value": "17.3.1"}]
+        r = evaluate_checks(snap, checks)
+        assert "printed" not in r["results"][0]

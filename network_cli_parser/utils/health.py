@@ -34,6 +34,7 @@ def _run_check(check: dict, commands: dict) -> dict:
     condition = check.get("condition", "eq")
     expected  = check.get("value")
     severity  = check.get("severity", "critical")
+    print_tpl = check.get("print")
 
     if cmd not in commands:
         return _result_error(name, check, f"Command '{cmd}' not in snapshot", severity)
@@ -60,21 +61,132 @@ def _run_check(check: dict, commands: dict) -> dict:
     if match_mode not in ("all", "any"):
         print(f"[WARN] check '{name}': unknown match mode '{match_mode}' — treating as 'all'")
         match_mode = "all"
+
+    if "branches" in check:
+        return _run_check_branches(check, name, severity, match_mode, values, print_tpl)
+    if "conditions" in check:
+        return _run_check_multi(check, name, severity, match_mode, values, print_tpl)
+
+    # Single condition/value — existing logic
     failures, passes = [], []
     for resolved_path, actual in values:
         ok, msg = _apply_condition(actual, condition, expected)
         (passes if ok else failures).append({"path": resolved_path, "actual": actual, "message": msg})
 
+    printed = [_format_print(print_tpl, rp, act) for rp, act in values] if print_tpl is not None else None
+
     if match_mode == "any":
         if passes:
-            return {"name": name, "status": "pass", "severity": severity, "check": check,
-                    "actual": [f["actual"] for f in passes]}
-        return {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
-    else:  # all (default — preserves existing behaviour exactly)
+            r = {"name": name, "status": "pass", "severity": severity, "check": check,
+                 "actual": [f["actual"] for f in passes]}
+        else:
+            r = {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
+    else:
         if failures:
-            return {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
-        return {"name": name, "status": "pass", "severity": severity, "check": check,
-                "actual": [v for _, v in values]}
+            r = {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
+        else:
+            r = {"name": name, "status": "pass", "severity": severity, "check": check,
+                 "actual": [v for _, v in values]}
+    if printed is not None:
+        r["printed"] = printed
+    return r
+
+
+def _run_check_multi(check: dict, name: str, severity: str, match_mode: str,
+                     values: list, print_tpl) -> dict:
+    """AND logic: every condition in `conditions` must pass for an item to pass."""
+    cond_specs = check.get("conditions", [])
+    failures, passes = [], []
+    for resolved_path, actual in values:
+        item_msgs = []
+        for spec in cond_specs:
+            ok, msg = _apply_condition(actual, spec.get("condition", "eq"), spec.get("value"))
+            if not ok:
+                item_msgs.append(msg)
+        if item_msgs:
+            failures.append({"path": resolved_path, "actual": actual, "messages": item_msgs})
+        else:
+            passes.append({"path": resolved_path, "actual": actual})
+
+    printed = [_format_print(print_tpl, rp, act) for rp, act in values] if print_tpl is not None else None
+
+    if match_mode == "any":
+        if passes:
+            r = {"name": name, "status": "pass", "severity": severity, "check": check,
+                 "actual": [p["actual"] for p in passes]}
+        else:
+            r = {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
+    else:
+        if failures:
+            r = {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
+        else:
+            r = {"name": name, "status": "pass", "severity": severity, "check": check,
+                 "actual": [p["actual"] for p in passes]}
+    if printed is not None:
+        r["printed"] = printed
+    return r
+
+
+def _run_check_branches(check: dict, name: str, severity: str, match_mode: str,
+                        values: list, print_tpl) -> dict:
+    """IF/ELIF/ELSE logic: for each resolved dict row, find the first matching branch."""
+    branches     = check.get("branches", [])
+    default_spec = next((b["default"] for b in branches if "default" in b), None)
+    when_specs   = [b for b in branches if "when" in b]
+
+    failures, passes, printed_lines = [], [], []
+    for resolved_path, row in values:
+        if not isinstance(row, dict):
+            msg = f"branches requires dict rows; got {type(row).__name__}"
+            failures.append({"path": resolved_path, "actual": row, "message": msg})
+            if print_tpl is not None:
+                printed_lines.append(_format_print(print_tpl, resolved_path, row))
+            continue
+
+        then_spec = None
+        for b in when_specs:
+            when = b["when"]
+            field_val = row.get(when.get("field", ""))
+            ok, _ = _apply_condition(field_val, when.get("condition", "eq"), when.get("value"))
+            if ok:
+                then_spec = b["then"]
+                break
+
+        if then_spec is None:
+            then_spec = default_spec
+
+        if then_spec is None:
+            # No branch matched and no default → vacuously pass this row
+            passes.append({"path": resolved_path, "actual": None, "note": "no branch matched"})
+            if print_tpl is not None:
+                printed_lines.append(_format_print(print_tpl, resolved_path, "(no branch matched)"))
+            continue
+
+        then_field = then_spec.get("field", "")
+        check_val  = row.get(then_field)
+        item_path  = f"{resolved_path}.{then_field}" if then_field else resolved_path
+        ok, msg    = _apply_condition(check_val, then_spec.get("condition", "eq"), then_spec.get("value"))
+        (passes if ok else failures).append({"path": item_path, "actual": check_val, "message": msg})
+        if print_tpl is not None:
+            printed_lines.append(_format_print(print_tpl, item_path, check_val))
+
+    printed = printed_lines if print_tpl is not None else None
+
+    if match_mode == "any":
+        if passes:
+            r = {"name": name, "status": "pass", "severity": severity, "check": check,
+                 "actual": [p["actual"] for p in passes]}
+        else:
+            r = {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
+    else:
+        if failures:
+            r = {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
+        else:
+            r = {"name": name, "status": "pass", "severity": severity, "check": check,
+                 "actual": [p["actual"] for p in passes]}
+    if printed is not None:
+        r["printed"] = printed
+    return r
 
 
 # ---------------------------------------------------------------------------
@@ -180,6 +292,15 @@ def _parse_duration(s: str) -> float:
     return total
 
 
+def _format_print(template, path: str, value) -> str:
+    if template is True:
+        return f"{path} -> {value!r}"
+    try:
+        return str(template).replace("{path}", str(path)).replace("{value}", str(value))
+    except Exception:
+        return f"{path} -> {value!r}"
+
+
 def _apply_condition(actual: Any, condition: str, expected: Any) -> tuple[bool, str]:
     try:
         if condition == "eq":
@@ -213,6 +334,16 @@ def _apply_condition(actual: Any, condition: str, expected: Any) -> tuple[bool, 
             ok = ops[condition]
             return ok, (f"duration({actual!r}) = {a_s:.0f}s, "
                         f"not {sym[condition]} {e_s:.0f}s ({expected!r})")
+        if condition == "one_of":
+            if not isinstance(expected, list):
+                return False, f"one_of requires a list value, got {type(expected).__name__}"
+            ok = actual in expected
+            return ok, f"{actual!r} not in {expected!r}"
+        if condition == "not_one_of":
+            if not isinstance(expected, list):
+                return False, f"not_one_of requires a list value, got {type(expected).__name__}"
+            ok = actual not in expected
+            return ok, f"{actual!r} is in {expected!r} (should not be)"
         return False, f"Unknown condition: {condition!r}"
     except (ValueError, TypeError, re.error) as exc:
         return False, f"Condition error: {exc}"
