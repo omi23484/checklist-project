@@ -179,7 +179,7 @@ def process_file(input_path: str, output_dir: str, platform_override=None) -> st
     )
 
     basename    = os.path.splitext(os.path.basename(input_path))[0]
-    output_path = os.path.join(output_dir, f"{basename}.json")
+    output_path = os.path.join(output_dir, collection_time, f"{basename}.json")
     json_builder.write_snapshot(snapshot, output_path)
     print(f"  -> {output_path}")
     return output_path
