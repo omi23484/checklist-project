@@ -274,11 +274,15 @@ def _print_health_summary(report: dict) -> None:
             for f in r.get("failures", []):
                 print(f"          path:    {f['path']}")
                 print(f"          actual:  {f['actual']}")
-                print(f"          reason:  {f['message']}")
+                msgs = f.get("messages") or ([f["message"]] if f.get("message") else [])
+                for msg in msgs:
+                    print(f"          reason:  {msg}")
         elif r["status"] == "error":
             print(f"          {r.get('message')}")
         elif r["status"] == "pass" and r.get("note"):
             print(f"          note: {r['note']}")
+        for line in r.get("printed", []):
+            print(f"          {line}")
     print()
 
 

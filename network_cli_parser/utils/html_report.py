@@ -332,32 +332,81 @@ def _health_check_list(results: list) -> str:
             f'padding:1px 5px;border-radius:3px;font-weight:700">match:{match_mode}</span>'
             if match_mode != "all" else ""
         )
-        sev_badge = f" {_badge('sev-' + severity, severity.upper())}" if severity != "critical" else ""
+        sev_badge = (
+            f" {_badge('sev-' + severity, severity.upper())}"
+            if severity != "critical" and status == "fail" else ""
+        )
+
+        # Build the Condition row content based on check type
+        if "branches" in check:
+            branch_parts = []
+            for b in check["branches"]:
+                if "when" in b:
+                    w = b["when"]
+                    t = b.get("then", {})
+                    branch_parts.append(
+                        f"IF {_e(str(w.get('field','')))} {_e(str(w.get('condition','')))} "
+                        f"{_e(str(w.get('value','')))} "
+                        f"→ {_e(str(t.get('field','')))} {_e(str(t.get('condition','')))} "
+                        f"{_e(str(t.get('value','')))}"
+                    )
+                elif "default" in b:
+                    d = b["default"]
+                    branch_parts.append(
+                        f"ELSE {_e(str(d.get('field','')))} {_e(str(d.get('condition','')))} "
+                        f"{_e(str(d.get('value','')))}"
+                    )
+            cond_html = "<br>".join(branch_parts)
+        elif "conditions" in check:
+            parts = []
+            for s in check["conditions"]:
+                parts.append(f"<code>{_e(str(s.get('condition','')))} {_e(str(s.get('value','')))}</code>")
+            cond_html = ' <span style="color:var(--muted);font-weight:700">AND</span> '.join(parts)
+        elif cond in ("one_of", "not_one_of") and isinstance(val, list):
+            pills = "".join(
+                f'<span style="background:var(--info-bg);color:var(--info);padding:1px 6px;'
+                f'border-radius:3px;font-size:.78rem;margin-right:4px">{_e(str(v))}</span>'
+                for v in val
+            )
+            cond_html = f"<code>{_e(cond)}</code> {pills}"
+        else:
+            cond_html = f"<code>{_e(cond)} {_e(str(val))}</code>"
 
         detail_rows = f"""
 <div class="dg">
   <span class="dk">Command</span><code>{_e(cmd)}</code>
   <span class="dk">Path</span><code>{_e(path)}</code>
-  <span class="dk">Condition</span><code>{_e(cond)} {_e(str(val))}</code>{match_tag}
+  <span class="dk">Condition</span><span>{cond_html}</span>{match_tag}
 </div>"""
 
         extra = ""
         if status == "fail":
             failures = r.get("failures", [])
-            rows = "".join(
-                f"""<div class="failure-row">
+            rows = ""
+            for f in failures:
+                msgs = f.get("messages") or ([f["message"]] if f.get("message") else [])
+                reason_html = "".join(f'<div class="fr">{_e(m)}</div>' for m in msgs)
+                rows += f"""<div class="failure-row">
   <div class="fp">{_e(f["path"])}</div>
   <div class="fa">Actual: <span>{_e(str(f["actual"]))}</span></div>
-  <div class="fr">{_e(f["message"])}</div>
+  {reason_html}
 </div>"""
-                for f in failures
-            )
             extra = f'<div class="failures">{rows}</div>'
         elif status == "error":
             msg = r.get("message", "")
             extra = f'<div class="failure-row"><div class="fr">{_e(msg)}</div></div>'
         elif r.get("note"):
             extra = f'<div style="font-size:.78rem;color:var(--muted);margin-top:4px">ℹ {_e(r["note"])}</div>'
+
+        # print: always show resolved values
+        printed = r.get("printed")
+        if printed:
+            printed_rows = "".join(
+                f'<div style="font-size:.78rem;color:var(--muted);padding:1px 0">'
+                f'<code>{_e(line)}</code></div>'
+                for line in printed
+            )
+            extra += f'<div style="margin-top:6px">{printed_rows}</div>'
 
         items.append(f"""
 <div class="check-card {_e(status)}">
