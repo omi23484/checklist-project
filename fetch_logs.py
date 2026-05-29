@@ -304,6 +304,12 @@ def _matches_pattern(name: str, patterns: list) -> bool:
     return any(fnmatch.fnmatch(name, p) for p in patterns)
 
 
+def _matches_contains(name: str, substrings: list) -> bool:
+    """Return True if name contains ALL specified substrings (case-insensitive)."""
+    lower = name.lower()
+    return all(s.lower() in lower for s in substrings)
+
+
 def _should_download(local_path: Path, remote_size: int, if_exists: str) -> bool:
     if not local_path.exists():
         return True
@@ -336,12 +342,14 @@ def fetch(args, transport) -> None:
             print(f"  [ERROR] Cannot list '{remote_path}': {exc}")
             continue
 
-        # Filter by pattern and exclude directories
+        # Filter by pattern, name-contains, and exclude directories
         import stat as _stat
+        contains = args.name_contains or []
         files = [
             e for e in entries
             if not _stat.S_ISDIR(e.st_mode or 0)
             and _matches_pattern(e.filename, patterns)
+            and _matches_contains(e.filename, contains)
         ]
         files.sort(key=lambda e: e.filename)
         print(f"  {len(files)} matching file(s)")
@@ -457,6 +465,9 @@ def _build_parser() -> argparse.ArgumentParser:
                        help="Local root directory (default: data/raw/ beside this script)")
     paths.add_argument("--pattern",       nargs="+", default=["*.txt"], metavar="GLOB",
                        help="Filename glob pattern(s) to match (default: *.txt)")
+    paths.add_argument("--name-contains", nargs="+", default=None, metavar="STR",
+                       help="Only fetch files whose name contains ALL given strings "
+                            "(case-insensitive). e.g. --name-contains CAMA WAN")
 
     # ── Transfer behaviour ───────────────────────────────────────────────────
     xfer = p.add_argument_group("Transfer behaviour")
