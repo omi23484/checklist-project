@@ -630,3 +630,26 @@ class TestPrintTemplate:
         data = {"peers": {"10.0.0.1": {"uptime": "1d"}}}
         lines = self._run(data, "peers[*].uptime", "{{[*][5]}}")
         assert lines == [""]
+
+    def test_sibling_field_list_of_dicts(self):
+        """{{.field}} fetches another field from the same dict row."""
+        from utils.health import _format_print, _resolve_path
+        data = [
+            {"prefix": "10.0.0.0/8", "bgp_neig": "10.2.240.1", "state": "up"},
+            {"prefix": "192.168.0.0/16", "bgp_neig": "10.2.240.2", "state": "up"},
+        ]
+        results = _resolve_path(data, "[*].prefix")
+        lines = [_format_print("neig={{.bgp_neig}} prefix={{value}}", p, v, data) for p, v in results]
+        assert lines[0] == "neig=10.2.240.1 prefix=10.0.0.0/8"
+        assert lines[1] == "neig=10.2.240.2 prefix=192.168.0.0/16"
+
+    def test_sibling_field_via_evaluate_checks(self):
+        snap = _snap("show_bgp", [
+            {"prefix": "10.0.0.0/8", "bgp_neig": "10.2.240.1"},
+            {"prefix": "192.168.0.0/16", "bgp_neig": "10.2.240.2"},
+        ])
+        checks = [{"name": "c", "command": "show_bgp", "path": "[*].prefix",
+                   "condition": "contains", "value": "10",
+                   "print": "neig={{.bgp_neig}} prefix={{value}}"}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["printed"][0] == "neig=10.2.240.1 prefix=10.0.0.0/8"

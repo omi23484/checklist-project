@@ -63,9 +63,9 @@ def _run_check(check: dict, commands: dict) -> dict:
         match_mode = "all"
 
     if "branches" in check:
-        return _run_check_branches(check, name, severity, match_mode, values, print_tpl)
+        return _run_check_branches(check, name, severity, match_mode, values, print_tpl, parsed)
     if "conditions" in check:
-        return _run_check_multi(check, name, severity, match_mode, values, print_tpl)
+        return _run_check_multi(check, name, severity, match_mode, values, print_tpl, parsed)
 
     # Single condition/value — existing logic
     failures, passes = [], []
@@ -73,7 +73,7 @@ def _run_check(check: dict, commands: dict) -> dict:
         ok, msg = _apply_condition(actual, condition, expected)
         (passes if ok else failures).append({"path": resolved_path, "actual": actual, "message": msg})
 
-    printed = [_format_print(print_tpl, rp, act) for rp, act in values] if print_tpl is not None else None
+    printed = [_format_print(print_tpl, rp, act, parsed) for rp, act in values] if print_tpl is not None else None
 
     if match_mode == "any":
         if passes:
@@ -93,7 +93,7 @@ def _run_check(check: dict, commands: dict) -> dict:
 
 
 def _run_check_multi(check: dict, name: str, severity: str, match_mode: str,
-                     values: list, print_tpl) -> dict:
+                     values: list, print_tpl, parsed) -> dict:
     """AND logic: every condition in `conditions` must pass for an item to pass."""
     cond_specs = check.get("conditions", [])
     failures, passes = [], []
@@ -108,7 +108,7 @@ def _run_check_multi(check: dict, name: str, severity: str, match_mode: str,
         else:
             passes.append({"path": resolved_path, "actual": actual})
 
-    printed = [_format_print(print_tpl, rp, act) for rp, act in values] if print_tpl is not None else None
+    printed = [_format_print(print_tpl, rp, act, parsed) for rp, act in values] if print_tpl is not None else None
 
     if match_mode == "any":
         if passes:
@@ -128,7 +128,7 @@ def _run_check_multi(check: dict, name: str, severity: str, match_mode: str,
 
 
 def _run_check_branches(check: dict, name: str, severity: str, match_mode: str,
-                        values: list, print_tpl) -> dict:
+                        values: list, print_tpl, parsed) -> dict:
     """IF/ELIF/ELSE logic: for each resolved dict row, find the first matching branch."""
     branches     = check.get("branches", [])
     default_spec = next((b["default"] for b in branches if "default" in b), None)
@@ -140,7 +140,7 @@ def _run_check_branches(check: dict, name: str, severity: str, match_mode: str,
             msg = f"branches requires dict rows; got {type(row).__name__}"
             failures.append({"path": resolved_path, "actual": row, "message": msg})
             if print_tpl is not None:
-                printed_lines.append(_format_print(print_tpl, resolved_path, row))
+                printed_lines.append(_format_print(print_tpl, resolved_path, row, parsed))
             continue
 
         then_spec = None
@@ -159,7 +159,7 @@ def _run_check_branches(check: dict, name: str, severity: str, match_mode: str,
             # No branch matched and no default → vacuously pass this row
             passes.append({"path": resolved_path, "actual": None, "note": "no branch matched"})
             if print_tpl is not None:
-                printed_lines.append(_format_print(print_tpl, resolved_path, "(no branch matched)"))
+                printed_lines.append(_format_print(print_tpl, resolved_path, "(no branch matched)", parsed))
             continue
 
         then_field = then_spec.get("field", "")
@@ -168,7 +168,7 @@ def _run_check_branches(check: dict, name: str, severity: str, match_mode: str,
         ok, msg    = _apply_condition(check_val, then_spec.get("condition", "eq"), then_spec.get("value"))
         (passes if ok else failures).append({"path": item_path, "actual": check_val, "message": msg})
         if print_tpl is not None:
-            printed_lines.append(_format_print(print_tpl, item_path, check_val))
+            printed_lines.append(_format_print(print_tpl, item_path, check_val, parsed))
 
     printed = printed_lines if print_tpl is not None else None
 
@@ -294,7 +294,7 @@ def _parse_duration(s: str) -> float:
     return total
 
 
-def _format_print(template, path: str, value) -> str:
+def _format_print(template, path: str, value, data=None) -> str:
     if template is True:
         return f"{path} -> {value!r}"
     s = str(template)
@@ -305,6 +305,17 @@ def _format_print(template, path: str, value) -> str:
         lambda m: wildcard_keys[int(m.group(1))] if int(m.group(1)) < len(wildcard_keys) else '',
         s,
     )
+    if data is not None:
+        parent = re.sub(r'\.[^.\[]+$', '', path)
+        def _sibling(m):
+            field = m.group(1)
+            sibling_path = f"{parent}.{field}" if parent else field
+            try:
+                results = _resolve_path(data, sibling_path)
+                return str(results[0][1]) if results else ''
+            except Exception:
+                return ''
+        s = re.sub(r'\{\{\.(\w+)\}\}', _sibling, s)
     s = s.replace('{{value}}', str(value)).replace('{{path}}', str(path))
     s = s.replace('{value}', str(value)).replace('{path}', str(path))
     return s
