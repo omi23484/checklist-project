@@ -1,0 +1,355 @@
+{
+  "metadata": {
+    "hostname": "TEST-N9K-3",
+    "platform": "cisco_nxos",
+    "collection_time": "29-May-26",
+    "source_file": "TEST-N9K-3_29-May-26.txt"
+  },
+  "commands": {
+    "show_version": {
+      "status": "parsed",
+      "raw": "\nCisco Nexus Operating System (NX-OS) Software\nTAC support: http://www.cisco.com/tac\nCopyright (C) 2002-2024, Cisco and/or its affiliates.\nAll rights reserved.\n\n  BIOS: version 07.69\n  NXOS: version 10.3(5)M\n  BIOS compile time:  09/22/2022\n  NXOS image file is: bootflash:///nxos64-cs.10.3.5.M.bin\n  NXOS compile time:  12/06/2023 19:00:00 [12/07/2023 01:22:48]\n\nHardware\n  cisco Nexus9000 C9364C chassis\n  Intel(R) Xeon(R) CPU D-1526 @ 1.80GHz with 24541516 kB of memory.\n  Processor Board ID FDO251A0003\n\n  Device name: TEST-N9K-3\n  bootflash:    53298520 kB\n  Kernel uptime is 12 day(s), 3 hour(s), 44 minute(s), 52 second(s)\n\nLast reset at 485759 usecs after Wed May 17 05:00:00 2026\n  Reason: Reset Requested by CLI command reload\n  System version: 10.3(5)M\n  Service:\n\nplugin\n  Core Plugin, Ethernet Plugin\n\nActive Package(s):",
+      "parsed": [
+        {
+          "uptime": "",
+          "last_reboot_reason": "Reset Requested by CLI command reload",
+          "bios": "07.69",
+          "os": "10.3(5)M",
+          "boot_image": "bootflash:///nxos64-cs.10.3.5.M.bin",
+          "platform": "C9364C",
+          "hostname": "TEST-N9K-3",
+          "serial": "FDO251A0003"
+        }
+      ]
+    },
+    "show_vpc_brief": {
+      "status": "parsed",
+      "raw": "\nLegend:\n                (*) - local vPC is down, forwarding via vPC peer-link\n\nvPC domain id                     : 2\nPeer status                       : peer adjacency formed ok\nvPC keep-alive status             : peer is alive\nConfiguration consistency status  : success\nPer-vlan consistency status       : success\nType-2 consistency status         : success\nvPC role                          : primary\nNumber of vPCs configured         : 3\nPeer Gateway                      : Enabled\nDual-active excluded VLANs        : -\nGraceful Consistency Check        : Enabled\nAuto-recovery status              : Enabled, timer is off.(timeout = 240s)\nDelay-restore status              : Timer is off.(timeout = 30s)\nDelay-restore SVI status          : Timer is off.(timeout = 10s)\nOperational Layer3 Peer-router    : Disabled\nVirtual-peerlink mode             : Disabled\n\nvPC Peer-link status\n---------------------------------------------------------------------\nid    Port   Status Active vlans\n--    ----   ------ --------------------------------------------------\n1     Po1    up     1,300-304,400-404\n\nvPC status\n----------------------------------------------------------------------------\nId    Port          Status Consistency Reason                Active vlans\n--    ------------  ------ ----------- ------                ------------\n10    Po10          up     success     success               300-304\n20    Po20          up     success     success               400-404\n30    Po30          up     success     success               300",
+      "parsed": [
+        {
+          "id": "1",
+          "port": "Po1",
+          "status": "up"
+        },
+        {
+          "id": "10",
+          "port": "Po10",
+          "status": "up"
+        },
+        {
+          "id": "20",
+          "port": "Po20",
+          "status": "up"
+        },
+        {
+          "id": "30",
+          "port": "Po30",
+          "status": "up"
+        }
+      ]
+    },
+    "show_interface_description": {
+      "status": "parsed",
+      "raw": "\n-------------------------------------------------------------------------------\nInterface                Description\n-------------------------------------------------------------------------------\nEth1/1                   uplink-to-CORE-RTR-3\nEth1/2                   uplink-to-CORE-RTR-4\nEth1/3                   uplink-to-DIST-SW-C\nEth1/4                   server-rack-C-bond0\nEth1/5                   server-rack-D-bond0\nEth1/48                  --\nmgmt0                    OOB-MGMT-PRIMARY\nLo0                      router-id-loopback\nLo1                      mcast-rp-loopback\nPo1                      vpc-peer-link-to-TEST-N9K-4\nPo10                     vpc-to-access-sw-C\nPo20                     vpc-to-access-sw-D\nPo30                     vpc-to-server-rack-C",
+      "parsed": [
+        {
+          "port": "Eth1/1",
+          "type": "",
+          "speed": "",
+          "description": "uplink-to-CORE-RTR-3"
+        },
+        {
+          "port": "Eth1/2",
+          "type": "",
+          "speed": "",
+          "description": "uplink-to-CORE-RTR-4"
+        },
+        {
+          "port": "Eth1/3",
+          "type": "",
+          "speed": "",
+          "description": "uplink-to-DIST-SW-C"
+        },
+        {
+          "port": "Eth1/4",
+          "type": "",
+          "speed": "",
+          "description": "server-rack-C-bond0"
+        },
+        {
+          "port": "Eth1/5",
+          "type": "",
+          "speed": "",
+          "description": "server-rack-D-bond0"
+        },
+        {
+          "port": "Eth1/48",
+          "type": "",
+          "speed": "",
+          "description": "--"
+        },
+        {
+          "port": "mgmt0",
+          "type": "",
+          "speed": "",
+          "description": "OOB-MGMT-PRIMARY"
+        },
+        {
+          "port": "Lo0",
+          "type": "",
+          "speed": "",
+          "description": "router-id-loopback"
+        },
+        {
+          "port": "Lo1",
+          "type": "",
+          "speed": "",
+          "description": "mcast-rp-loopback"
+        },
+        {
+          "port": "Po1",
+          "type": "",
+          "speed": "",
+          "description": "vpc-peer-link-to-TEST-N9K-4"
+        },
+        {
+          "port": "Po10",
+          "type": "",
+          "speed": "",
+          "description": "vpc-to-access-sw-C"
+        },
+        {
+          "port": "Po20",
+          "type": "",
+          "speed": "",
+          "description": "vpc-to-access-sw-D"
+        },
+        {
+          "port": "Po30",
+          "type": "",
+          "speed": "",
+          "description": "vpc-to-server-rack-C"
+        }
+      ]
+    },
+    "show_ip_bgp_summary_vrf_all": {
+      "status": "parsed",
+      "raw": "\nBGP summary information for VRF default, address family IPv4 Unicast\nBGP router identifier 10.0.0.3, local AS number 65001\nBGP table version is 88, IPv4 Unicast config peers 2, capable peers 2\n\nNeighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd\n10.0.3.2        4 65005    2880    2878       88    0    0 12d03h             87\n10.0.3.6        4 65006    2851    2848       88    0    0 12d01h             94",
+      "parsed": [
+        {
+          "router_id": "10.0.0.3",
+          "local_as": "65001",
+          "vrf": "default",
+          "bgp_neigh": "10.0.3.2",
+          "neigh_as": "65005",
+          "msg_rcvd": "2880",
+          "msg_sent": "2878",
+          "in_queue": "0",
+          "out_queue": "0",
+          "up_down": "12d03h",
+          "state_pfxrcd": "87"
+        },
+        {
+          "router_id": "10.0.0.3",
+          "local_as": "65001",
+          "vrf": "default",
+          "bgp_neigh": "10.0.3.6",
+          "neigh_as": "65006",
+          "msg_rcvd": "2851",
+          "msg_sent": "2848",
+          "in_queue": "0",
+          "out_queue": "0",
+          "up_down": "12d01h",
+          "state_pfxrcd": "94"
+        }
+      ]
+    },
+    "show_ip_bgp_neigh_vrf_all": {
+      "status": "parsed",
+      "raw": "\nBGP neighbor is 10.0.3.2,  remote AS 65005, ebgp link,  Peer index 1\nBGP version 4, remote router ID 10.0.3.2\nBGP state = Established, up for 12d03h\nLast read 00:00:18, hold time = 90, keepalive interval is 30 seconds\n\nBGP neighbor is 10.0.3.6,  remote AS 65006, ebgp link,  Peer index 2\nBGP version 4, remote router ID 10.0.3.6\nBGP state = Established, up for 12d01h\nLast read 00:00:29, hold time = 90, keepalive interval is 30 seconds",
+      "parsed": [
+        {
+          "neighbor": "10.0.3.2",
+          "peer_group": "",
+          "description": "",
+          "vrf": "",
+          "asn": "65005",
+          "remote_asn": "65005",
+          "local_asn": "",
+          "bgp_state": "",
+          "uptime": "",
+          "source_iface": "",
+          "conn_estab": "",
+          "conn_dropped": "",
+          "last_reset": "",
+          "last_reset_reason": "",
+          "last_peer_reset": "",
+          "last_peer_reset_reason": "",
+          "addr_family": [],
+          "table_version": [],
+          "nei_table_version": [],
+          "addr_fam_adv": "",
+          "localhost_ip": "",
+          "localhost_port": "",
+          "remote_ip": "",
+          "remote_port": "",
+          "accepted_paths": "",
+          "sent_paths": "",
+          "consumed_mem": "",
+          "rr_old_cap": "",
+          "rr_new_cap": "",
+          "graceful_cap": "",
+          "fourbyte_cap": "",
+          "ext_nh_cap": "",
+          "restart_time_adv": "",
+          "restart_time_rcv": "",
+          "stale_time": "",
+          "opens_count_sent": "",
+          "notifications_count_sent": "",
+          "updates_count_sent": "",
+          "keepalives_count_sent": "",
+          "route_refresh_count_sent": "",
+          "capability_count_sent": "",
+          "total_mess_count_sent": "",
+          "total_bytes_count_sent": "",
+          "opens_count_rcvd": "",
+          "notifications_count_rcvd": "",
+          "updates_count_rcvd": "",
+          "keepalives_count_rcvd": "",
+          "route_refresh_count_rcvd": "",
+          "capability_count_rcvd": "",
+          "total_mess_count_rcvd": "",
+          "total_bytes_count_rcvd": "",
+          "total_bytes_send_queue": "",
+          "total_bytes_rcvd_queue": "",
+          "inbound_routemap": "",
+          "outbound_routemap": ""
+        },
+        {
+          "neighbor": "10.0.3.6",
+          "peer_group": "",
+          "description": "",
+          "vrf": "",
+          "asn": "65006",
+          "remote_asn": "65006",
+          "local_asn": "",
+          "bgp_state": "",
+          "uptime": "",
+          "source_iface": "",
+          "conn_estab": "",
+          "conn_dropped": "",
+          "last_reset": "",
+          "last_reset_reason": "",
+          "last_peer_reset": "",
+          "last_peer_reset_reason": "",
+          "addr_family": [],
+          "table_version": [],
+          "nei_table_version": [],
+          "addr_fam_adv": "",
+          "localhost_ip": "",
+          "localhost_port": "",
+          "remote_ip": "",
+          "remote_port": "",
+          "accepted_paths": "",
+          "sent_paths": "",
+          "consumed_mem": "",
+          "rr_old_cap": "",
+          "rr_new_cap": "",
+          "graceful_cap": "",
+          "fourbyte_cap": "",
+          "ext_nh_cap": "",
+          "restart_time_adv": "",
+          "restart_time_rcv": "",
+          "stale_time": "",
+          "opens_count_sent": "",
+          "notifications_count_sent": "",
+          "updates_count_sent": "",
+          "keepalives_count_sent": "",
+          "route_refresh_count_sent": "",
+          "capability_count_sent": "",
+          "total_mess_count_sent": "",
+          "total_bytes_count_sent": "",
+          "opens_count_rcvd": "",
+          "notifications_count_rcvd": "",
+          "updates_count_rcvd": "",
+          "keepalives_count_rcvd": "",
+          "route_refresh_count_rcvd": "",
+          "capability_count_rcvd": "",
+          "total_mess_count_rcvd": "",
+          "total_bytes_count_rcvd": "",
+          "total_bytes_send_queue": "",
+          "total_bytes_rcvd_queue": "",
+          "inbound_routemap": "",
+          "outbound_routemap": ""
+        }
+      ]
+    },
+    "show_ip_ospf_neighbors": {
+      "status": "parsed",
+      "raw": "\nOSPF Process ID 1 VRF default\nTotal number of neighbors: 2\n\nNeighbor ID     Pri State            Up Time  Address         Interface\n10.0.3.2          1 FULL/ -         12d03h   10.0.3.2        Eth1/1\n10.0.3.6          1 FULL/ -         12d01h   10.0.3.6        Eth1/2",
+      "parsed": {
+        "neighbors": [
+          {
+            "neighbor_id": "10.0.3.2",
+            "priority": "1",
+            "state": "FULL/ -",
+            "uptime": "12d03h",
+            "address": "10.0.3.2",
+            "interface": "Eth1/1"
+          },
+          {
+            "neighbor_id": "10.0.3.6",
+            "priority": "1",
+            "state": "FULL/ -",
+            "uptime": "12d01h",
+            "address": "10.0.3.6",
+            "interface": "Eth1/2"
+          }
+        ]
+      }
+    },
+    "show_ip_pim_neigh": {
+      "status": "partial",
+      "raw": "\nPIM Neighbor Status for VRF \"default\"\nNeighbor        Interface            Uptime    Expires   DR       Bidir-  BFD\n                                                         Priority Capable State",
+      "parsed": []
+    },
+    "show_ip_mroute_summary": {
+      "status": "parsed",
+      "raw": "\nIP Multicast Routing Table for VRF \"default\"\nTotal number of routes: 0\nTotal number of (*,G) routes: 0\nTotal number of (S,G) routes: 0\nTotal number of (*,G-prefix) routes: 0",
+      "parsed": {
+        "vrfs": {
+          "default": {
+            "summary": {
+              "total_routes": 0,
+              "star_g_routes": 0,
+              "sg_routes": 0,
+              "star_g_prefix_routes": 0
+            },
+            "groups": []
+          }
+        }
+      }
+    },
+    "show_ip_mroute": {
+      "status": "parsed",
+      "raw": "\nIP Multicast Routing Table for VRF \"default\"",
+      "parsed": {
+        "vrfs": {
+          "default": {
+            "entries": []
+          }
+        }
+      }
+    },
+    "show_processes_cpu_history": {
+      "status": "raw_only",
+      "raw": "\nCPU% per second (last 60 seconds)\n100\n 90\n 80\n 70\n 60\n 50\n 40\n 30      *    *\n 20   *  *  * *  *   *\n 10  ** ** ** ** ** ***  ** *\n   0....5....1....1....2....2....3....3....4....4....5....5....6\n             0    5    0    5    0    5    0    5    0    5    0",
+      "parsed": {}
+    },
+    "show_logging_last_100": {
+      "status": "raw_only",
+      "raw": "\n2026 May 17 05:00:01 TEST-N9K-3 %PLATFORM-5-MOD_OK: Module 1 is online\n2026 May 17 05:00:15 TEST-N9K-3 %ETHPORT-5-IF_UP: Interface Ethernet1/1 is up in mode trunk\n2026 May 17 05:00:16 TEST-N9K-3 %ETHPORT-5-IF_UP: Interface Ethernet1/2 is up in mode trunk\n2026 May 17 05:01:40 TEST-N9K-3 %BGP-5-ADJCHANGE: bgp-65001 [inst] default-vrf - peer 10.0.3.2 Up\n2026 May 17 05:01:44 TEST-N9K-3 %BGP-5-ADJCHANGE: bgp-65001 [inst] default-vrf - peer 10.0.3.6 Up\n2026 May 17 05:02:30 TEST-N9K-3 %OSPF-5-ADJCHANGE: ospf-1 default VRF adj with 10.0.3.2 on Eth1/1 is FULL\n2026 May 17 05:02:35 TEST-N9K-3 %OSPF-5-ADJCHANGE: ospf-1 default VRF adj with 10.0.3.6 on Eth1/2 is FULL\n2026 May 29 06:15:22 TEST-N9K-3 %PIM-3-NBRCHANGE: VRF default: all PIM neighbors lost on Ethernet1/1\n2026 May 29 06:15:25 TEST-N9K-3 %PIM-3-NBRCHANGE: VRF default: all PIM neighbors lost on Ethernet1/2\n2026 May 29 06:15:30 TEST-N9K-3 %MRIB-3-MROUTE_DEL: All multicast routes flushed from VRF default",
+      "parsed": {}
+    }
+  }
+}

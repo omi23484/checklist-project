@@ -1,0 +1,176 @@
+TEST-N9K-3# show version
+
+Cisco Nexus Operating System (NX-OS) Software
+TAC support: http://www.cisco.com/tac
+Copyright (C) 2002-2024, Cisco and/or its affiliates.
+All rights reserved.
+
+  BIOS: version 07.69
+  NXOS: version 10.3(5)M
+  BIOS compile time:  09/22/2022
+  NXOS image file is: bootflash:///nxos64-cs.10.3.5.M.bin
+  NXOS compile time:  12/06/2023 19:00:00 [12/07/2023 01:22:48]
+
+Hardware
+  cisco Nexus9000 C9364C chassis
+  Intel(R) Xeon(R) CPU D-1526 @ 1.80GHz with 24541516 kB of memory.
+  Processor Board ID FDO251A0003
+
+  Device name: TEST-N9K-3
+  bootflash:    53298520 kB
+  Kernel uptime is 12 day(s), 3 hour(s), 44 minute(s), 52 second(s)
+
+Last reset at 485759 usecs after Wed May 17 05:00:00 2026
+  Reason: Reset Requested by CLI command reload
+  System version: 10.3(5)M
+  Service:
+
+plugin
+  Core Plugin, Ethernet Plugin
+
+Active Package(s):
+
+TEST-N9K-3#
+TEST-N9K-3# show vpc brief
+
+Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 2
+Peer status                       : peer adjacency formed ok
+vPC keep-alive status             : peer is alive
+Configuration consistency status  : success
+Per-vlan consistency status       : success
+Type-2 consistency status         : success
+vPC role                          : primary
+Number of vPCs configured         : 3
+Peer Gateway                      : Enabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+Operational Layer3 Peer-router    : Disabled
+Virtual-peerlink mode             : Disabled
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans
+--    ----   ------ --------------------------------------------------
+1     Po1    up     1,300-304,400-404
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ------------
+10    Po10          up     success     success               300-304
+20    Po20          up     success     success               400-404
+30    Po30          up     success     success               300
+
+TEST-N9K-3#
+TEST-N9K-3# show interface description
+
+-------------------------------------------------------------------------------
+Interface                Description
+-------------------------------------------------------------------------------
+Eth1/1                   uplink-to-CORE-RTR-3
+Eth1/2                   uplink-to-CORE-RTR-4
+Eth1/3                   uplink-to-DIST-SW-C
+Eth1/4                   server-rack-C-bond0
+Eth1/5                   server-rack-D-bond0
+Eth1/48                  --
+mgmt0                    OOB-MGMT-PRIMARY
+Lo0                      router-id-loopback
+Lo1                      mcast-rp-loopback
+Po1                      vpc-peer-link-to-TEST-N9K-4
+Po10                     vpc-to-access-sw-C
+Po20                     vpc-to-access-sw-D
+Po30                     vpc-to-server-rack-C
+
+TEST-N9K-3#
+TEST-N9K-3# show ip bgp summary vrf all
+
+BGP summary information for VRF default, address family IPv4 Unicast
+BGP router identifier 10.0.0.3, local AS number 65001
+BGP table version is 88, IPv4 Unicast config peers 2, capable peers 2
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+10.0.3.2        4 65005    2880    2878       88    0    0 12d03h             87
+10.0.3.6        4 65006    2851    2848       88    0    0 12d01h             94
+
+TEST-N9K-3#
+TEST-N9K-3# show ip bgp neigh vrf all
+
+BGP neighbor is 10.0.3.2,  remote AS 65005, ebgp link,  Peer index 1
+BGP version 4, remote router ID 10.0.3.2
+BGP state = Established, up for 12d03h
+Last read 00:00:18, hold time = 90, keepalive interval is 30 seconds
+
+BGP neighbor is 10.0.3.6,  remote AS 65006, ebgp link,  Peer index 2
+BGP version 4, remote router ID 10.0.3.6
+BGP state = Established, up for 12d01h
+Last read 00:00:29, hold time = 90, keepalive interval is 30 seconds
+
+TEST-N9K-3#
+TEST-N9K-3# show ip ospf neighbors
+
+OSPF Process ID 1 VRF default
+Total number of neighbors: 2
+
+Neighbor ID     Pri State            Up Time  Address         Interface
+10.0.3.2          1 FULL/ -         12d03h   10.0.3.2        Eth1/1
+10.0.3.6          1 FULL/ -         12d01h   10.0.3.6        Eth1/2
+
+TEST-N9K-3#
+TEST-N9K-3# show ip pim neigh
+
+PIM Neighbor Status for VRF "default"
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD
+                                                         Priority Capable State
+
+TEST-N9K-3#
+TEST-N9K-3# show ip mroute summary
+
+IP Multicast Routing Table for VRF "default"
+Total number of routes: 0
+Total number of (*,G) routes: 0
+Total number of (S,G) routes: 0
+Total number of (*,G-prefix) routes: 0
+
+TEST-N9K-3#
+TEST-N9K-3# show ip mroute
+
+IP Multicast Routing Table for VRF "default"
+
+TEST-N9K-3#
+TEST-N9K-3# show processes cpu history
+
+CPU% per second (last 60 seconds)
+100
+ 90
+ 80
+ 70
+ 60
+ 50
+ 40
+ 30      *    *
+ 20   *  *  * *  *   *
+ 10  ** ** ** ** ** ***  ** *
+   0....5....1....1....2....2....3....3....4....4....5....5....6
+             0    5    0    5    0    5    0    5    0    5    0
+
+TEST-N9K-3#
+TEST-N9K-3# show logging last 100
+
+2026 May 17 05:00:01 TEST-N9K-3 %PLATFORM-5-MOD_OK: Module 1 is online
+2026 May 17 05:00:15 TEST-N9K-3 %ETHPORT-5-IF_UP: Interface Ethernet1/1 is up in mode trunk
+2026 May 17 05:00:16 TEST-N9K-3 %ETHPORT-5-IF_UP: Interface Ethernet1/2 is up in mode trunk
+2026 May 17 05:01:40 TEST-N9K-3 %BGP-5-ADJCHANGE: bgp-65001 [inst] default-vrf - peer 10.0.3.2 Up
+2026 May 17 05:01:44 TEST-N9K-3 %BGP-5-ADJCHANGE: bgp-65001 [inst] default-vrf - peer 10.0.3.6 Up
+2026 May 17 05:02:30 TEST-N9K-3 %OSPF-5-ADJCHANGE: ospf-1 default VRF adj with 10.0.3.2 on Eth1/1 is FULL
+2026 May 17 05:02:35 TEST-N9K-3 %OSPF-5-ADJCHANGE: ospf-1 default VRF adj with 10.0.3.6 on Eth1/2 is FULL
+2026 May 29 06:15:22 TEST-N9K-3 %PIM-3-NBRCHANGE: VRF default: all PIM neighbors lost on Ethernet1/1
+2026 May 29 06:15:25 TEST-N9K-3 %PIM-3-NBRCHANGE: VRF default: all PIM neighbors lost on Ethernet1/2
+2026 May 29 06:15:30 TEST-N9K-3 %MRIB-3-MROUTE_DEL: All multicast routes flushed from VRF default
+
+TEST-N9K-3#

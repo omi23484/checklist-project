@@ -1,0 +1,3883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Health Report — 4 Devices</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f1f5f9;--surface:#fff;--border:#e2e8f0;
+  --text:#0f172a;--muted:#64748b;--faint:#94a3b8;
+  --pass:#16a34a;--pass-bg:#dcfce7;
+  --fail:#dc2626;--fail-bg:#fee2e2;
+  --warn:#d97706;--warn-bg:#fef3c7;
+  --info:#2563eb;--info-bg:#dbeafe;
+  --added:#059669;--added-bg:#d1fae5;
+  --removed:#dc2626;--removed-bg:#fee2e2;
+  --changed:#7c3aed;--changed-bg:#ede9fe;
+  --code-bg:#0f172a;--code-fg:#e2e8f0;
+  --r:8px;--r-sm:4px;--r-lg:12px;
+  --sh:0 1px 3px rgba(0,0,0,.1),0 1px 2px rgba(0,0,0,.06);
+  --sh-sm:0 1px 2px rgba(0,0,0,.05)
+}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  background:var(--bg);color:var(--text);line-height:1.5;font-size:14px}
+
+/* ---- header ---- */
+.page-header{
+  background:linear-gradient(135deg,#1e293b 0%,#334155 100%);
+  color:#f8fafc;padding:20px 32px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:16px;flex-wrap:wrap
+}
+.header-left h1{font-size:1.2rem;font-weight:700;letter-spacing:-.02em;margin-bottom:2px}
+.header-left .sub{font-size:.78rem;color:#94a3b8}
+.header-right{font-size:.78rem;color:#94a3b8;text-align:right}
+
+/* ---- layout ---- */
+.container{max-width:1080px;margin:0 auto;padding:28px 24px}
+
+/* ---- stat cards ---- */
+.summary-grid{
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+  gap:12px;margin-bottom:32px
+}
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r-lg);padding:16px 18px;box-shadow:var(--sh)
+}
+.stat-card .lbl{font-size:.68rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--faint);margin-bottom:4px}
+.stat-card .val{font-size:2rem;font-weight:800;line-height:1}
+.stat-card.total  .val{color:var(--text)}
+.stat-card.pass   .val{color:var(--pass)}
+.stat-card.fail   .val{color:var(--fail)}
+.stat-card.error  .val{color:var(--warn)}
+.stat-card.added  .val{color:var(--added)}
+.stat-card.removed .val{color:var(--removed)}
+.stat-card.changed .val{color:var(--changed)}
+.stat-card.unchanged .val{color:var(--muted)}
+
+/* ---- section title ---- */
+.sec-title{
+  font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--faint);margin:28px 0 10px;padding-bottom:7px;border-bottom:1px solid var(--border)
+}
+
+/* ---- toolbar ---- */
+.toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.toolbar-label{font-size:.78rem;color:var(--muted)}
+.btn{
+  font-size:.75rem;font-weight:500;padding:5px 12px;
+  border:1px solid var(--border);border-radius:6px;
+  background:var(--surface);cursor:pointer;color:var(--text);line-height:1
+}
+.btn:hover{background:#f8fafc;border-color:#cbd5e1}
+
+/* ---- check cards ---- */
+.check-list{display:flex;flex-direction:column;gap:8px}
+.check-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-left:4px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-sm)
+}
+.check-card.pass {border-left-color:var(--pass)}
+.check-card.fail {border-left-color:var(--fail)}
+.check-card.error{border-left-color:var(--warn)}
+.check-hdr{display:flex;align-items:center;gap:10px;padding:11px 15px;flex-wrap:wrap}
+.check-name{font-weight:500;flex:1}
+.check-cmd{
+  font-family:'SFMono-Regular',Consolas,monospace;font-size:.72rem;
+  color:var(--muted);background:#f8fafc;border:1px solid var(--border);
+  border-radius:var(--r-sm);padding:2px 6px
+}
+.check-body{padding:2px 15px 12px}
+
+/* detail grid inside check cards */
+.dg{display:grid;grid-template-columns:max-content 1fr;gap:3px 14px;font-size:.82rem}
+.dg .dk{
+  color:var(--faint);font-size:.7rem;text-transform:uppercase;
+  letter-spacing:.05em;font-weight:600;padding-top:1px
+}
+.dg code{
+  font-family:'SFMono-Regular',Consolas,monospace;
+  background:#f1f5f9;padding:1px 4px;border-radius:3px;font-size:.82em;word-break:break-all
+}
+
+/* failures */
+.failure-row{
+  background:var(--fail-bg);border-radius:var(--r-sm);
+  padding:8px 11px;margin-bottom:5px;font-size:.8rem
+}
+.failure-row .fp{font-family:monospace;color:var(--fail);font-weight:600;margin-bottom:2px}
+.failure-row .fa{margin-bottom:1px}
+.failure-row .fa span{font-family:monospace}
+.failure-row .fr{color:#7f1d1d;font-size:.78rem}
+
+/* badge */
+.badge{
+  font-size:.62rem;font-weight:800;letter-spacing:.07em;
+  padding:3px 7px;border-radius:var(--r-sm);white-space:nowrap;flex-shrink:0
+}
+.badge.PASS,.badge.pass,.badge.parsed{background:var(--pass-bg);color:var(--pass)}
+.badge.FAIL,.badge.fail,.badge.failed{background:var(--fail-bg);color:var(--fail)}
+.badge.ERROR,.badge.error,.badge.partial{background:var(--warn-bg);color:var(--warn)}
+.badge.raw_only,.badge.no_template{background:var(--info-bg);color:var(--info)}
+.badge.added{background:var(--added-bg);color:var(--added)}
+.badge.removed{background:var(--removed-bg);color:var(--removed)}
+.badge.changed{background:var(--changed-bg);color:var(--changed)}
+.badge.clean{background:var(--pass-bg);color:var(--pass)}
+.badge.warn,.badge.unmatched{background:var(--warn-bg);color:var(--warn)}
+.badge.unchanged{background:#f1f5f9;color:var(--muted)}
+.badge.sev-warn{background:var(--warn-bg);color:var(--warn)}
+.badge.sev-info{background:var(--info-bg);color:var(--info)}
+
+/* ---- raw output blocks ---- */
+.raw-list{display:flex;flex-direction:column;gap:8px}
+details.raw-block{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);box-shadow:var(--sh-sm);overflow:hidden
+}
+details.raw-block>summary{
+  display:flex;align-items:center;gap:10px;
+  padding:11px 15px;cursor:pointer;user-select:none;list-style:none
+}
+details.raw-block>summary::-webkit-details-marker{display:none}
+.arrow-icon{
+  font-size:.6rem;color:var(--faint);
+  transition:transform .15s ease;display:inline-block;flex-shrink:0;width:12px
+}
+details[open]>summary .arrow-icon{transform:rotate(90deg)}
+.summary-cmd{font-family:'SFMono-Regular',Consolas,monospace;font-size:.85rem;font-weight:500;flex:1}
+pre.raw-output{
+  background:var(--code-bg);color:var(--code-fg);
+  padding:14px 18px;margin:0;overflow-x:auto;
+  font-size:.77rem;line-height:1.65;
+  font-family:'SFMono-Regular',Consolas,'Courier New',monospace;
+  white-space:pre;border-top:1px solid #1e3a5f
+}
+
+/* ---- delta specific ---- */
+.meta-compare{
+  display:grid;grid-template-columns:1fr auto 1fr;
+  gap:14px;align-items:center;margin-bottom:28px
+}
+.meta-box{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:15px 18px;box-shadow:var(--sh-sm)
+}
+.meta-box .mb-label{
+  font-size:.68rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.08em;color:var(--faint);margin-bottom:6px
+}
+.meta-box .mb-host{font-size:.95rem;font-weight:600;margin-bottom:3px}
+.meta-box .mb-ts{font-size:.82rem;color:var(--muted)}
+.meta-arrow{font-size:1.4rem;color:var(--faint);text-align:center}
+
+.cmd-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-left:4px solid var(--border);border-radius:var(--r);
+  box-shadow:var(--sh-sm);margin-bottom:10px;overflow:hidden
+}
+.cmd-card.changed {border-left-color:var(--changed)}
+.cmd-card.added   {border-left-color:var(--added)}
+.cmd-card.removed {border-left-color:var(--removed)}
+.cmd-hdr{display:flex;align-items:center;gap:10px;padding:11px 15px}
+.cmd-name{font-family:monospace;font-size:.88rem;font-weight:500;flex:1}
+.diff-count{font-size:.75rem;color:var(--muted)}
+
+.diff-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.diff-table th{
+  text-align:left;padding:7px 15px;
+  background:#f8fafc;border-top:1px solid var(--border);border-bottom:1px solid var(--border);
+  font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;color:var(--faint)
+}
+.diff-table td{padding:7px 15px;border-bottom:1px solid #f1f5f9;vertical-align:top}
+.diff-table tr:last-child td{border-bottom:none}
+.diff-table .dp{font-family:monospace;color:var(--muted);font-size:.79rem}
+.diff-table .db{font-family:monospace;color:var(--fail)}
+.diff-table .da{font-family:monospace;color:var(--pass)}
+.diff-table .null{color:var(--faint);font-style:italic;font-family:sans-serif;font-size:.8rem}
+
+.pill-list{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0}
+.pill{font-family:monospace;font-size:.78rem;padding:3px 9px;border-radius:var(--r-sm)}
+.pill.added  {background:var(--added-bg);  color:var(--added)}
+.pill.removed{background:var(--removed-bg);color:var(--removed)}
+
+@media(max-width:640px){
+  .page-header{padding:14px 18px}
+  .container{padding:18px 14px}
+  .meta-compare{grid-template-columns:1fr}
+  .meta-arrow{display:none}
+}
+
+/* ---- json output blocks ---- */
+details.json-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-sm);overflow:hidden}
+details.json-block>summary{display:flex;align-items:center;gap:10px;padding:11px 15px;cursor:pointer;user-select:none;list-style:none}
+details.json-block>summary::-webkit-details-marker{display:none}
+pre.json-output{background:var(--code-bg);color:var(--code-fg);padding:14px 18px;margin:0;overflow-x:auto;font-size:.77rem;line-height:1.65;font-family:'SFMono-Regular',Consolas,'Courier New',monospace;white-space:pre;border-top:1px solid #1e3a5f}
+
+/* ---- check matrix ---- */
+.matrix-wrap{overflow-x:auto;margin-bottom:1.5rem}
+.check-matrix{width:100%;border-collapse:collapse;font-size:.82rem}
+.check-matrix th{background:#1a355e;color:#fff;padding:.45rem .65rem;text-align:center;white-space:nowrap;font-size:.73rem;font-weight:700}
+.check-matrix th:first-child{text-align:left;min-width:200px}
+.check-matrix td{padding:.4rem .65rem;border-bottom:1px solid #e8eaf0;text-align:center;font-size:.8rem}
+.check-matrix td:first-child{text-align:left;color:var(--text)}
+.check-matrix td a{text-decoration:none;color:inherit;display:block}
+.check-matrix td.m-pass{background:#e6f4ea;color:#1a7a40;font-weight:700}
+.check-matrix td.m-fail{background:#fdecea;color:#b31b1b;font-weight:700}
+.check-matrix td.m-error{background:#fff3e0;color:#b36b00;font-weight:700}
+.check-matrix td.m-na{color:#94a3b8;font-size:.75rem}
+.check-matrix tr:hover td{filter:brightness(.96)}
+
+/* ---- device accordion ---- */
+details.device-accordion{margin-bottom:1rem;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);box-shadow:var(--sh-sm)}
+details.device-accordion>summary{padding:.7rem 1.1rem;cursor:pointer;font-size:.95rem;display:flex;align-items:center;gap:.7rem;list-style:none;background:#f8fafc;border-radius:var(--r)}
+details.device-accordion>summary::-webkit-details-marker{display:none}
+details.device-accordion[open]>summary{border-bottom:1px solid var(--border);border-radius:var(--r) var(--r) 0 0}
+.device-inner{padding:1rem 1.2rem}
+</style>
+</head>
+<body>
+
+<div class="page-header">
+  <div class="header-left">
+    <h1>Health Report</h1>
+    <div class="sub">4 device(s) &nbsp;·&nbsp; example_health_checks.yaml</div>
+  </div>
+  <div class="header-right">Generated 2026-05-29 11:22</div>
+</div>
+<div class="container">
+  <div class="summary-grid"><div class="stat-card total">
+  <div class="lbl">Devices</div>
+  <div class="val">4</div>
+</div><div class="stat-card total">
+  <div class="lbl">Check Evals</div>
+  <div class="val">28</div>
+</div><div class="stat-card pass">
+  <div class="lbl">Passed</div>
+  <div class="val">23</div>
+</div><div class="stat-card fail">
+  <div class="lbl">Failed</div>
+  <div class="val">5</div>
+</div><div class="stat-card error">
+  <div class="lbl">Errors</div>
+  <div class="val">0</div>
+</div></div>
+  <div class="sec-title">Check Results Matrix</div>
+  <div class="matrix-wrap">
+<table class="check-matrix">
+  <thead><tr><th>Check</th><th title="N9K-CAMA-WAN-1">N9K-CAMA-WAN-1</th><th title="TEST-N9K-1">TEST-N9K-1</th><th title="TEST-N9K-2">TEST-N9K-2</th><th title="TEST-N9K-3">TEST-N9K-3</th></tr></thead>
+  <tbody><tr><td>Show version has OS version</td><td class="m-pass"><a href="#device-N9K-CAMA-WAN-1">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-1">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-2">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-3">PASS</a></td></tr><tr><td>Hostname is set</td><td class="m-pass"><a href="#device-N9K-CAMA-WAN-1">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-1">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-2">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-3">PASS</a></td></tr><tr><td>VPC peer link status is up</td><td class="m-fail"><a href="#device-N9K-CAMA-WAN-1">FAIL</a></td><td class="m-pass"><a href="#device-TEST-N9K-1">PASS</a></td><td class="m-fail"><a href="#device-TEST-N9K-2">FAIL</a></td><td class="m-pass"><a href="#device-TEST-N9K-3">PASS</a></td></tr><tr><td>No interface description contains DECOM</td><td class="m-pass"><a href="#device-N9K-CAMA-WAN-1">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-1">PASS</a></td><td class="m-fail"><a href="#device-TEST-N9K-2">FAIL</a></td><td class="m-pass"><a href="#device-TEST-N9K-3">PASS</a></td></tr><tr><td>Multicast routes present</td><td class="m-pass"><a href="#device-N9K-CAMA-WAN-1">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-1">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-2">PASS</a></td><td class="m-fail"><a href="#device-TEST-N9K-3">FAIL</a></td></tr><tr><td>All OSPF neighbors in FULL state</td><td class="m-pass"><a href="#device-N9K-CAMA-WAN-1">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-1">PASS</a></td><td class="m-fail"><a href="#device-TEST-N9K-2">FAIL</a></td><td class="m-pass"><a href="#device-TEST-N9K-3">PASS</a></td></tr><tr><td>PIM neighbors present</td><td class="m-pass"><a href="#device-N9K-CAMA-WAN-1">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-1">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-2">PASS</a></td><td class="m-pass"><a href="#device-TEST-N9K-3">PASS</a></td></tr></tbody>
+</table>
+</div>
+  <div class="sec-title">Per-Device Detail</div>
+  
+<details class="device-accordion" id="device-N9K-CAMA-WAN-1">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <strong>N9K-CAMA-WAN-1</strong>
+    <span style="font-size:.8rem;color:var(--muted)">03-May-26</span>
+    <span class="badge pass">✓ 6 Passed</span> <span class="badge fail">✗ 1 Failed</span>
+  </summary>
+  <div class="device-inner">
+    <div class="summary-grid"><div class="stat-card total">
+  <div class="lbl">Total</div>
+  <div class="val">7</div>
+</div><div class="stat-card pass">
+  <div class="lbl">Passed</div>
+  <div class="val">6</div>
+</div><div class="stat-card fail">
+  <div class="lbl">Failed</div>
+  <div class="val">1</div>
+</div><div class="stat-card error">
+  <div class="lbl">Errors</div>
+  <div class="val">0</div>
+</div></div>
+    <div class="sec-title">Check Results</div>
+    <div class="check-list">
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">Show version has OS version</span>
+    <span class="check-cmd">show_version</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_version</code>
+  <span class="dk">Path</span><code>[0].os</code>
+  <span class="dk">Condition</span><span><code>matches ^\d+</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">Hostname is set</span>
+    <span class="check-cmd">show_version</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_version</code>
+  <span class="dk">Path</span><code>[0].hostname</code>
+  <span class="dk">Condition</span><span><code>matches ^\S+</code></span>
+</div></div>
+</div>
+<div class="check-card fail">
+  <div class="check-hdr">
+    <span class="badge fail">FAIL</span>
+    <span class="check-name">VPC peer link status is up</span>
+    <span class="check-cmd">show_vpc_brief</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_vpc_brief</code>
+  <span class="dk">Path</span><code>[*].status</code>
+  <span class="dk">Condition</span><span><code>not_contains down</code></span>
+</div><div class="failures"><div class="failure-row">
+  <div class="fp">[5].status</div>
+  <div class="fa">Actual: <span>down*</span></div>
+  <div class="fr">&#x27;down*&#x27; contains &#x27;down&#x27; (should not)</div>
+</div></div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">No interface description contains DECOM</span>
+    <span class="check-cmd">show_interface_description</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_interface_description</code>
+  <span class="dk">Path</span><code>[*].description</code>
+  <span class="dk">Condition</span><span><code>not_contains DECOM</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">Multicast routes present</span>
+    <span class="check-cmd">show_ip_mroute_summary</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_ip_mroute_summary</code>
+  <span class="dk">Path</span><code>vrfs[*].summary.total_routes</code>
+  <span class="dk">Condition</span><span><code>gt 0</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">All OSPF neighbors in FULL state</span>
+    <span class="check-cmd">show_ip_ospf_neighbors</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_ip_ospf_neighbors</code>
+  <span class="dk">Path</span><code>neighbors[*].state</code>
+  <span class="dk">Condition</span><span><code>matches ^FULL</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">PIM neighbors present</span>
+    <span class="check-cmd">show_ip_pim_neigh</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_ip_pim_neigh</code>
+  <span class="dk">Path</span><code>[*].NEIGHBOR</code>
+  <span class="dk">Condition</span><span><code>matches ^\d+\.\d+\.\d+\.\d+$</code></span>
+</div></div>
+</div></div>
+    
+<div class="sec-title">Raw Command Outputs</div>
+
+<div class="toolbar">
+  <span class="toolbar-label">Raw output:</span>
+  <button class="btn" onclick="setAllRaw(true)">Expand all</button>
+  <button class="btn" onclick="setAllRaw(false)">Collapse all</button>
+</div>
+<div class="raw-list">
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_interface_description</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">-------------------------------------------------------------------------------
+Interface                Description
+-------------------------------------------------------------------------------
+Eth1/1                   uplink-to-CORE-SW
+Eth1/2                   uplink-to-DIST-SW-1
+Eth1/3                   uplink-to-DIST-SW-2
+Eth1/4                   server-rack-1-bond0
+Eth1/5                   server-rack-2-bond0
+Eth1/48                  --
+mgmt0                    OOB-MGMT
+Lo0                      router-id-loopback
+Lo1                      mcast-rp-loopback
+Po10                     vpc-peer-link
+Po100                    vpc-to-access-sw-1
+Po200                    vpc-to-access-sw-2</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">IP Multicast Routing Table for VRF &quot;default&quot;
+
+(*,239.255.0.1/32), uptime: 2w3d, igmp ip pim
+  Incoming interface: Ethernet1/1, RPF nbr: 10.0.0.2
+  Outgoing interface list: (count: 3)
+    Ethernet1/2, uptime: 2w3d, expires: 00:02:30
+    Ethernet1/3, uptime: 1w5d, expires: 00:02:15
+    Ethernet1/4, uptime: 3d12h, expires: 00:02:45
+
+(10.1.1.100,239.255.0.1/32), uptime: 5d14h, ip mrib pim
+  Incoming interface: Ethernet1/1, RPF nbr: 10.0.0.2
+  Outgoing interface list: (count: 2)
+    Ethernet1/2, uptime: 5d14h, expires: 00:02:00
+    Ethernet1/3, uptime: 5d14h, expires: 00:02:00
+
+(*,232.0.0.0/8), uptime: 2w3d, pim
+  Incoming interface: Null, RPF nbr: 0.0.0.0
+  Outgoing interface list: (count: 0)</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute_summary</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">IP Multicast Routing Table for VRF &quot;default&quot;
+Total number of routes: 5
+Total number of (*,G) routes: 2
+Total number of (S,G) routes: 2
+Total number of (*,G-prefix) routes: 1
+
+Group: 239.255.0.1/32, Source count: 2
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           12450      1805650    0          5          320.000 bps       3
+(10.1.1.100,G)  12450      1805650    0          5          320.000 bps       3
+
+Group: 239.255.0.2/32, Source count: 0
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           0          0          0          0          0.000 bps         0
+
+Group: 232.0.0.0/8, Source count: 0
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           0          0          0          0          0.000 bps         0
+
+IP Multicast Routing Table for VRF &quot;MCAST-VRF&quot;
+Total number of routes: 2
+Total number of (*,G) routes: 1
+Total number of (S,G) routes: 1
+Total number of (*,G-prefix) routes: 0
+
+Group: 239.100.0.1/32, Source count: 1
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           5000       725000     0          2          128.000 bps       2
+(192.168.10.10,G) 5000     725000     0          2          128.000 bps       2</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_ospf_neighbors</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">OSPF Process ID 1 VRF default
+Total number of neighbors: 2
+
+Neighbor ID     Pri State            Up Time  Address         Interface
+10.0.0.2          1 FULL/ -         2w3d     10.0.0.2        Eth1/1
+10.0.0.6          1 FULL/ -         2w3d     10.0.0.6        Eth1/2</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_pim_neigh</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">PIM Neighbor Status for VRF &quot;default&quot;
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD
+                                                         Priority Capable State
+10.0.0.2        Ethernet1/1          2w3d      00:01:15  1        yes     -
+10.0.0.6        Ethernet1/2          2w3d      00:01:28  1        yes     -
+10.0.0.10       Ethernet1/3          1w5d      00:01:02  1        yes     -
+
+PIM Neighbor Status for VRF &quot;MCAST-VRF&quot;
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD
+                                                         Priority Capable State
+192.168.10.1    Ethernet1/4          3d12h     00:01:45  1        yes     -
+192.168.10.5    Ethernet1/5          3d12h     00:01:30  1        no      -</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_pim_rp</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">PIM RP Status Information for VRF &quot;default&quot;
+BSR disabled
+Auto-RP disabled
+BSR RP Candidate policy: None
+BSR RP policy: None
+Auto-RP Announce policy: None
+Auto-RP Discovery policy: None
+
+Anycast-RP disabled
+
+RP: 10.1.1.1*, (0),
+  uptime: 2w3d   priority: 255,
+  RP-source: (local),
+  group ranges:
+  224.0.0.0/4   (Active)</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_logging_last_100</span>
+    <span class="badge raw_only">RAW_ONLY</span>
+  </summary>
+  <pre class="raw-output">2026 May 26 03:10:01 N9K-CAMA-WAN-1 %ETHPORT-5-IF_UP: Interface Ethernet1/1 is up in mode trunk
+2026 May 26 03:10:02 N9K-CAMA-WAN-1 %ETHPORT-5-IF_UP: Interface Ethernet1/2 is up in mode trunk
+2026 May 26 03:15:44 N9K-CAMA-WAN-1 %BGP-5-ADJCHANGE: bgp-100 [inst] default-vrf - peer 10.0.0.2 Up
+2026 May 26 03:15:47 N9K-CAMA-WAN-1 %BGP-5-ADJCHANGE: bgp-100 [inst] default-vrf - peer 10.0.0.6 Up
+2026 May 26 03:16:01 N9K-CAMA-WAN-1 %PIM-5-NBRCHANGE: VRF default: neighbor 10.0.0.2 added on Ethernet1/1
+2026 May 26 03:16:02 N9K-CAMA-WAN-1 %PIM-5-NBRCHANGE: VRF default: neighbor 10.0.0.6 added on Ethernet1/2
+2026 May 26 04:22:33 N9K-CAMA-WAN-1 %SYSLOG-1-SYSTEM_MSG: Switchover initiated due to manual request
+2026 May 26 05:01:18 N9K-CAMA-WAN-1 %PLATFORM-2-PS_FAULT: Power supply 2 absent
+2026 May 26 05:30:00 N9K-CAMA-WAN-1 %PLATFORM-2-PS_FAULT: Power supply 2 absent
+2026 May 26 06:00:00 N9K-CAMA-WAN-1 %PLATFORM-2-PS_FAULT: Power supply 2 absent</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_processes_cpu_history</span>
+    <span class="badge raw_only">RAW_ONLY</span>
+  </summary>
+  <pre class="raw-output">CPU% per second (last 60 seconds)
+100
+ 90
+ 80
+ 70
+ 60
+ 50    *                                         *
+ 40    *  **        *       *    *    *          **
+ 30   ***  **  *   ** *   ***   ** * ***  *  * ****
+ 20  ***** *** ** ****** ****  **** **** ** ******** *
+ 10 *****************************  ******* ********** *
+   0....5....1....1....2....2....3....3....4....4....5....5....6
+             0    5    0    5    0    5    0    5    0    5    0</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_version</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">Cisco Nexus Operating System (NX-OS) Software
+TAC support: http://www.cisco.com/tac
+Copyright (C) 2002-2024, Cisco and/or its affiliates.
+All rights reserved.
+The copyrights to certain works contained in this software are
+owned by other third parties and used and distributed under their own
+licenses, such as open source. This software is provided &quot;as is&quot; and
+without any express or implied warranties, including, without
+limitation, the implied warranties of merchantability and fitness for
+a particular purpose.
+
+  BIOS: version 07.69
+  NXOS: version 10.3(5)M
+  BIOS compile time:  09/22/2022
+  NXOS image file is: bootflash:///nxos64-cs.10.3.5.M.bin
+  NXOS compile time:  12/06/2023 19:00:00 [12/07/2023 01:22:48]
+
+Hardware
+  cisco Nexus9000 C9364C chassis
+  Intel(R) Xeon(R) CPU D-1526 @ 1.80GHz with 24541516 kB of memory.
+  Processor Board ID FDO25010G9B
+
+  Device name: N9K-CAMA-WAN-1
+  bootflash:    53298520 kB
+  Kernel uptime is 124 day(s), 6 hour(s), 31 minute(s), 49 second(s)
+
+Last reset at 485759 usecs after Tue Jan 28 17:35:01 2025
+  Reason: Reset Requested by CLI command reload
+  System version: 10.3(4)M
+  Service:
+
+plugin
+  Core Plugin, Ethernet Plugin
+
+Active Package(s):</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_vpc_brief</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 10
+Peer status                       : peer adjacency formed ok
+vPC keep-alive status             : peer is alive
+Configuration consistency status  : success
+Per-vlan consistency status       : success
+Type-2 consistency status         : success
+vPC role                          : primary
+Number of vPCs configured         : 5
+Peer Gateway                      : Disabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+Operational Layer3 Peer-router    : Disabled
+Virtual-peerlink mode             : Disabled
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans
+--    ----   ------ --------------------------------------------------
+1     Po10   up     1,100-110,200-210
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ------------
+10    Po100         up     success     success               100-110
+20    Po200         up     success     success               200-210
+30    Po300         up     success     success               100
+40    Po400         up     success     success               200
+50    Po500         down*  failed      vlan-type mismatch    -</pre>
+  
+</details></div>
+    
+<div class="sec-title">Parsed JSON Outputs</div>
+
+<div class="toolbar">
+  <span class="toolbar-label">Parsed JSON:</span>
+  <button class="btn" onclick="setAllJson(true)">Expand all</button>
+  <button class="btn" onclick="setAllJson(false)">Collapse all</button>
+</div>
+<div class="raw-list">
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_interface_description</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;port&quot;: &quot;Eth1/1&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;uplink-to-CORE-SW&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/2&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;uplink-to-DIST-SW-1&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/3&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;uplink-to-DIST-SW-2&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/4&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;server-rack-1-bond0&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/5&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;server-rack-2-bond0&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/48&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;--&quot;
+  },
+  {
+    &quot;port&quot;: &quot;mgmt0&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;OOB-MGMT&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Lo0&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;router-id-loopback&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Lo1&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;mcast-rp-loopback&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po10&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-peer-link&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po100&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-access-sw-1&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po200&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-access-sw-2&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">{
+  &quot;vrfs&quot;: {
+    &quot;default&quot;: {
+      &quot;entries&quot;: [
+        {
+          &quot;source&quot;: &quot;*&quot;,
+          &quot;group&quot;: &quot;239.255.0.1/32&quot;,
+          &quot;uptime&quot;: &quot;2w3d&quot;,
+          &quot;flags&quot;: &quot;igmp ip pim&quot;,
+          &quot;rpf_neighbor&quot;: &quot;10.0.0.2&quot;,
+          &quot;oifs&quot;: [
+            {
+              &quot;oif&quot;: &quot;Ethernet1/2&quot;,
+              &quot;uptime&quot;: &quot;2w3d&quot;,
+              &quot;expires&quot;: &quot;00:02:30&quot;
+            },
+            {
+              &quot;oif&quot;: &quot;Ethernet1/3&quot;,
+              &quot;uptime&quot;: &quot;1w5d&quot;,
+              &quot;expires&quot;: &quot;00:02:15&quot;
+            },
+            {
+              &quot;oif&quot;: &quot;Ethernet1/4&quot;,
+              &quot;uptime&quot;: &quot;3d12h&quot;,
+              &quot;expires&quot;: &quot;00:02:45&quot;
+            }
+          ],
+          &quot;incoming_interface&quot;: &quot;Ethernet1/1&quot;
+        },
+        {
+          &quot;source&quot;: &quot;10.1.1.100&quot;,
+          &quot;group&quot;: &quot;239.255.0.1/32&quot;,
+          &quot;uptime&quot;: &quot;5d14h&quot;,
+          &quot;flags&quot;: &quot;ip mrib pim&quot;,
+          &quot;rpf_neighbor&quot;: &quot;10.0.0.2&quot;,
+          &quot;oifs&quot;: [
+            {
+              &quot;oif&quot;: &quot;Ethernet1/2&quot;,
+              &quot;uptime&quot;: &quot;5d14h&quot;,
+              &quot;expires&quot;: &quot;00:02:00&quot;
+            },
+            {
+              &quot;oif&quot;: &quot;Ethernet1/3&quot;,
+              &quot;uptime&quot;: &quot;5d14h&quot;,
+              &quot;expires&quot;: &quot;00:02:00&quot;
+            }
+          ],
+          &quot;incoming_interface&quot;: &quot;Ethernet1/1&quot;
+        },
+        {
+          &quot;source&quot;: &quot;*&quot;,
+          &quot;group&quot;: &quot;232.0.0.0/8&quot;,
+          &quot;uptime&quot;: &quot;2w3d&quot;,
+          &quot;flags&quot;: &quot;pim&quot;,
+          &quot;rpf_neighbor&quot;: &quot;0.0.0.0&quot;,
+          &quot;oifs&quot;: [],
+          &quot;incoming_interface&quot;: &quot;Null&quot;
+        }
+      ]
+    }
+  }
+}</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute_summary</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">{
+  &quot;vrfs&quot;: {
+    &quot;default&quot;: {
+      &quot;summary&quot;: {
+        &quot;total_routes&quot;: 5,
+        &quot;star_g_routes&quot;: 2,
+        &quot;sg_routes&quot;: 2,
+        &quot;star_g_prefix_routes&quot;: 1
+      },
+      &quot;groups&quot;: [
+        {
+          &quot;group&quot;: &quot;239.255.0.1/32&quot;,
+          &quot;source_count&quot;: 2,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 12450,
+              &quot;bytes&quot;: 1805650,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 5,
+              &quot;bitrate&quot;: &quot;320.000 bps&quot;,
+              &quot;oifs&quot;: 3
+            },
+            {
+              &quot;source_type&quot;: &quot;(10.1.1.100,G)&quot;,
+              &quot;packets&quot;: 12450,
+              &quot;bytes&quot;: 1805650,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 5,
+              &quot;bitrate&quot;: &quot;320.000 bps&quot;,
+              &quot;oifs&quot;: 3
+            }
+          ]
+        },
+        {
+          &quot;group&quot;: &quot;239.255.0.2/32&quot;,
+          &quot;source_count&quot;: 0,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 0,
+              &quot;bytes&quot;: 0,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 0,
+              &quot;bitrate&quot;: &quot;0.000 bps&quot;,
+              &quot;oifs&quot;: 0
+            }
+          ]
+        },
+        {
+          &quot;group&quot;: &quot;232.0.0.0/8&quot;,
+          &quot;source_count&quot;: 0,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 0,
+              &quot;bytes&quot;: 0,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 0,
+              &quot;bitrate&quot;: &quot;0.000 bps&quot;,
+              &quot;oifs&quot;: 0
+            }
+          ]
+        }
+      ]
+    },
+    &quot;MCAST-VRF&quot;: {
+      &quot;summary&quot;: {
+        &quot;total_routes&quot;: 2,
+        &quot;star_g_routes&quot;: 1,
+        &quot;sg_routes&quot;: 1,
+        &quot;star_g_prefix_routes&quot;: 0
+      },
+      &quot;groups&quot;: [
+        {
+          &quot;group&quot;: &quot;239.100.0.1/32&quot;,
+          &quot;source_count&quot;: 1,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 5000,
+              &quot;bytes&quot;: 725000,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 2,
+              &quot;bitrate&quot;: &quot;128.000 bps&quot;,
+              &quot;oifs&quot;: 2
+            },
+            {
+              &quot;source_type&quot;: &quot;(192.168.10.10,G)&quot;,
+              &quot;packets&quot;: 5000,
+              &quot;bytes&quot;: 725000,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 2,
+              &quot;bitrate&quot;: &quot;128.000 bps&quot;,
+              &quot;oifs&quot;: 2
+            }
+          ]
+        }
+      ]
+    }
+  }
+}</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_ospf_neighbors</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">{
+  &quot;neighbors&quot;: [
+    {
+      &quot;neighbor_id&quot;: &quot;10.0.0.2&quot;,
+      &quot;priority&quot;: &quot;1&quot;,
+      &quot;state&quot;: &quot;FULL/ -&quot;,
+      &quot;uptime&quot;: &quot;2w3d&quot;,
+      &quot;address&quot;: &quot;10.0.0.2&quot;,
+      &quot;interface&quot;: &quot;Eth1/1&quot;
+    },
+    {
+      &quot;neighbor_id&quot;: &quot;10.0.0.6&quot;,
+      &quot;priority&quot;: &quot;1&quot;,
+      &quot;state&quot;: &quot;FULL/ -&quot;,
+      &quot;uptime&quot;: &quot;2w3d&quot;,
+      &quot;address&quot;: &quot;10.0.0.6&quot;,
+      &quot;interface&quot;: &quot;Eth1/2&quot;
+    }
+  ]
+}</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_pim_neigh</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;VRF&quot;: &quot;default&quot;,
+    &quot;NEIGHBOR&quot;: &quot;10.0.0.2&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/1&quot;,
+    &quot;UPTIME&quot;: &quot;2w3d&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:15&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;yes&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  },
+  {
+    &quot;VRF&quot;: &quot;default&quot;,
+    &quot;NEIGHBOR&quot;: &quot;10.0.0.6&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/2&quot;,
+    &quot;UPTIME&quot;: &quot;2w3d&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:28&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;yes&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  },
+  {
+    &quot;VRF&quot;: &quot;default&quot;,
+    &quot;NEIGHBOR&quot;: &quot;10.0.0.10&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/3&quot;,
+    &quot;UPTIME&quot;: &quot;1w5d&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:02&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;yes&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  },
+  {
+    &quot;VRF&quot;: &quot;MCAST-VRF&quot;,
+    &quot;NEIGHBOR&quot;: &quot;192.168.10.1&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/4&quot;,
+    &quot;UPTIME&quot;: &quot;3d12h&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:45&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;yes&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  },
+  {
+    &quot;VRF&quot;: &quot;MCAST-VRF&quot;,
+    &quot;NEIGHBOR&quot;: &quot;192.168.10.5&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/5&quot;,
+    &quot;UPTIME&quot;: &quot;3d12h&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:30&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;no&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_pim_rp</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;RP&quot;: &quot;10.1.1.1&quot;,
+    &quot;UPTIME&quot;: &quot;2w3d&quot;,
+    &quot;PRIORITY&quot;: &quot;255&quot;,
+    &quot;SOURCE&quot;: &quot;(local)&quot;,
+    &quot;GROUP_RANGE&quot;: &quot;224.0.0.0/4&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_version</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;uptime&quot;: &quot;&quot;,
+    &quot;last_reboot_reason&quot;: &quot;Reset Requested by CLI command reload&quot;,
+    &quot;bios&quot;: &quot;07.69&quot;,
+    &quot;os&quot;: &quot;10.3(5)M&quot;,
+    &quot;boot_image&quot;: &quot;bootflash:///nxos64-cs.10.3.5.M.bin&quot;,
+    &quot;platform&quot;: &quot;C9364C&quot;,
+    &quot;hostname&quot;: &quot;N9K-CAMA-WAN-1&quot;,
+    &quot;serial&quot;: &quot;FDO25010G9B&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_vpc_brief</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;id&quot;: &quot;1&quot;,
+    &quot;port&quot;: &quot;Po10&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;10&quot;,
+    &quot;port&quot;: &quot;Po100&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;20&quot;,
+    &quot;port&quot;: &quot;Po200&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;30&quot;,
+    &quot;port&quot;: &quot;Po300&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;40&quot;,
+    &quot;port&quot;: &quot;Po400&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;50&quot;,
+    &quot;port&quot;: &quot;Po500&quot;,
+    &quot;status&quot;: &quot;down*&quot;
+  }
+]</pre>
+</details></div>
+  </div>
+</details>
+<details class="device-accordion" id="device-TEST-N9K-1">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <strong>TEST-N9K-1</strong>
+    <span style="font-size:.8rem;color:var(--muted)">29-May-26</span>
+    <span class="badge pass">✓ 7 Passed</span>
+  </summary>
+  <div class="device-inner">
+    <div class="summary-grid"><div class="stat-card total">
+  <div class="lbl">Total</div>
+  <div class="val">7</div>
+</div><div class="stat-card pass">
+  <div class="lbl">Passed</div>
+  <div class="val">7</div>
+</div><div class="stat-card fail">
+  <div class="lbl">Failed</div>
+  <div class="val">0</div>
+</div><div class="stat-card error">
+  <div class="lbl">Errors</div>
+  <div class="val">0</div>
+</div></div>
+    <div class="sec-title">Check Results</div>
+    <div class="check-list">
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">Show version has OS version</span>
+    <span class="check-cmd">show_version</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_version</code>
+  <span class="dk">Path</span><code>[0].os</code>
+  <span class="dk">Condition</span><span><code>matches ^\d+</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">Hostname is set</span>
+    <span class="check-cmd">show_version</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_version</code>
+  <span class="dk">Path</span><code>[0].hostname</code>
+  <span class="dk">Condition</span><span><code>matches ^\S+</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">VPC peer link status is up</span>
+    <span class="check-cmd">show_vpc_brief</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_vpc_brief</code>
+  <span class="dk">Path</span><code>[*].status</code>
+  <span class="dk">Condition</span><span><code>not_contains down</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">No interface description contains DECOM</span>
+    <span class="check-cmd">show_interface_description</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_interface_description</code>
+  <span class="dk">Path</span><code>[*].description</code>
+  <span class="dk">Condition</span><span><code>not_contains DECOM</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">Multicast routes present</span>
+    <span class="check-cmd">show_ip_mroute_summary</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_ip_mroute_summary</code>
+  <span class="dk">Path</span><code>vrfs[*].summary.total_routes</code>
+  <span class="dk">Condition</span><span><code>gt 0</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">All OSPF neighbors in FULL state</span>
+    <span class="check-cmd">show_ip_ospf_neighbors</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_ip_ospf_neighbors</code>
+  <span class="dk">Path</span><code>neighbors[*].state</code>
+  <span class="dk">Condition</span><span><code>matches ^FULL</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">PIM neighbors present</span>
+    <span class="check-cmd">show_ip_pim_neigh</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_ip_pim_neigh</code>
+  <span class="dk">Path</span><code>[*].NEIGHBOR</code>
+  <span class="dk">Condition</span><span><code>matches ^\d+\.\d+\.\d+\.\d+$</code></span>
+</div></div>
+</div></div>
+    
+<div class="sec-title">Raw Command Outputs</div>
+
+<div class="toolbar">
+  <span class="toolbar-label">Raw output:</span>
+  <button class="btn" onclick="setAllRaw(true)">Expand all</button>
+  <button class="btn" onclick="setAllRaw(false)">Collapse all</button>
+</div>
+<div class="raw-list">
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_interface_description</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">-------------------------------------------------------------------------------
+Interface                Description
+-------------------------------------------------------------------------------
+Eth1/1                   uplink-to-CORE-RTR-1
+Eth1/2                   uplink-to-CORE-RTR-2
+Eth1/3                   uplink-to-DIST-SW-A
+Eth1/4                   server-rack-A-bond0
+Eth1/5                   server-rack-B-bond0
+Eth1/48                  --
+mgmt0                    OOB-MGMT-PRIMARY
+Lo0                      router-id-loopback
+Lo1                      mcast-rp-loopback
+Po1                      vpc-peer-link-to-TEST-N9K-2
+Po10                     vpc-to-access-sw-A
+Po20                     vpc-to-access-sw-B
+Po30                     vpc-to-server-rack-A
+Po40                     vpc-to-server-rack-B</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_bgp_neigh_vrf_all</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">BGP neighbor is 10.0.1.2,  remote AS 65002, ebgp link,  Peer index 1
+BGP version 4, remote router ID 10.0.1.2
+BGP state = Established, up for 5w2d
+Last read 00:00:34, hold time = 90, keepalive interval is 30 seconds
+
+BGP neighbor is 10.0.1.6,  remote AS 65003, ebgp link,  Peer index 2
+BGP version 4, remote router ID 10.0.1.6
+BGP state = Established, up for 5w1d
+Last read 00:00:22, hold time = 90, keepalive interval is 30 seconds
+
+BGP neighbor is 192.168.1.254,  remote AS 65099, ebgp link,  Peer index 3
+BGP version 4, remote router ID 192.168.1.254
+BGP state = Established, up for 3w1d
+Last read 00:00:15, hold time = 90, keepalive interval is 30 seconds</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_bgp_summary_vrf_all</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">BGP summary information for VRF default, address family IPv4 Unicast
+BGP router identifier 10.0.0.1, local AS number 65001
+BGP table version is 218, IPv4 Unicast config peers 2, capable peers 2
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+10.0.1.2        4 65002   14523   14521      218    0    0 5w2d             142
+10.0.1.6        4 65003   14485   14482      218    0    0 5w1d             158
+
+BGP summary information for VRF MGMT, address family IPv4 Unicast
+BGP router identifier 192.168.1.1, local AS number 65001
+BGP table version is 4, IPv4 Unicast config peers 1, capable peers 1
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+192.168.1.254   4 65099     420     418        4    0    0 3w1d               2</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">IP Multicast Routing Table for VRF &quot;default&quot;
+
+(*,239.255.0.1/32), uptime: 5w2d, igmp ip pim
+  Incoming interface: Ethernet1/1, RPF nbr: 10.0.1.2
+  Outgoing interface list: (count: 3)
+    Ethernet1/2, uptime: 5w2d, expires: 00:02:30
+    Ethernet1/3, uptime: 3w4d, expires: 00:02:15
+    Ethernet1/4, uptime: 2d08h, expires: 00:02:45
+
+(10.1.1.100,239.255.0.1/32), uptime: 5w2d, ip mrib pim
+  Incoming interface: Ethernet1/1, RPF nbr: 10.0.1.2
+  Outgoing interface list: (count: 2)
+    Ethernet1/2, uptime: 5w2d, expires: 00:02:00
+    Ethernet1/3, uptime: 5w2d, expires: 00:02:00
+
+(*,232.0.0.0/8), uptime: 5w2d, pim
+  Incoming interface: Null, RPF nbr: 0.0.0.0
+  Outgoing interface list: (count: 0)</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute_summary</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">IP Multicast Routing Table for VRF &quot;default&quot;
+Total number of routes: 8
+Total number of (*,G) routes: 3
+Total number of (S,G) routes: 4
+Total number of (*,G-prefix) routes: 1
+
+Group: 239.255.0.1/32, Source count: 2
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           28450      4125650    0          8          480.000 bps       3
+(10.1.1.100,G)  28450      4125650    0          8          480.000 bps       3
+
+Group: 239.255.0.2/32, Source count: 1
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           14200      2059000    0          4          240.000 bps       2
+(10.1.1.101,G)  14200      2059000    0          4          240.000 bps       2
+
+Group: 239.255.0.3/32, Source count: 1
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           7100       1029500    0          2          120.000 bps       2
+(10.1.1.102,G)  7100       1029500    0          2          120.000 bps       2
+
+Group: 232.0.0.0/8, Source count: 0
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           0          0          0          0          0.000 bps         0
+
+IP Multicast Routing Table for VRF &quot;MCAST-VRF&quot;
+Total number of routes: 3
+Total number of (*,G) routes: 1
+Total number of (S,G) routes: 2
+Total number of (*,G-prefix) routes: 0
+
+Group: 239.100.0.1/32, Source count: 2
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           9800       1421000    0          3          192.000 bps       2
+(192.168.20.10,G) 9800     1421000    0          3          192.000 bps       2
+(192.168.20.11,G) 4900     710500     0          2          96.000 bps        1</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_ospf_neighbors</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">OSPF Process ID 1 VRF default
+Total number of neighbors: 2
+
+Neighbor ID     Pri State            Up Time  Address         Interface
+10.0.1.2          1 FULL/ -         5w2d     10.0.1.2        Eth1/1
+10.0.1.6          1 FULL/ -         5w1d     10.0.1.6        Eth1/2</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_pim_neigh</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">PIM Neighbor Status for VRF &quot;default&quot;
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD
+                                                         Priority Capable State
+10.0.1.2        Ethernet1/1          5w2d      00:01:12  1        yes     -
+10.0.1.6        Ethernet1/2          5w1d      00:01:28  1        yes     -
+10.0.1.10       Ethernet1/3          3w4d      00:01:05  1        yes     -
+
+PIM Neighbor Status for VRF &quot;MCAST-VRF&quot;
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD
+                                                         Priority Capable State
+192.168.20.1    Ethernet1/4          2d08h     00:01:44  1        yes     -
+192.168.20.5    Ethernet1/5          2d08h     00:01:30  1        no      -</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_logging_last_100</span>
+    <span class="badge raw_only">RAW_ONLY</span>
+  </summary>
+  <pre class="raw-output">2026 May 29 08:00:01 TEST-N9K-1 %ETHPORT-5-IF_UP: Interface Ethernet1/1 is up in mode trunk
+2026 May 29 08:00:02 TEST-N9K-1 %ETHPORT-5-IF_UP: Interface Ethernet1/2 is up in mode trunk
+2026 May 29 08:01:15 TEST-N9K-1 %BGP-5-ADJCHANGE: bgp-65001 [inst] default-vrf - peer 10.0.1.2 Up
+2026 May 29 08:01:17 TEST-N9K-1 %BGP-5-ADJCHANGE: bgp-65001 [inst] default-vrf - peer 10.0.1.6 Up
+2026 May 29 08:02:01 TEST-N9K-1 %PIM-5-NBRCHANGE: VRF default: neighbor 10.0.1.2 added on Ethernet1/1
+2026 May 29 08:02:03 TEST-N9K-1 %PIM-5-NBRCHANGE: VRF default: neighbor 10.0.1.6 added on Ethernet1/2
+2026 May 29 09:30:00 TEST-N9K-1 %OSPF-5-ADJCHANGE: ospf-1 default VRF adj with 10.0.1.2 on Eth1/1 is FULL
+2026 May 29 09:30:05 TEST-N9K-1 %OSPF-5-ADJCHANGE: ospf-1 default VRF adj with 10.0.1.6 on Eth1/2 is FULL</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_processes_cpu_history</span>
+    <span class="badge raw_only">RAW_ONLY</span>
+  </summary>
+  <pre class="raw-output">CPU% per second (last 60 seconds)
+100
+ 90
+ 80
+ 70
+ 60
+ 50
+ 40    *         *
+ 30   ***   *   **  *   *
+ 20  ****  *** **** **  ** * *  *
+ 10 ****** ******************** ****
+   0....5....1....1....2....2....3....3....4....4....5....5....6
+             0    5    0    5    0    5    0    5    0    5    0</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_version</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">Cisco Nexus Operating System (NX-OS) Software
+TAC support: http://www.cisco.com/tac
+Copyright (C) 2002-2024, Cisco and/or its affiliates.
+All rights reserved.
+
+  BIOS: version 07.69
+  NXOS: version 10.3(5)M
+  BIOS compile time:  09/22/2022
+  NXOS image file is: bootflash:///nxos64-cs.10.3.5.M.bin
+  NXOS compile time:  12/06/2023 19:00:00 [12/07/2023 01:22:48]
+
+Hardware
+  cisco Nexus9000 C9364C chassis
+  Intel(R) Xeon(R) CPU D-1526 @ 1.80GHz with 24541516 kB of memory.
+  Processor Board ID FDO251A0001
+
+  Device name: TEST-N9K-1
+  bootflash:    53298520 kB
+  Kernel uptime is 87 day(s), 14 hour(s), 22 minute(s), 5 second(s)
+
+Last reset at 485759 usecs after Mon Mar 03 08:00:00 2026
+  Reason: Reset Requested by CLI command reload
+  System version: 10.3(4)M
+  Service:
+
+plugin
+  Core Plugin, Ethernet Plugin
+
+Active Package(s):</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_vpc_brief</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 1
+Peer status                       : peer adjacency formed ok
+vPC keep-alive status             : peer is alive
+Configuration consistency status  : success
+Per-vlan consistency status       : success
+Type-2 consistency status         : success
+vPC role                          : primary
+Number of vPCs configured         : 4
+Peer Gateway                      : Enabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+Operational Layer3 Peer-router    : Disabled
+Virtual-peerlink mode             : Disabled
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans
+--    ----   ------ --------------------------------------------------
+1     Po1    up     1,100-104,200-204
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ------------
+10    Po10          up     success     success               100-104
+20    Po20          up     success     success               200-204
+30    Po30          up     success     success               100
+40    Po40          up     success     success               200</pre>
+  
+</details></div>
+    
+<div class="sec-title">Parsed JSON Outputs</div>
+
+<div class="toolbar">
+  <span class="toolbar-label">Parsed JSON:</span>
+  <button class="btn" onclick="setAllJson(true)">Expand all</button>
+  <button class="btn" onclick="setAllJson(false)">Collapse all</button>
+</div>
+<div class="raw-list">
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_interface_description</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;port&quot;: &quot;Eth1/1&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;uplink-to-CORE-RTR-1&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/2&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;uplink-to-CORE-RTR-2&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/3&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;uplink-to-DIST-SW-A&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/4&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;server-rack-A-bond0&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/5&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;server-rack-B-bond0&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/48&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;--&quot;
+  },
+  {
+    &quot;port&quot;: &quot;mgmt0&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;OOB-MGMT-PRIMARY&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Lo0&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;router-id-loopback&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Lo1&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;mcast-rp-loopback&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po1&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-peer-link-to-TEST-N9K-2&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po10&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-access-sw-A&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po20&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-access-sw-B&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po30&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-server-rack-A&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po40&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-server-rack-B&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_bgp_neigh_vrf_all</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;neighbor&quot;: &quot;10.0.1.2&quot;,
+    &quot;peer_group&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;&quot;,
+    &quot;vrf&quot;: &quot;&quot;,
+    &quot;asn&quot;: &quot;65002&quot;,
+    &quot;remote_asn&quot;: &quot;65002&quot;,
+    &quot;local_asn&quot;: &quot;&quot;,
+    &quot;bgp_state&quot;: &quot;&quot;,
+    &quot;uptime&quot;: &quot;&quot;,
+    &quot;source_iface&quot;: &quot;&quot;,
+    &quot;conn_estab&quot;: &quot;&quot;,
+    &quot;conn_dropped&quot;: &quot;&quot;,
+    &quot;last_reset&quot;: &quot;&quot;,
+    &quot;last_reset_reason&quot;: &quot;&quot;,
+    &quot;last_peer_reset&quot;: &quot;&quot;,
+    &quot;last_peer_reset_reason&quot;: &quot;&quot;,
+    &quot;addr_family&quot;: [],
+    &quot;table_version&quot;: [],
+    &quot;nei_table_version&quot;: [],
+    &quot;addr_fam_adv&quot;: &quot;&quot;,
+    &quot;localhost_ip&quot;: &quot;&quot;,
+    &quot;localhost_port&quot;: &quot;&quot;,
+    &quot;remote_ip&quot;: &quot;&quot;,
+    &quot;remote_port&quot;: &quot;&quot;,
+    &quot;accepted_paths&quot;: &quot;&quot;,
+    &quot;sent_paths&quot;: &quot;&quot;,
+    &quot;consumed_mem&quot;: &quot;&quot;,
+    &quot;rr_old_cap&quot;: &quot;&quot;,
+    &quot;rr_new_cap&quot;: &quot;&quot;,
+    &quot;graceful_cap&quot;: &quot;&quot;,
+    &quot;fourbyte_cap&quot;: &quot;&quot;,
+    &quot;ext_nh_cap&quot;: &quot;&quot;,
+    &quot;restart_time_adv&quot;: &quot;&quot;,
+    &quot;restart_time_rcv&quot;: &quot;&quot;,
+    &quot;stale_time&quot;: &quot;&quot;,
+    &quot;opens_count_sent&quot;: &quot;&quot;,
+    &quot;notifications_count_sent&quot;: &quot;&quot;,
+    &quot;updates_count_sent&quot;: &quot;&quot;,
+    &quot;keepalives_count_sent&quot;: &quot;&quot;,
+    &quot;route_refresh_count_sent&quot;: &quot;&quot;,
+    &quot;capability_count_sent&quot;: &quot;&quot;,
+    &quot;total_mess_count_sent&quot;: &quot;&quot;,
+    &quot;total_bytes_count_sent&quot;: &quot;&quot;,
+    &quot;opens_count_rcvd&quot;: &quot;&quot;,
+    &quot;notifications_count_rcvd&quot;: &quot;&quot;,
+    &quot;updates_count_rcvd&quot;: &quot;&quot;,
+    &quot;keepalives_count_rcvd&quot;: &quot;&quot;,
+    &quot;route_refresh_count_rcvd&quot;: &quot;&quot;,
+    &quot;capability_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_mess_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_send_queue&quot;: &quot;&quot;,
+    &quot;total_bytes_rcvd_queue&quot;: &quot;&quot;,
+    &quot;inbound_routemap&quot;: &quot;&quot;,
+    &quot;outbound_routemap&quot;: &quot;&quot;
+  },
+  {
+    &quot;neighbor&quot;: &quot;10.0.1.6&quot;,
+    &quot;peer_group&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;&quot;,
+    &quot;vrf&quot;: &quot;&quot;,
+    &quot;asn&quot;: &quot;65003&quot;,
+    &quot;remote_asn&quot;: &quot;65003&quot;,
+    &quot;local_asn&quot;: &quot;&quot;,
+    &quot;bgp_state&quot;: &quot;&quot;,
+    &quot;uptime&quot;: &quot;&quot;,
+    &quot;source_iface&quot;: &quot;&quot;,
+    &quot;conn_estab&quot;: &quot;&quot;,
+    &quot;conn_dropped&quot;: &quot;&quot;,
+    &quot;last_reset&quot;: &quot;&quot;,
+    &quot;last_reset_reason&quot;: &quot;&quot;,
+    &quot;last_peer_reset&quot;: &quot;&quot;,
+    &quot;last_peer_reset_reason&quot;: &quot;&quot;,
+    &quot;addr_family&quot;: [],
+    &quot;table_version&quot;: [],
+    &quot;nei_table_version&quot;: [],
+    &quot;addr_fam_adv&quot;: &quot;&quot;,
+    &quot;localhost_ip&quot;: &quot;&quot;,
+    &quot;localhost_port&quot;: &quot;&quot;,
+    &quot;remote_ip&quot;: &quot;&quot;,
+    &quot;remote_port&quot;: &quot;&quot;,
+    &quot;accepted_paths&quot;: &quot;&quot;,
+    &quot;sent_paths&quot;: &quot;&quot;,
+    &quot;consumed_mem&quot;: &quot;&quot;,
+    &quot;rr_old_cap&quot;: &quot;&quot;,
+    &quot;rr_new_cap&quot;: &quot;&quot;,
+    &quot;graceful_cap&quot;: &quot;&quot;,
+    &quot;fourbyte_cap&quot;: &quot;&quot;,
+    &quot;ext_nh_cap&quot;: &quot;&quot;,
+    &quot;restart_time_adv&quot;: &quot;&quot;,
+    &quot;restart_time_rcv&quot;: &quot;&quot;,
+    &quot;stale_time&quot;: &quot;&quot;,
+    &quot;opens_count_sent&quot;: &quot;&quot;,
+    &quot;notifications_count_sent&quot;: &quot;&quot;,
+    &quot;updates_count_sent&quot;: &quot;&quot;,
+    &quot;keepalives_count_sent&quot;: &quot;&quot;,
+    &quot;route_refresh_count_sent&quot;: &quot;&quot;,
+    &quot;capability_count_sent&quot;: &quot;&quot;,
+    &quot;total_mess_count_sent&quot;: &quot;&quot;,
+    &quot;total_bytes_count_sent&quot;: &quot;&quot;,
+    &quot;opens_count_rcvd&quot;: &quot;&quot;,
+    &quot;notifications_count_rcvd&quot;: &quot;&quot;,
+    &quot;updates_count_rcvd&quot;: &quot;&quot;,
+    &quot;keepalives_count_rcvd&quot;: &quot;&quot;,
+    &quot;route_refresh_count_rcvd&quot;: &quot;&quot;,
+    &quot;capability_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_mess_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_send_queue&quot;: &quot;&quot;,
+    &quot;total_bytes_rcvd_queue&quot;: &quot;&quot;,
+    &quot;inbound_routemap&quot;: &quot;&quot;,
+    &quot;outbound_routemap&quot;: &quot;&quot;
+  },
+  {
+    &quot;neighbor&quot;: &quot;192.168.1.254&quot;,
+    &quot;peer_group&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;&quot;,
+    &quot;vrf&quot;: &quot;&quot;,
+    &quot;asn&quot;: &quot;65099&quot;,
+    &quot;remote_asn&quot;: &quot;65099&quot;,
+    &quot;local_asn&quot;: &quot;&quot;,
+    &quot;bgp_state&quot;: &quot;&quot;,
+    &quot;uptime&quot;: &quot;&quot;,
+    &quot;source_iface&quot;: &quot;&quot;,
+    &quot;conn_estab&quot;: &quot;&quot;,
+    &quot;conn_dropped&quot;: &quot;&quot;,
+    &quot;last_reset&quot;: &quot;&quot;,
+    &quot;last_reset_reason&quot;: &quot;&quot;,
+    &quot;last_peer_reset&quot;: &quot;&quot;,
+    &quot;last_peer_reset_reason&quot;: &quot;&quot;,
+    &quot;addr_family&quot;: [],
+    &quot;table_version&quot;: [],
+    &quot;nei_table_version&quot;: [],
+    &quot;addr_fam_adv&quot;: &quot;&quot;,
+    &quot;localhost_ip&quot;: &quot;&quot;,
+    &quot;localhost_port&quot;: &quot;&quot;,
+    &quot;remote_ip&quot;: &quot;&quot;,
+    &quot;remote_port&quot;: &quot;&quot;,
+    &quot;accepted_paths&quot;: &quot;&quot;,
+    &quot;sent_paths&quot;: &quot;&quot;,
+    &quot;consumed_mem&quot;: &quot;&quot;,
+    &quot;rr_old_cap&quot;: &quot;&quot;,
+    &quot;rr_new_cap&quot;: &quot;&quot;,
+    &quot;graceful_cap&quot;: &quot;&quot;,
+    &quot;fourbyte_cap&quot;: &quot;&quot;,
+    &quot;ext_nh_cap&quot;: &quot;&quot;,
+    &quot;restart_time_adv&quot;: &quot;&quot;,
+    &quot;restart_time_rcv&quot;: &quot;&quot;,
+    &quot;stale_time&quot;: &quot;&quot;,
+    &quot;opens_count_sent&quot;: &quot;&quot;,
+    &quot;notifications_count_sent&quot;: &quot;&quot;,
+    &quot;updates_count_sent&quot;: &quot;&quot;,
+    &quot;keepalives_count_sent&quot;: &quot;&quot;,
+    &quot;route_refresh_count_sent&quot;: &quot;&quot;,
+    &quot;capability_count_sent&quot;: &quot;&quot;,
+    &quot;total_mess_count_sent&quot;: &quot;&quot;,
+    &quot;total_bytes_count_sent&quot;: &quot;&quot;,
+    &quot;opens_count_rcvd&quot;: &quot;&quot;,
+    &quot;notifications_count_rcvd&quot;: &quot;&quot;,
+    &quot;updates_count_rcvd&quot;: &quot;&quot;,
+    &quot;keepalives_count_rcvd&quot;: &quot;&quot;,
+    &quot;route_refresh_count_rcvd&quot;: &quot;&quot;,
+    &quot;capability_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_mess_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_send_queue&quot;: &quot;&quot;,
+    &quot;total_bytes_rcvd_queue&quot;: &quot;&quot;,
+    &quot;inbound_routemap&quot;: &quot;&quot;,
+    &quot;outbound_routemap&quot;: &quot;&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_bgp_summary_vrf_all</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;router_id&quot;: &quot;10.0.0.1&quot;,
+    &quot;local_as&quot;: &quot;65001&quot;,
+    &quot;vrf&quot;: &quot;default&quot;,
+    &quot;bgp_neigh&quot;: &quot;10.0.1.2&quot;,
+    &quot;neigh_as&quot;: &quot;65002&quot;,
+    &quot;msg_rcvd&quot;: &quot;14523&quot;,
+    &quot;msg_sent&quot;: &quot;14521&quot;,
+    &quot;in_queue&quot;: &quot;0&quot;,
+    &quot;out_queue&quot;: &quot;0&quot;,
+    &quot;up_down&quot;: &quot;5w2d&quot;,
+    &quot;state_pfxrcd&quot;: &quot;142&quot;
+  },
+  {
+    &quot;router_id&quot;: &quot;10.0.0.1&quot;,
+    &quot;local_as&quot;: &quot;65001&quot;,
+    &quot;vrf&quot;: &quot;default&quot;,
+    &quot;bgp_neigh&quot;: &quot;10.0.1.6&quot;,
+    &quot;neigh_as&quot;: &quot;65003&quot;,
+    &quot;msg_rcvd&quot;: &quot;14485&quot;,
+    &quot;msg_sent&quot;: &quot;14482&quot;,
+    &quot;in_queue&quot;: &quot;0&quot;,
+    &quot;out_queue&quot;: &quot;0&quot;,
+    &quot;up_down&quot;: &quot;5w1d&quot;,
+    &quot;state_pfxrcd&quot;: &quot;158&quot;
+  },
+  {
+    &quot;router_id&quot;: &quot;192.168.1.1&quot;,
+    &quot;local_as&quot;: &quot;65001&quot;,
+    &quot;vrf&quot;: &quot;MGMT&quot;,
+    &quot;bgp_neigh&quot;: &quot;192.168.1.254&quot;,
+    &quot;neigh_as&quot;: &quot;65099&quot;,
+    &quot;msg_rcvd&quot;: &quot;420&quot;,
+    &quot;msg_sent&quot;: &quot;418&quot;,
+    &quot;in_queue&quot;: &quot;0&quot;,
+    &quot;out_queue&quot;: &quot;0&quot;,
+    &quot;up_down&quot;: &quot;3w1d&quot;,
+    &quot;state_pfxrcd&quot;: &quot;2&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">{
+  &quot;vrfs&quot;: {
+    &quot;default&quot;: {
+      &quot;entries&quot;: [
+        {
+          &quot;source&quot;: &quot;*&quot;,
+          &quot;group&quot;: &quot;239.255.0.1/32&quot;,
+          &quot;uptime&quot;: &quot;5w2d&quot;,
+          &quot;flags&quot;: &quot;igmp ip pim&quot;,
+          &quot;rpf_neighbor&quot;: &quot;10.0.1.2&quot;,
+          &quot;oifs&quot;: [
+            {
+              &quot;oif&quot;: &quot;Ethernet1/2&quot;,
+              &quot;uptime&quot;: &quot;5w2d&quot;,
+              &quot;expires&quot;: &quot;00:02:30&quot;
+            },
+            {
+              &quot;oif&quot;: &quot;Ethernet1/3&quot;,
+              &quot;uptime&quot;: &quot;3w4d&quot;,
+              &quot;expires&quot;: &quot;00:02:15&quot;
+            },
+            {
+              &quot;oif&quot;: &quot;Ethernet1/4&quot;,
+              &quot;uptime&quot;: &quot;2d08h&quot;,
+              &quot;expires&quot;: &quot;00:02:45&quot;
+            }
+          ],
+          &quot;incoming_interface&quot;: &quot;Ethernet1/1&quot;
+        },
+        {
+          &quot;source&quot;: &quot;10.1.1.100&quot;,
+          &quot;group&quot;: &quot;239.255.0.1/32&quot;,
+          &quot;uptime&quot;: &quot;5w2d&quot;,
+          &quot;flags&quot;: &quot;ip mrib pim&quot;,
+          &quot;rpf_neighbor&quot;: &quot;10.0.1.2&quot;,
+          &quot;oifs&quot;: [
+            {
+              &quot;oif&quot;: &quot;Ethernet1/2&quot;,
+              &quot;uptime&quot;: &quot;5w2d&quot;,
+              &quot;expires&quot;: &quot;00:02:00&quot;
+            },
+            {
+              &quot;oif&quot;: &quot;Ethernet1/3&quot;,
+              &quot;uptime&quot;: &quot;5w2d&quot;,
+              &quot;expires&quot;: &quot;00:02:00&quot;
+            }
+          ],
+          &quot;incoming_interface&quot;: &quot;Ethernet1/1&quot;
+        },
+        {
+          &quot;source&quot;: &quot;*&quot;,
+          &quot;group&quot;: &quot;232.0.0.0/8&quot;,
+          &quot;uptime&quot;: &quot;5w2d&quot;,
+          &quot;flags&quot;: &quot;pim&quot;,
+          &quot;rpf_neighbor&quot;: &quot;0.0.0.0&quot;,
+          &quot;oifs&quot;: [],
+          &quot;incoming_interface&quot;: &quot;Null&quot;
+        }
+      ]
+    }
+  }
+}</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute_summary</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">{
+  &quot;vrfs&quot;: {
+    &quot;default&quot;: {
+      &quot;summary&quot;: {
+        &quot;total_routes&quot;: 8,
+        &quot;star_g_routes&quot;: 3,
+        &quot;sg_routes&quot;: 4,
+        &quot;star_g_prefix_routes&quot;: 1
+      },
+      &quot;groups&quot;: [
+        {
+          &quot;group&quot;: &quot;239.255.0.1/32&quot;,
+          &quot;source_count&quot;: 2,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 28450,
+              &quot;bytes&quot;: 4125650,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 8,
+              &quot;bitrate&quot;: &quot;480.000 bps&quot;,
+              &quot;oifs&quot;: 3
+            },
+            {
+              &quot;source_type&quot;: &quot;(10.1.1.100,G)&quot;,
+              &quot;packets&quot;: 28450,
+              &quot;bytes&quot;: 4125650,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 8,
+              &quot;bitrate&quot;: &quot;480.000 bps&quot;,
+              &quot;oifs&quot;: 3
+            }
+          ]
+        },
+        {
+          &quot;group&quot;: &quot;239.255.0.2/32&quot;,
+          &quot;source_count&quot;: 1,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 14200,
+              &quot;bytes&quot;: 2059000,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 4,
+              &quot;bitrate&quot;: &quot;240.000 bps&quot;,
+              &quot;oifs&quot;: 2
+            },
+            {
+              &quot;source_type&quot;: &quot;(10.1.1.101,G)&quot;,
+              &quot;packets&quot;: 14200,
+              &quot;bytes&quot;: 2059000,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 4,
+              &quot;bitrate&quot;: &quot;240.000 bps&quot;,
+              &quot;oifs&quot;: 2
+            }
+          ]
+        },
+        {
+          &quot;group&quot;: &quot;239.255.0.3/32&quot;,
+          &quot;source_count&quot;: 1,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 7100,
+              &quot;bytes&quot;: 1029500,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 2,
+              &quot;bitrate&quot;: &quot;120.000 bps&quot;,
+              &quot;oifs&quot;: 2
+            },
+            {
+              &quot;source_type&quot;: &quot;(10.1.1.102,G)&quot;,
+              &quot;packets&quot;: 7100,
+              &quot;bytes&quot;: 1029500,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 2,
+              &quot;bitrate&quot;: &quot;120.000 bps&quot;,
+              &quot;oifs&quot;: 2
+            }
+          ]
+        },
+        {
+          &quot;group&quot;: &quot;232.0.0.0/8&quot;,
+          &quot;source_count&quot;: 0,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 0,
+              &quot;bytes&quot;: 0,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 0,
+              &quot;bitrate&quot;: &quot;0.000 bps&quot;,
+              &quot;oifs&quot;: 0
+            }
+          ]
+        }
+      ]
+    },
+    &quot;MCAST-VRF&quot;: {
+      &quot;summary&quot;: {
+        &quot;total_routes&quot;: 3,
+        &quot;star_g_routes&quot;: 1,
+        &quot;sg_routes&quot;: 2,
+        &quot;star_g_prefix_routes&quot;: 0
+      },
+      &quot;groups&quot;: [
+        {
+          &quot;group&quot;: &quot;239.100.0.1/32&quot;,
+          &quot;source_count&quot;: 2,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 9800,
+              &quot;bytes&quot;: 1421000,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 3,
+              &quot;bitrate&quot;: &quot;192.000 bps&quot;,
+              &quot;oifs&quot;: 2
+            },
+            {
+              &quot;source_type&quot;: &quot;(192.168.20.10,G)&quot;,
+              &quot;packets&quot;: 9800,
+              &quot;bytes&quot;: 1421000,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 3,
+              &quot;bitrate&quot;: &quot;192.000 bps&quot;,
+              &quot;oifs&quot;: 2
+            },
+            {
+              &quot;source_type&quot;: &quot;(192.168.20.11,G)&quot;,
+              &quot;packets&quot;: 4900,
+              &quot;bytes&quot;: 710500,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 2,
+              &quot;bitrate&quot;: &quot;96.000 bps&quot;,
+              &quot;oifs&quot;: 1
+            }
+          ]
+        }
+      ]
+    }
+  }
+}</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_ospf_neighbors</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">{
+  &quot;neighbors&quot;: [
+    {
+      &quot;neighbor_id&quot;: &quot;10.0.1.2&quot;,
+      &quot;priority&quot;: &quot;1&quot;,
+      &quot;state&quot;: &quot;FULL/ -&quot;,
+      &quot;uptime&quot;: &quot;5w2d&quot;,
+      &quot;address&quot;: &quot;10.0.1.2&quot;,
+      &quot;interface&quot;: &quot;Eth1/1&quot;
+    },
+    {
+      &quot;neighbor_id&quot;: &quot;10.0.1.6&quot;,
+      &quot;priority&quot;: &quot;1&quot;,
+      &quot;state&quot;: &quot;FULL/ -&quot;,
+      &quot;uptime&quot;: &quot;5w1d&quot;,
+      &quot;address&quot;: &quot;10.0.1.6&quot;,
+      &quot;interface&quot;: &quot;Eth1/2&quot;
+    }
+  ]
+}</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_pim_neigh</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;VRF&quot;: &quot;default&quot;,
+    &quot;NEIGHBOR&quot;: &quot;10.0.1.2&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/1&quot;,
+    &quot;UPTIME&quot;: &quot;5w2d&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:12&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;yes&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  },
+  {
+    &quot;VRF&quot;: &quot;default&quot;,
+    &quot;NEIGHBOR&quot;: &quot;10.0.1.6&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/2&quot;,
+    &quot;UPTIME&quot;: &quot;5w1d&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:28&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;yes&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  },
+  {
+    &quot;VRF&quot;: &quot;default&quot;,
+    &quot;NEIGHBOR&quot;: &quot;10.0.1.10&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/3&quot;,
+    &quot;UPTIME&quot;: &quot;3w4d&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:05&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;yes&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  },
+  {
+    &quot;VRF&quot;: &quot;MCAST-VRF&quot;,
+    &quot;NEIGHBOR&quot;: &quot;192.168.20.1&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/4&quot;,
+    &quot;UPTIME&quot;: &quot;2d08h&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:44&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;yes&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  },
+  {
+    &quot;VRF&quot;: &quot;MCAST-VRF&quot;,
+    &quot;NEIGHBOR&quot;: &quot;192.168.20.5&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/5&quot;,
+    &quot;UPTIME&quot;: &quot;2d08h&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:30&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;no&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_version</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;uptime&quot;: &quot;&quot;,
+    &quot;last_reboot_reason&quot;: &quot;Reset Requested by CLI command reload&quot;,
+    &quot;bios&quot;: &quot;07.69&quot;,
+    &quot;os&quot;: &quot;10.3(5)M&quot;,
+    &quot;boot_image&quot;: &quot;bootflash:///nxos64-cs.10.3.5.M.bin&quot;,
+    &quot;platform&quot;: &quot;C9364C&quot;,
+    &quot;hostname&quot;: &quot;TEST-N9K-1&quot;,
+    &quot;serial&quot;: &quot;FDO251A0001&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_vpc_brief</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;id&quot;: &quot;1&quot;,
+    &quot;port&quot;: &quot;Po1&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;10&quot;,
+    &quot;port&quot;: &quot;Po10&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;20&quot;,
+    &quot;port&quot;: &quot;Po20&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;30&quot;,
+    &quot;port&quot;: &quot;Po30&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;40&quot;,
+    &quot;port&quot;: &quot;Po40&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  }
+]</pre>
+</details></div>
+  </div>
+</details>
+<details class="device-accordion" id="device-TEST-N9K-2">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <strong>TEST-N9K-2</strong>
+    <span style="font-size:.8rem;color:var(--muted)">29-May-26</span>
+    <span class="badge pass">✓ 4 Passed</span> <span class="badge fail">✗ 3 Failed</span>
+  </summary>
+  <div class="device-inner">
+    <div class="summary-grid"><div class="stat-card total">
+  <div class="lbl">Total</div>
+  <div class="val">7</div>
+</div><div class="stat-card pass">
+  <div class="lbl">Passed</div>
+  <div class="val">4</div>
+</div><div class="stat-card fail">
+  <div class="lbl">Failed</div>
+  <div class="val">3</div>
+</div><div class="stat-card error">
+  <div class="lbl">Errors</div>
+  <div class="val">0</div>
+</div></div>
+    <div class="sec-title">Check Results</div>
+    <div class="check-list">
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">Show version has OS version</span>
+    <span class="check-cmd">show_version</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_version</code>
+  <span class="dk">Path</span><code>[0].os</code>
+  <span class="dk">Condition</span><span><code>matches ^\d+</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">Hostname is set</span>
+    <span class="check-cmd">show_version</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_version</code>
+  <span class="dk">Path</span><code>[0].hostname</code>
+  <span class="dk">Condition</span><span><code>matches ^\S+</code></span>
+</div></div>
+</div>
+<div class="check-card fail">
+  <div class="check-hdr">
+    <span class="badge fail">FAIL</span>
+    <span class="check-name">VPC peer link status is up</span>
+    <span class="check-cmd">show_vpc_brief</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_vpc_brief</code>
+  <span class="dk">Path</span><code>[*].status</code>
+  <span class="dk">Condition</span><span><code>not_contains down</code></span>
+</div><div class="failures"><div class="failure-row">
+  <div class="fp">[3].status</div>
+  <div class="fa">Actual: <span>down*</span></div>
+  <div class="fr">&#x27;down*&#x27; contains &#x27;down&#x27; (should not)</div>
+</div><div class="failure-row">
+  <div class="fp">[4].status</div>
+  <div class="fa">Actual: <span>down*</span></div>
+  <div class="fr">&#x27;down*&#x27; contains &#x27;down&#x27; (should not)</div>
+</div></div></div>
+</div>
+<div class="check-card fail">
+  <div class="check-hdr">
+    <span class="badge fail">FAIL</span>
+    <span class="check-name">No interface description contains DECOM</span>
+    <span class="check-cmd">show_interface_description</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_interface_description</code>
+  <span class="dk">Path</span><code>[*].description</code>
+  <span class="dk">Condition</span><span><code>not_contains DECOM</code></span>
+</div><div class="failures"><div class="failure-row">
+  <div class="fp">[3].description</div>
+  <div class="fa">Actual: <span>DECOM-server-rack-A-bond0</span></div>
+  <div class="fr">&#x27;DECOM-server-rack-A-bond0&#x27; contains &#x27;DECOM&#x27; (should not)</div>
+</div><div class="failure-row">
+  <div class="fp">[5].description</div>
+  <div class="fa">Actual: <span>DECOMMISSIONED-legacy-uplink</span></div>
+  <div class="fr">&#x27;DECOMMISSIONED-legacy-uplink&#x27; contains &#x27;DECOM&#x27; (should not)</div>
+</div></div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">Multicast routes present</span>
+    <span class="check-cmd">show_ip_mroute_summary</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_ip_mroute_summary</code>
+  <span class="dk">Path</span><code>vrfs[*].summary.total_routes</code>
+  <span class="dk">Condition</span><span><code>gt 0</code></span>
+</div></div>
+</div>
+<div class="check-card fail">
+  <div class="check-hdr">
+    <span class="badge fail">FAIL</span>
+    <span class="check-name">All OSPF neighbors in FULL state</span>
+    <span class="check-cmd">show_ip_ospf_neighbors</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_ip_ospf_neighbors</code>
+  <span class="dk">Path</span><code>neighbors[*].state</code>
+  <span class="dk">Condition</span><span><code>matches ^FULL</code></span>
+</div><div class="failures"><div class="failure-row">
+  <div class="fp">neighbors[1].state</div>
+  <div class="fa">Actual: <span>2WAY/DROTHER</span></div>
+  <div class="fr">&#x27;2WAY/DROTHER&#x27; does not match pattern &#x27;^FULL&#x27;</div>
+</div></div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">PIM neighbors present</span>
+    <span class="check-cmd">show_ip_pim_neigh</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_ip_pim_neigh</code>
+  <span class="dk">Path</span><code>[*].NEIGHBOR</code>
+  <span class="dk">Condition</span><span><code>matches ^\d+\.\d+\.\d+\.\d+$</code></span>
+</div></div>
+</div></div>
+    
+<div class="sec-title">Raw Command Outputs</div>
+
+<div class="toolbar">
+  <span class="toolbar-label">Raw output:</span>
+  <button class="btn" onclick="setAllRaw(true)">Expand all</button>
+  <button class="btn" onclick="setAllRaw(false)">Collapse all</button>
+</div>
+<div class="raw-list">
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_interface_description</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">-------------------------------------------------------------------------------
+Interface                Description
+-------------------------------------------------------------------------------
+Eth1/1                   uplink-to-CORE-RTR-1
+Eth1/2                   uplink-to-CORE-RTR-2
+Eth1/3                   uplink-to-DIST-SW-A
+Eth1/4                   DECOM-server-rack-A-bond0
+Eth1/5                   server-rack-B-bond0
+Eth1/6                   DECOMMISSIONED-legacy-uplink
+Eth1/48                  --
+mgmt0                    OOB-MGMT-SECONDARY
+Lo0                      router-id-loopback
+Lo1                      mcast-rp-loopback
+Po1                      vpc-peer-link-to-TEST-N9K-1
+Po10                     vpc-to-access-sw-A
+Po20                     vpc-to-access-sw-B
+Po30                     vpc-to-server-rack-A
+Po40                     vpc-to-server-rack-B</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_bgp_neigh_vrf_all</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">BGP neighbor is 10.0.2.2,  remote AS 65002, ebgp link,  Peer index 1
+BGP version 4, remote router ID 10.0.2.2
+BGP state = Established, up for 5w2d
+Last read 00:00:42, hold time = 90, keepalive interval is 30 seconds
+
+BGP neighbor is 10.0.2.6,  remote AS 65004, ebgp link,  Peer index 2
+BGP version 4, remote router ID 10.0.2.6
+BGP state = Established, up for 4w3d
+Last read 00:00:28, hold time = 90, keepalive interval is 30 seconds</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_bgp_summary_vrf_all</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">BGP summary information for VRF default, address family IPv4 Unicast
+BGP router identifier 10.0.0.2, local AS number 65001
+BGP table version is 195, IPv4 Unicast config peers 2, capable peers 2
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+10.0.2.2        4 65002   13914   13910      195    0    0 5w2d             142
+10.0.2.6        4 65004   13877   13874      195    0    0 4w3d             201
+
+BGP summary information for VRF MGMT, address family IPv4 Unicast
+BGP router identifier 192.168.1.2, local AS number 65001
+BGP table version is 4, IPv4 Unicast config peers 1, capable peers 1
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+192.168.1.254   4 65099     418     416        4    0    0 3w1d               2</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">IP Multicast Routing Table for VRF &quot;default&quot;
+
+(*,239.255.0.1/32), uptime: 5w2d, igmp ip pim
+  Incoming interface: Ethernet1/1, RPF nbr: 10.0.2.2
+  Outgoing interface list: (count: 2)
+    Ethernet1/2, uptime: 5w2d, expires: 00:02:20
+    Ethernet1/4, uptime: 00:12:18, expires: 00:02:35
+
+(*,232.0.0.0/8), uptime: 5w2d, pim
+  Incoming interface: Null, RPF nbr: 0.0.0.0
+  Outgoing interface list: (count: 0)</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute_summary</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">IP Multicast Routing Table for VRF &quot;default&quot;
+Total number of routes: 5
+Total number of (*,G) routes: 2
+Total number of (S,G) routes: 2
+Total number of (*,G-prefix) routes: 1
+
+Group: 239.255.0.1/32, Source count: 2
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           18200      2639000    0          6          360.000 bps       2
+(10.1.1.100,G)  18200      2639000    0          6          360.000 bps       2
+
+Group: 239.255.0.2/32, Source count: 0
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           0          0          0          0          0.000 bps         0
+
+Group: 232.0.0.0/8, Source count: 0
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           0          0          0          0          0.000 bps         0
+
+IP Multicast Routing Table for VRF &quot;MCAST-VRF&quot;
+Total number of routes: 1
+Total number of (*,G) routes: 1
+Total number of (S,G) routes: 0
+Total number of (*,G-prefix) routes: 0
+
+Group: 239.100.0.1/32, Source count: 0
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           0          0          0          0          0.000 bps         0</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_ospf_neighbors</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">OSPF Process ID 1 VRF default
+Total number of neighbors: 2
+
+Neighbor ID     Pri State            Up Time  Address         Interface
+10.0.2.2          1 FULL/ -         5w2d     10.0.2.2        Eth1/1
+10.0.2.6          1 2WAY/DROTHER    00:03:42  10.0.2.6        Eth1/2</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_pim_neigh</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">PIM Neighbor Status for VRF &quot;default&quot;
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD
+                                                         Priority Capable State
+10.0.2.2        Ethernet1/1          5w2d      00:01:08  1        yes     -
+10.0.2.6        Ethernet1/2          4w3d      00:01:22  1        yes     -
+
+PIM Neighbor Status for VRF &quot;MCAST-VRF&quot;
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD
+                                                         Priority Capable State
+192.168.20.1    Ethernet1/4          00:12:18  00:01:20  1        yes     -</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_logging_last_100</span>
+    <span class="badge raw_only">RAW_ONLY</span>
+  </summary>
+  <pre class="raw-output">2026 May 29 08:00:05 TEST-N9K-2 %ETHPORT-5-IF_UP: Interface Ethernet1/1 is up in mode trunk
+2026 May 29 08:01:20 TEST-N9K-2 %BGP-5-ADJCHANGE: bgp-65001 [inst] default-vrf - peer 10.0.2.2 Up
+2026 May 29 08:02:10 TEST-N9K-2 %PIM-5-NBRCHANGE: VRF default: neighbor 10.0.2.2 added on Ethernet1/1
+2026 May 29 09:45:00 TEST-N9K-2 %OSPF-5-ADJCHANGE: ospf-1 default VRF adj with 10.0.2.2 on Eth1/1 is FULL
+2026 May 29 14:22:18 TEST-N9K-2 %VPC-2-VPC_CONSISTENCY_FAIL: vPC 30 is inconsistent: vlan-type mismatch
+2026 May 29 14:22:19 TEST-N9K-2 %VPC-2-VPC_CONSISTENCY_FAIL: vPC 40 is inconsistent: port-channel config mismatch
+2026 May 29 14:22:19 TEST-N9K-2 %VPC-2-UPLINK_DOWN: vPC 30 down, reason: consistency failed
+2026 May 29 14:22:20 TEST-N9K-2 %VPC-2-UPLINK_DOWN: vPC 40 down, reason: consistency failed
+2026 May 29 16:00:00 TEST-N9K-2 %PLATFORM-2-PS_FAULT: Power supply 2 absent</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_processes_cpu_history</span>
+    <span class="badge raw_only">RAW_ONLY</span>
+  </summary>
+  <pre class="raw-output">CPU% per second (last 60 seconds)
+100
+ 90
+ 80
+ 70
+ 60    *
+ 50    **
+ 40   *** *          *
+ 30  *****  **  *   **  *   *
+ 20 ******* *** **  *** **  ** **
+ 10 ******* ******* **** ******* **
+   0....5....1....1....2....2....3....3....4....4....5....5....6
+             0    5    0    5    0    5    0    5    0    5    0</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_version</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">Cisco Nexus Operating System (NX-OS) Software
+TAC support: http://www.cisco.com/tac
+Copyright (C) 2002-2024, Cisco and/or its affiliates.
+All rights reserved.
+
+  BIOS: version 07.69
+  NXOS: version 10.3(5)M
+  BIOS compile time:  09/22/2022
+  NXOS image file is: bootflash:///nxos64-cs.10.3.5.M.bin
+  NXOS compile time:  12/06/2023 19:00:00 [12/07/2023 01:22:48]
+
+Hardware
+  cisco Nexus9000 C9364C chassis
+  Intel(R) Xeon(R) CPU D-1526 @ 1.80GHz with 24541516 kB of memory.
+  Processor Board ID FDO251A0002
+
+  Device name: TEST-N9K-2
+  bootflash:    53298520 kB
+  Kernel uptime is 87 day(s), 14 hour(s), 19 minute(s), 33 second(s)
+
+Last reset at 485759 usecs after Mon Mar 03 08:00:00 2026
+  Reason: Reset Requested by CLI command reload
+  System version: 10.3(4)M
+  Service:
+
+plugin
+  Core Plugin, Ethernet Plugin
+
+Active Package(s):</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_vpc_brief</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 1
+Peer status                       : peer adjacency formed ok
+vPC keep-alive status             : peer is alive
+Configuration consistency status  : success
+Per-vlan consistency status       : success
+Type-2 consistency status         : success
+vPC role                          : secondary
+Number of vPCs configured         : 4
+Peer Gateway                      : Enabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+Operational Layer3 Peer-router    : Disabled
+Virtual-peerlink mode             : Disabled
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans
+--    ----   ------ --------------------------------------------------
+1     Po1    up     1,100-104,200-204
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ------------
+10    Po10          up     success     success               100-104
+20    Po20          up     success     success               200-204
+30    Po30          down*  failed      vlan-type mismatch    -
+40    Po40          down*  failed      port-channel config mismatch  -</pre>
+  
+</details></div>
+    
+<div class="sec-title">Parsed JSON Outputs</div>
+
+<div class="toolbar">
+  <span class="toolbar-label">Parsed JSON:</span>
+  <button class="btn" onclick="setAllJson(true)">Expand all</button>
+  <button class="btn" onclick="setAllJson(false)">Collapse all</button>
+</div>
+<div class="raw-list">
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_interface_description</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;port&quot;: &quot;Eth1/1&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;uplink-to-CORE-RTR-1&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/2&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;uplink-to-CORE-RTR-2&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/3&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;uplink-to-DIST-SW-A&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/4&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;DECOM-server-rack-A-bond0&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/5&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;server-rack-B-bond0&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/6&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;DECOMMISSIONED-legacy-uplink&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/48&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;--&quot;
+  },
+  {
+    &quot;port&quot;: &quot;mgmt0&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;OOB-MGMT-SECONDARY&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Lo0&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;router-id-loopback&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Lo1&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;mcast-rp-loopback&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po1&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-peer-link-to-TEST-N9K-1&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po10&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-access-sw-A&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po20&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-access-sw-B&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po30&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-server-rack-A&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po40&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-server-rack-B&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_bgp_neigh_vrf_all</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;neighbor&quot;: &quot;10.0.2.2&quot;,
+    &quot;peer_group&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;&quot;,
+    &quot;vrf&quot;: &quot;&quot;,
+    &quot;asn&quot;: &quot;65002&quot;,
+    &quot;remote_asn&quot;: &quot;65002&quot;,
+    &quot;local_asn&quot;: &quot;&quot;,
+    &quot;bgp_state&quot;: &quot;&quot;,
+    &quot;uptime&quot;: &quot;&quot;,
+    &quot;source_iface&quot;: &quot;&quot;,
+    &quot;conn_estab&quot;: &quot;&quot;,
+    &quot;conn_dropped&quot;: &quot;&quot;,
+    &quot;last_reset&quot;: &quot;&quot;,
+    &quot;last_reset_reason&quot;: &quot;&quot;,
+    &quot;last_peer_reset&quot;: &quot;&quot;,
+    &quot;last_peer_reset_reason&quot;: &quot;&quot;,
+    &quot;addr_family&quot;: [],
+    &quot;table_version&quot;: [],
+    &quot;nei_table_version&quot;: [],
+    &quot;addr_fam_adv&quot;: &quot;&quot;,
+    &quot;localhost_ip&quot;: &quot;&quot;,
+    &quot;localhost_port&quot;: &quot;&quot;,
+    &quot;remote_ip&quot;: &quot;&quot;,
+    &quot;remote_port&quot;: &quot;&quot;,
+    &quot;accepted_paths&quot;: &quot;&quot;,
+    &quot;sent_paths&quot;: &quot;&quot;,
+    &quot;consumed_mem&quot;: &quot;&quot;,
+    &quot;rr_old_cap&quot;: &quot;&quot;,
+    &quot;rr_new_cap&quot;: &quot;&quot;,
+    &quot;graceful_cap&quot;: &quot;&quot;,
+    &quot;fourbyte_cap&quot;: &quot;&quot;,
+    &quot;ext_nh_cap&quot;: &quot;&quot;,
+    &quot;restart_time_adv&quot;: &quot;&quot;,
+    &quot;restart_time_rcv&quot;: &quot;&quot;,
+    &quot;stale_time&quot;: &quot;&quot;,
+    &quot;opens_count_sent&quot;: &quot;&quot;,
+    &quot;notifications_count_sent&quot;: &quot;&quot;,
+    &quot;updates_count_sent&quot;: &quot;&quot;,
+    &quot;keepalives_count_sent&quot;: &quot;&quot;,
+    &quot;route_refresh_count_sent&quot;: &quot;&quot;,
+    &quot;capability_count_sent&quot;: &quot;&quot;,
+    &quot;total_mess_count_sent&quot;: &quot;&quot;,
+    &quot;total_bytes_count_sent&quot;: &quot;&quot;,
+    &quot;opens_count_rcvd&quot;: &quot;&quot;,
+    &quot;notifications_count_rcvd&quot;: &quot;&quot;,
+    &quot;updates_count_rcvd&quot;: &quot;&quot;,
+    &quot;keepalives_count_rcvd&quot;: &quot;&quot;,
+    &quot;route_refresh_count_rcvd&quot;: &quot;&quot;,
+    &quot;capability_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_mess_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_send_queue&quot;: &quot;&quot;,
+    &quot;total_bytes_rcvd_queue&quot;: &quot;&quot;,
+    &quot;inbound_routemap&quot;: &quot;&quot;,
+    &quot;outbound_routemap&quot;: &quot;&quot;
+  },
+  {
+    &quot;neighbor&quot;: &quot;10.0.2.6&quot;,
+    &quot;peer_group&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;&quot;,
+    &quot;vrf&quot;: &quot;&quot;,
+    &quot;asn&quot;: &quot;65004&quot;,
+    &quot;remote_asn&quot;: &quot;65004&quot;,
+    &quot;local_asn&quot;: &quot;&quot;,
+    &quot;bgp_state&quot;: &quot;&quot;,
+    &quot;uptime&quot;: &quot;&quot;,
+    &quot;source_iface&quot;: &quot;&quot;,
+    &quot;conn_estab&quot;: &quot;&quot;,
+    &quot;conn_dropped&quot;: &quot;&quot;,
+    &quot;last_reset&quot;: &quot;&quot;,
+    &quot;last_reset_reason&quot;: &quot;&quot;,
+    &quot;last_peer_reset&quot;: &quot;&quot;,
+    &quot;last_peer_reset_reason&quot;: &quot;&quot;,
+    &quot;addr_family&quot;: [],
+    &quot;table_version&quot;: [],
+    &quot;nei_table_version&quot;: [],
+    &quot;addr_fam_adv&quot;: &quot;&quot;,
+    &quot;localhost_ip&quot;: &quot;&quot;,
+    &quot;localhost_port&quot;: &quot;&quot;,
+    &quot;remote_ip&quot;: &quot;&quot;,
+    &quot;remote_port&quot;: &quot;&quot;,
+    &quot;accepted_paths&quot;: &quot;&quot;,
+    &quot;sent_paths&quot;: &quot;&quot;,
+    &quot;consumed_mem&quot;: &quot;&quot;,
+    &quot;rr_old_cap&quot;: &quot;&quot;,
+    &quot;rr_new_cap&quot;: &quot;&quot;,
+    &quot;graceful_cap&quot;: &quot;&quot;,
+    &quot;fourbyte_cap&quot;: &quot;&quot;,
+    &quot;ext_nh_cap&quot;: &quot;&quot;,
+    &quot;restart_time_adv&quot;: &quot;&quot;,
+    &quot;restart_time_rcv&quot;: &quot;&quot;,
+    &quot;stale_time&quot;: &quot;&quot;,
+    &quot;opens_count_sent&quot;: &quot;&quot;,
+    &quot;notifications_count_sent&quot;: &quot;&quot;,
+    &quot;updates_count_sent&quot;: &quot;&quot;,
+    &quot;keepalives_count_sent&quot;: &quot;&quot;,
+    &quot;route_refresh_count_sent&quot;: &quot;&quot;,
+    &quot;capability_count_sent&quot;: &quot;&quot;,
+    &quot;total_mess_count_sent&quot;: &quot;&quot;,
+    &quot;total_bytes_count_sent&quot;: &quot;&quot;,
+    &quot;opens_count_rcvd&quot;: &quot;&quot;,
+    &quot;notifications_count_rcvd&quot;: &quot;&quot;,
+    &quot;updates_count_rcvd&quot;: &quot;&quot;,
+    &quot;keepalives_count_rcvd&quot;: &quot;&quot;,
+    &quot;route_refresh_count_rcvd&quot;: &quot;&quot;,
+    &quot;capability_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_mess_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_send_queue&quot;: &quot;&quot;,
+    &quot;total_bytes_rcvd_queue&quot;: &quot;&quot;,
+    &quot;inbound_routemap&quot;: &quot;&quot;,
+    &quot;outbound_routemap&quot;: &quot;&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_bgp_summary_vrf_all</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;router_id&quot;: &quot;10.0.0.2&quot;,
+    &quot;local_as&quot;: &quot;65001&quot;,
+    &quot;vrf&quot;: &quot;default&quot;,
+    &quot;bgp_neigh&quot;: &quot;10.0.2.2&quot;,
+    &quot;neigh_as&quot;: &quot;65002&quot;,
+    &quot;msg_rcvd&quot;: &quot;13914&quot;,
+    &quot;msg_sent&quot;: &quot;13910&quot;,
+    &quot;in_queue&quot;: &quot;0&quot;,
+    &quot;out_queue&quot;: &quot;0&quot;,
+    &quot;up_down&quot;: &quot;5w2d&quot;,
+    &quot;state_pfxrcd&quot;: &quot;142&quot;
+  },
+  {
+    &quot;router_id&quot;: &quot;10.0.0.2&quot;,
+    &quot;local_as&quot;: &quot;65001&quot;,
+    &quot;vrf&quot;: &quot;default&quot;,
+    &quot;bgp_neigh&quot;: &quot;10.0.2.6&quot;,
+    &quot;neigh_as&quot;: &quot;65004&quot;,
+    &quot;msg_rcvd&quot;: &quot;13877&quot;,
+    &quot;msg_sent&quot;: &quot;13874&quot;,
+    &quot;in_queue&quot;: &quot;0&quot;,
+    &quot;out_queue&quot;: &quot;0&quot;,
+    &quot;up_down&quot;: &quot;4w3d&quot;,
+    &quot;state_pfxrcd&quot;: &quot;201&quot;
+  },
+  {
+    &quot;router_id&quot;: &quot;192.168.1.2&quot;,
+    &quot;local_as&quot;: &quot;65001&quot;,
+    &quot;vrf&quot;: &quot;MGMT&quot;,
+    &quot;bgp_neigh&quot;: &quot;192.168.1.254&quot;,
+    &quot;neigh_as&quot;: &quot;65099&quot;,
+    &quot;msg_rcvd&quot;: &quot;418&quot;,
+    &quot;msg_sent&quot;: &quot;416&quot;,
+    &quot;in_queue&quot;: &quot;0&quot;,
+    &quot;out_queue&quot;: &quot;0&quot;,
+    &quot;up_down&quot;: &quot;3w1d&quot;,
+    &quot;state_pfxrcd&quot;: &quot;2&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">{
+  &quot;vrfs&quot;: {
+    &quot;default&quot;: {
+      &quot;entries&quot;: [
+        {
+          &quot;source&quot;: &quot;*&quot;,
+          &quot;group&quot;: &quot;239.255.0.1/32&quot;,
+          &quot;uptime&quot;: &quot;5w2d&quot;,
+          &quot;flags&quot;: &quot;igmp ip pim&quot;,
+          &quot;rpf_neighbor&quot;: &quot;10.0.2.2&quot;,
+          &quot;oifs&quot;: [
+            {
+              &quot;oif&quot;: &quot;Ethernet1/2&quot;,
+              &quot;uptime&quot;: &quot;5w2d&quot;,
+              &quot;expires&quot;: &quot;00:02:20&quot;
+            },
+            {
+              &quot;oif&quot;: &quot;Ethernet1/4&quot;,
+              &quot;uptime&quot;: &quot;00:12:18&quot;,
+              &quot;expires&quot;: &quot;00:02:35&quot;
+            }
+          ],
+          &quot;incoming_interface&quot;: &quot;Ethernet1/1&quot;
+        },
+        {
+          &quot;source&quot;: &quot;*&quot;,
+          &quot;group&quot;: &quot;232.0.0.0/8&quot;,
+          &quot;uptime&quot;: &quot;5w2d&quot;,
+          &quot;flags&quot;: &quot;pim&quot;,
+          &quot;rpf_neighbor&quot;: &quot;0.0.0.0&quot;,
+          &quot;oifs&quot;: [],
+          &quot;incoming_interface&quot;: &quot;Null&quot;
+        }
+      ]
+    }
+  }
+}</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute_summary</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">{
+  &quot;vrfs&quot;: {
+    &quot;default&quot;: {
+      &quot;summary&quot;: {
+        &quot;total_routes&quot;: 5,
+        &quot;star_g_routes&quot;: 2,
+        &quot;sg_routes&quot;: 2,
+        &quot;star_g_prefix_routes&quot;: 1
+      },
+      &quot;groups&quot;: [
+        {
+          &quot;group&quot;: &quot;239.255.0.1/32&quot;,
+          &quot;source_count&quot;: 2,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 18200,
+              &quot;bytes&quot;: 2639000,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 6,
+              &quot;bitrate&quot;: &quot;360.000 bps&quot;,
+              &quot;oifs&quot;: 2
+            },
+            {
+              &quot;source_type&quot;: &quot;(10.1.1.100,G)&quot;,
+              &quot;packets&quot;: 18200,
+              &quot;bytes&quot;: 2639000,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 6,
+              &quot;bitrate&quot;: &quot;360.000 bps&quot;,
+              &quot;oifs&quot;: 2
+            }
+          ]
+        },
+        {
+          &quot;group&quot;: &quot;239.255.0.2/32&quot;,
+          &quot;source_count&quot;: 0,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 0,
+              &quot;bytes&quot;: 0,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 0,
+              &quot;bitrate&quot;: &quot;0.000 bps&quot;,
+              &quot;oifs&quot;: 0
+            }
+          ]
+        },
+        {
+          &quot;group&quot;: &quot;232.0.0.0/8&quot;,
+          &quot;source_count&quot;: 0,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 0,
+              &quot;bytes&quot;: 0,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 0,
+              &quot;bitrate&quot;: &quot;0.000 bps&quot;,
+              &quot;oifs&quot;: 0
+            }
+          ]
+        }
+      ]
+    },
+    &quot;MCAST-VRF&quot;: {
+      &quot;summary&quot;: {
+        &quot;total_routes&quot;: 1,
+        &quot;star_g_routes&quot;: 1,
+        &quot;sg_routes&quot;: 0,
+        &quot;star_g_prefix_routes&quot;: 0
+      },
+      &quot;groups&quot;: [
+        {
+          &quot;group&quot;: &quot;239.100.0.1/32&quot;,
+          &quot;source_count&quot;: 0,
+          &quot;entries&quot;: [
+            {
+              &quot;source_type&quot;: &quot;(*,G)&quot;,
+              &quot;packets&quot;: 0,
+              &quot;bytes&quot;: 0,
+              &quot;aps&quot;: 0,
+              &quot;pps&quot;: 0,
+              &quot;bitrate&quot;: &quot;0.000 bps&quot;,
+              &quot;oifs&quot;: 0
+            }
+          ]
+        }
+      ]
+    }
+  }
+}</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_ospf_neighbors</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">{
+  &quot;neighbors&quot;: [
+    {
+      &quot;neighbor_id&quot;: &quot;10.0.2.2&quot;,
+      &quot;priority&quot;: &quot;1&quot;,
+      &quot;state&quot;: &quot;FULL/ -&quot;,
+      &quot;uptime&quot;: &quot;5w2d&quot;,
+      &quot;address&quot;: &quot;10.0.2.2&quot;,
+      &quot;interface&quot;: &quot;Eth1/1&quot;
+    },
+    {
+      &quot;neighbor_id&quot;: &quot;10.0.2.6&quot;,
+      &quot;priority&quot;: &quot;1&quot;,
+      &quot;state&quot;: &quot;2WAY/DROTHER&quot;,
+      &quot;uptime&quot;: &quot;00:03:42&quot;,
+      &quot;address&quot;: &quot;10.0.2.6&quot;,
+      &quot;interface&quot;: &quot;Eth1/2&quot;
+    }
+  ]
+}</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_pim_neigh</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;VRF&quot;: &quot;default&quot;,
+    &quot;NEIGHBOR&quot;: &quot;10.0.2.2&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/1&quot;,
+    &quot;UPTIME&quot;: &quot;5w2d&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:08&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;yes&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  },
+  {
+    &quot;VRF&quot;: &quot;default&quot;,
+    &quot;NEIGHBOR&quot;: &quot;10.0.2.6&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/2&quot;,
+    &quot;UPTIME&quot;: &quot;4w3d&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:22&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;yes&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  },
+  {
+    &quot;VRF&quot;: &quot;MCAST-VRF&quot;,
+    &quot;NEIGHBOR&quot;: &quot;192.168.20.1&quot;,
+    &quot;INTERFACE&quot;: &quot;Ethernet1/4&quot;,
+    &quot;UPTIME&quot;: &quot;00:12:18&quot;,
+    &quot;EXPIRES&quot;: &quot;00:01:20&quot;,
+    &quot;DR_PRIORITY&quot;: &quot;1&quot;,
+    &quot;BIDIR_CAPABLE&quot;: &quot;yes&quot;,
+    &quot;BFD_STATE&quot;: &quot;-&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_version</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;uptime&quot;: &quot;&quot;,
+    &quot;last_reboot_reason&quot;: &quot;Reset Requested by CLI command reload&quot;,
+    &quot;bios&quot;: &quot;07.69&quot;,
+    &quot;os&quot;: &quot;10.3(5)M&quot;,
+    &quot;boot_image&quot;: &quot;bootflash:///nxos64-cs.10.3.5.M.bin&quot;,
+    &quot;platform&quot;: &quot;C9364C&quot;,
+    &quot;hostname&quot;: &quot;TEST-N9K-2&quot;,
+    &quot;serial&quot;: &quot;FDO251A0002&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_vpc_brief</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;id&quot;: &quot;1&quot;,
+    &quot;port&quot;: &quot;Po1&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;10&quot;,
+    &quot;port&quot;: &quot;Po10&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;20&quot;,
+    &quot;port&quot;: &quot;Po20&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;30&quot;,
+    &quot;port&quot;: &quot;Po30&quot;,
+    &quot;status&quot;: &quot;down*&quot;
+  },
+  {
+    &quot;id&quot;: &quot;40&quot;,
+    &quot;port&quot;: &quot;Po40&quot;,
+    &quot;status&quot;: &quot;down*&quot;
+  }
+]</pre>
+</details></div>
+  </div>
+</details>
+<details class="device-accordion" id="device-TEST-N9K-3">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <strong>TEST-N9K-3</strong>
+    <span style="font-size:.8rem;color:var(--muted)">29-May-26</span>
+    <span class="badge pass">✓ 6 Passed</span> <span class="badge fail">✗ 1 Failed</span>
+  </summary>
+  <div class="device-inner">
+    <div class="summary-grid"><div class="stat-card total">
+  <div class="lbl">Total</div>
+  <div class="val">7</div>
+</div><div class="stat-card pass">
+  <div class="lbl">Passed</div>
+  <div class="val">6</div>
+</div><div class="stat-card fail">
+  <div class="lbl">Failed</div>
+  <div class="val">1</div>
+</div><div class="stat-card error">
+  <div class="lbl">Errors</div>
+  <div class="val">0</div>
+</div></div>
+    <div class="sec-title">Check Results</div>
+    <div class="check-list">
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">Show version has OS version</span>
+    <span class="check-cmd">show_version</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_version</code>
+  <span class="dk">Path</span><code>[0].os</code>
+  <span class="dk">Condition</span><span><code>matches ^\d+</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">Hostname is set</span>
+    <span class="check-cmd">show_version</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_version</code>
+  <span class="dk">Path</span><code>[0].hostname</code>
+  <span class="dk">Condition</span><span><code>matches ^\S+</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">VPC peer link status is up</span>
+    <span class="check-cmd">show_vpc_brief</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_vpc_brief</code>
+  <span class="dk">Path</span><code>[*].status</code>
+  <span class="dk">Condition</span><span><code>not_contains down</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">No interface description contains DECOM</span>
+    <span class="check-cmd">show_interface_description</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_interface_description</code>
+  <span class="dk">Path</span><code>[*].description</code>
+  <span class="dk">Condition</span><span><code>not_contains DECOM</code></span>
+</div></div>
+</div>
+<div class="check-card fail">
+  <div class="check-hdr">
+    <span class="badge fail">FAIL</span>
+    <span class="check-name">Multicast routes present</span>
+    <span class="check-cmd">show_ip_mroute_summary</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_ip_mroute_summary</code>
+  <span class="dk">Path</span><code>vrfs[*].summary.total_routes</code>
+  <span class="dk">Condition</span><span><code>gt 0</code></span>
+</div><div class="failures"><div class="failure-row">
+  <div class="fp">vrfs[default].summary.total_routes</div>
+  <div class="fa">Actual: <span>0</span></div>
+  <div class="fr">0 not &gt; 0</div>
+</div></div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">All OSPF neighbors in FULL state</span>
+    <span class="check-cmd">show_ip_ospf_neighbors</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_ip_ospf_neighbors</code>
+  <span class="dk">Path</span><code>neighbors[*].state</code>
+  <span class="dk">Condition</span><span><code>matches ^FULL</code></span>
+</div></div>
+</div>
+<div class="check-card pass">
+  <div class="check-hdr">
+    <span class="badge pass">PASS</span>
+    <span class="check-name">PIM neighbors present</span>
+    <span class="check-cmd">show_ip_pim_neigh</span>
+  </div>
+  <div class="check-body">
+<div class="dg">
+  <span class="dk">Command</span><code>show_ip_pim_neigh</code>
+  <span class="dk">Path</span><code>[*].NEIGHBOR</code>
+  <span class="dk">Condition</span><span><code>matches ^\d+\.\d+\.\d+\.\d+$</code></span>
+</div><div style="font-size:.78rem;color:var(--muted);margin-top:4px">ℹ Path &#x27;[*].NEIGHBOR&#x27; resolved to 0 items (vacuously true)</div></div>
+</div></div>
+    
+<div class="sec-title">Raw Command Outputs</div>
+
+<div class="toolbar">
+  <span class="toolbar-label">Raw output:</span>
+  <button class="btn" onclick="setAllRaw(true)">Expand all</button>
+  <button class="btn" onclick="setAllRaw(false)">Collapse all</button>
+</div>
+<div class="raw-list">
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_interface_description</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">-------------------------------------------------------------------------------
+Interface                Description
+-------------------------------------------------------------------------------
+Eth1/1                   uplink-to-CORE-RTR-3
+Eth1/2                   uplink-to-CORE-RTR-4
+Eth1/3                   uplink-to-DIST-SW-C
+Eth1/4                   server-rack-C-bond0
+Eth1/5                   server-rack-D-bond0
+Eth1/48                  --
+mgmt0                    OOB-MGMT-PRIMARY
+Lo0                      router-id-loopback
+Lo1                      mcast-rp-loopback
+Po1                      vpc-peer-link-to-TEST-N9K-4
+Po10                     vpc-to-access-sw-C
+Po20                     vpc-to-access-sw-D
+Po30                     vpc-to-server-rack-C</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_bgp_neigh_vrf_all</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">BGP neighbor is 10.0.3.2,  remote AS 65005, ebgp link,  Peer index 1
+BGP version 4, remote router ID 10.0.3.2
+BGP state = Established, up for 12d03h
+Last read 00:00:18, hold time = 90, keepalive interval is 30 seconds
+
+BGP neighbor is 10.0.3.6,  remote AS 65006, ebgp link,  Peer index 2
+BGP version 4, remote router ID 10.0.3.6
+BGP state = Established, up for 12d01h
+Last read 00:00:29, hold time = 90, keepalive interval is 30 seconds</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_bgp_summary_vrf_all</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">BGP summary information for VRF default, address family IPv4 Unicast
+BGP router identifier 10.0.0.3, local AS number 65001
+BGP table version is 88, IPv4 Unicast config peers 2, capable peers 2
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+10.0.3.2        4 65005    2880    2878       88    0    0 12d03h             87
+10.0.3.6        4 65006    2851    2848       88    0    0 12d01h             94</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">IP Multicast Routing Table for VRF &quot;default&quot;</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute_summary</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">IP Multicast Routing Table for VRF &quot;default&quot;
+Total number of routes: 0
+Total number of (*,G) routes: 0
+Total number of (S,G) routes: 0
+Total number of (*,G-prefix) routes: 0</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_ospf_neighbors</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">OSPF Process ID 1 VRF default
+Total number of neighbors: 2
+
+Neighbor ID     Pri State            Up Time  Address         Interface
+10.0.3.2          1 FULL/ -         12d03h   10.0.3.2        Eth1/1
+10.0.3.6          1 FULL/ -         12d01h   10.0.3.6        Eth1/2</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_pim_neigh</span>
+    <span class="badge partial">PARTIAL</span>
+  </summary>
+  <pre class="raw-output">PIM Neighbor Status for VRF &quot;default&quot;
+Neighbor        Interface            Uptime    Expires   DR       Bidir-  BFD
+                                                         Priority Capable State</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_logging_last_100</span>
+    <span class="badge raw_only">RAW_ONLY</span>
+  </summary>
+  <pre class="raw-output">2026 May 17 05:00:01 TEST-N9K-3 %PLATFORM-5-MOD_OK: Module 1 is online
+2026 May 17 05:00:15 TEST-N9K-3 %ETHPORT-5-IF_UP: Interface Ethernet1/1 is up in mode trunk
+2026 May 17 05:00:16 TEST-N9K-3 %ETHPORT-5-IF_UP: Interface Ethernet1/2 is up in mode trunk
+2026 May 17 05:01:40 TEST-N9K-3 %BGP-5-ADJCHANGE: bgp-65001 [inst] default-vrf - peer 10.0.3.2 Up
+2026 May 17 05:01:44 TEST-N9K-3 %BGP-5-ADJCHANGE: bgp-65001 [inst] default-vrf - peer 10.0.3.6 Up
+2026 May 17 05:02:30 TEST-N9K-3 %OSPF-5-ADJCHANGE: ospf-1 default VRF adj with 10.0.3.2 on Eth1/1 is FULL
+2026 May 17 05:02:35 TEST-N9K-3 %OSPF-5-ADJCHANGE: ospf-1 default VRF adj with 10.0.3.6 on Eth1/2 is FULL
+2026 May 29 06:15:22 TEST-N9K-3 %PIM-3-NBRCHANGE: VRF default: all PIM neighbors lost on Ethernet1/1
+2026 May 29 06:15:25 TEST-N9K-3 %PIM-3-NBRCHANGE: VRF default: all PIM neighbors lost on Ethernet1/2
+2026 May 29 06:15:30 TEST-N9K-3 %MRIB-3-MROUTE_DEL: All multicast routes flushed from VRF default</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_processes_cpu_history</span>
+    <span class="badge raw_only">RAW_ONLY</span>
+  </summary>
+  <pre class="raw-output">CPU% per second (last 60 seconds)
+100
+ 90
+ 80
+ 70
+ 60
+ 50
+ 40
+ 30      *    *
+ 20   *  *  * *  *   *
+ 10  ** ** ** ** ** ***  ** *
+   0....5....1....1....2....2....3....3....4....4....5....5....6
+             0    5    0    5    0    5    0    5    0    5    0</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_version</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">Cisco Nexus Operating System (NX-OS) Software
+TAC support: http://www.cisco.com/tac
+Copyright (C) 2002-2024, Cisco and/or its affiliates.
+All rights reserved.
+
+  BIOS: version 07.69
+  NXOS: version 10.3(5)M
+  BIOS compile time:  09/22/2022
+  NXOS image file is: bootflash:///nxos64-cs.10.3.5.M.bin
+  NXOS compile time:  12/06/2023 19:00:00 [12/07/2023 01:22:48]
+
+Hardware
+  cisco Nexus9000 C9364C chassis
+  Intel(R) Xeon(R) CPU D-1526 @ 1.80GHz with 24541516 kB of memory.
+  Processor Board ID FDO251A0003
+
+  Device name: TEST-N9K-3
+  bootflash:    53298520 kB
+  Kernel uptime is 12 day(s), 3 hour(s), 44 minute(s), 52 second(s)
+
+Last reset at 485759 usecs after Wed May 17 05:00:00 2026
+  Reason: Reset Requested by CLI command reload
+  System version: 10.3(5)M
+  Service:
+
+plugin
+  Core Plugin, Ethernet Plugin
+
+Active Package(s):</pre>
+  
+</details>
+<details class="raw-block" open>
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_vpc_brief</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="raw-output">Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 2
+Peer status                       : peer adjacency formed ok
+vPC keep-alive status             : peer is alive
+Configuration consistency status  : success
+Per-vlan consistency status       : success
+Type-2 consistency status         : success
+vPC role                          : primary
+Number of vPCs configured         : 3
+Peer Gateway                      : Enabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled, timer is off.(timeout = 240s)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+Operational Layer3 Peer-router    : Disabled
+Virtual-peerlink mode             : Disabled
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id    Port   Status Active vlans
+--    ----   ------ --------------------------------------------------
+1     Po1    up     1,300-304,400-404
+
+vPC status
+----------------------------------------------------------------------------
+Id    Port          Status Consistency Reason                Active vlans
+--    ------------  ------ ----------- ------                ------------
+10    Po10          up     success     success               300-304
+20    Po20          up     success     success               400-404
+30    Po30          up     success     success               300</pre>
+  
+</details></div>
+    
+<div class="sec-title">Parsed JSON Outputs</div>
+
+<div class="toolbar">
+  <span class="toolbar-label">Parsed JSON:</span>
+  <button class="btn" onclick="setAllJson(true)">Expand all</button>
+  <button class="btn" onclick="setAllJson(false)">Collapse all</button>
+</div>
+<div class="raw-list">
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_interface_description</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;port&quot;: &quot;Eth1/1&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;uplink-to-CORE-RTR-3&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/2&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;uplink-to-CORE-RTR-4&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/3&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;uplink-to-DIST-SW-C&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/4&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;server-rack-C-bond0&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/5&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;server-rack-D-bond0&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Eth1/48&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;--&quot;
+  },
+  {
+    &quot;port&quot;: &quot;mgmt0&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;OOB-MGMT-PRIMARY&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Lo0&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;router-id-loopback&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Lo1&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;mcast-rp-loopback&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po1&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-peer-link-to-TEST-N9K-4&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po10&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-access-sw-C&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po20&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-access-sw-D&quot;
+  },
+  {
+    &quot;port&quot;: &quot;Po30&quot;,
+    &quot;type&quot;: &quot;&quot;,
+    &quot;speed&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;vpc-to-server-rack-C&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_bgp_neigh_vrf_all</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;neighbor&quot;: &quot;10.0.3.2&quot;,
+    &quot;peer_group&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;&quot;,
+    &quot;vrf&quot;: &quot;&quot;,
+    &quot;asn&quot;: &quot;65005&quot;,
+    &quot;remote_asn&quot;: &quot;65005&quot;,
+    &quot;local_asn&quot;: &quot;&quot;,
+    &quot;bgp_state&quot;: &quot;&quot;,
+    &quot;uptime&quot;: &quot;&quot;,
+    &quot;source_iface&quot;: &quot;&quot;,
+    &quot;conn_estab&quot;: &quot;&quot;,
+    &quot;conn_dropped&quot;: &quot;&quot;,
+    &quot;last_reset&quot;: &quot;&quot;,
+    &quot;last_reset_reason&quot;: &quot;&quot;,
+    &quot;last_peer_reset&quot;: &quot;&quot;,
+    &quot;last_peer_reset_reason&quot;: &quot;&quot;,
+    &quot;addr_family&quot;: [],
+    &quot;table_version&quot;: [],
+    &quot;nei_table_version&quot;: [],
+    &quot;addr_fam_adv&quot;: &quot;&quot;,
+    &quot;localhost_ip&quot;: &quot;&quot;,
+    &quot;localhost_port&quot;: &quot;&quot;,
+    &quot;remote_ip&quot;: &quot;&quot;,
+    &quot;remote_port&quot;: &quot;&quot;,
+    &quot;accepted_paths&quot;: &quot;&quot;,
+    &quot;sent_paths&quot;: &quot;&quot;,
+    &quot;consumed_mem&quot;: &quot;&quot;,
+    &quot;rr_old_cap&quot;: &quot;&quot;,
+    &quot;rr_new_cap&quot;: &quot;&quot;,
+    &quot;graceful_cap&quot;: &quot;&quot;,
+    &quot;fourbyte_cap&quot;: &quot;&quot;,
+    &quot;ext_nh_cap&quot;: &quot;&quot;,
+    &quot;restart_time_adv&quot;: &quot;&quot;,
+    &quot;restart_time_rcv&quot;: &quot;&quot;,
+    &quot;stale_time&quot;: &quot;&quot;,
+    &quot;opens_count_sent&quot;: &quot;&quot;,
+    &quot;notifications_count_sent&quot;: &quot;&quot;,
+    &quot;updates_count_sent&quot;: &quot;&quot;,
+    &quot;keepalives_count_sent&quot;: &quot;&quot;,
+    &quot;route_refresh_count_sent&quot;: &quot;&quot;,
+    &quot;capability_count_sent&quot;: &quot;&quot;,
+    &quot;total_mess_count_sent&quot;: &quot;&quot;,
+    &quot;total_bytes_count_sent&quot;: &quot;&quot;,
+    &quot;opens_count_rcvd&quot;: &quot;&quot;,
+    &quot;notifications_count_rcvd&quot;: &quot;&quot;,
+    &quot;updates_count_rcvd&quot;: &quot;&quot;,
+    &quot;keepalives_count_rcvd&quot;: &quot;&quot;,
+    &quot;route_refresh_count_rcvd&quot;: &quot;&quot;,
+    &quot;capability_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_mess_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_send_queue&quot;: &quot;&quot;,
+    &quot;total_bytes_rcvd_queue&quot;: &quot;&quot;,
+    &quot;inbound_routemap&quot;: &quot;&quot;,
+    &quot;outbound_routemap&quot;: &quot;&quot;
+  },
+  {
+    &quot;neighbor&quot;: &quot;10.0.3.6&quot;,
+    &quot;peer_group&quot;: &quot;&quot;,
+    &quot;description&quot;: &quot;&quot;,
+    &quot;vrf&quot;: &quot;&quot;,
+    &quot;asn&quot;: &quot;65006&quot;,
+    &quot;remote_asn&quot;: &quot;65006&quot;,
+    &quot;local_asn&quot;: &quot;&quot;,
+    &quot;bgp_state&quot;: &quot;&quot;,
+    &quot;uptime&quot;: &quot;&quot;,
+    &quot;source_iface&quot;: &quot;&quot;,
+    &quot;conn_estab&quot;: &quot;&quot;,
+    &quot;conn_dropped&quot;: &quot;&quot;,
+    &quot;last_reset&quot;: &quot;&quot;,
+    &quot;last_reset_reason&quot;: &quot;&quot;,
+    &quot;last_peer_reset&quot;: &quot;&quot;,
+    &quot;last_peer_reset_reason&quot;: &quot;&quot;,
+    &quot;addr_family&quot;: [],
+    &quot;table_version&quot;: [],
+    &quot;nei_table_version&quot;: [],
+    &quot;addr_fam_adv&quot;: &quot;&quot;,
+    &quot;localhost_ip&quot;: &quot;&quot;,
+    &quot;localhost_port&quot;: &quot;&quot;,
+    &quot;remote_ip&quot;: &quot;&quot;,
+    &quot;remote_port&quot;: &quot;&quot;,
+    &quot;accepted_paths&quot;: &quot;&quot;,
+    &quot;sent_paths&quot;: &quot;&quot;,
+    &quot;consumed_mem&quot;: &quot;&quot;,
+    &quot;rr_old_cap&quot;: &quot;&quot;,
+    &quot;rr_new_cap&quot;: &quot;&quot;,
+    &quot;graceful_cap&quot;: &quot;&quot;,
+    &quot;fourbyte_cap&quot;: &quot;&quot;,
+    &quot;ext_nh_cap&quot;: &quot;&quot;,
+    &quot;restart_time_adv&quot;: &quot;&quot;,
+    &quot;restart_time_rcv&quot;: &quot;&quot;,
+    &quot;stale_time&quot;: &quot;&quot;,
+    &quot;opens_count_sent&quot;: &quot;&quot;,
+    &quot;notifications_count_sent&quot;: &quot;&quot;,
+    &quot;updates_count_sent&quot;: &quot;&quot;,
+    &quot;keepalives_count_sent&quot;: &quot;&quot;,
+    &quot;route_refresh_count_sent&quot;: &quot;&quot;,
+    &quot;capability_count_sent&quot;: &quot;&quot;,
+    &quot;total_mess_count_sent&quot;: &quot;&quot;,
+    &quot;total_bytes_count_sent&quot;: &quot;&quot;,
+    &quot;opens_count_rcvd&quot;: &quot;&quot;,
+    &quot;notifications_count_rcvd&quot;: &quot;&quot;,
+    &quot;updates_count_rcvd&quot;: &quot;&quot;,
+    &quot;keepalives_count_rcvd&quot;: &quot;&quot;,
+    &quot;route_refresh_count_rcvd&quot;: &quot;&quot;,
+    &quot;capability_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_mess_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_count_rcvd&quot;: &quot;&quot;,
+    &quot;total_bytes_send_queue&quot;: &quot;&quot;,
+    &quot;total_bytes_rcvd_queue&quot;: &quot;&quot;,
+    &quot;inbound_routemap&quot;: &quot;&quot;,
+    &quot;outbound_routemap&quot;: &quot;&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_bgp_summary_vrf_all</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;router_id&quot;: &quot;10.0.0.3&quot;,
+    &quot;local_as&quot;: &quot;65001&quot;,
+    &quot;vrf&quot;: &quot;default&quot;,
+    &quot;bgp_neigh&quot;: &quot;10.0.3.2&quot;,
+    &quot;neigh_as&quot;: &quot;65005&quot;,
+    &quot;msg_rcvd&quot;: &quot;2880&quot;,
+    &quot;msg_sent&quot;: &quot;2878&quot;,
+    &quot;in_queue&quot;: &quot;0&quot;,
+    &quot;out_queue&quot;: &quot;0&quot;,
+    &quot;up_down&quot;: &quot;12d03h&quot;,
+    &quot;state_pfxrcd&quot;: &quot;87&quot;
+  },
+  {
+    &quot;router_id&quot;: &quot;10.0.0.3&quot;,
+    &quot;local_as&quot;: &quot;65001&quot;,
+    &quot;vrf&quot;: &quot;default&quot;,
+    &quot;bgp_neigh&quot;: &quot;10.0.3.6&quot;,
+    &quot;neigh_as&quot;: &quot;65006&quot;,
+    &quot;msg_rcvd&quot;: &quot;2851&quot;,
+    &quot;msg_sent&quot;: &quot;2848&quot;,
+    &quot;in_queue&quot;: &quot;0&quot;,
+    &quot;out_queue&quot;: &quot;0&quot;,
+    &quot;up_down&quot;: &quot;12d01h&quot;,
+    &quot;state_pfxrcd&quot;: &quot;94&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">{
+  &quot;vrfs&quot;: {
+    &quot;default&quot;: {
+      &quot;entries&quot;: []
+    }
+  }
+}</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_mroute_summary</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">{
+  &quot;vrfs&quot;: {
+    &quot;default&quot;: {
+      &quot;summary&quot;: {
+        &quot;total_routes&quot;: 0,
+        &quot;star_g_routes&quot;: 0,
+        &quot;sg_routes&quot;: 0,
+        &quot;star_g_prefix_routes&quot;: 0
+      },
+      &quot;groups&quot;: []
+    }
+  }
+}</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_ip_ospf_neighbors</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">{
+  &quot;neighbors&quot;: [
+    {
+      &quot;neighbor_id&quot;: &quot;10.0.3.2&quot;,
+      &quot;priority&quot;: &quot;1&quot;,
+      &quot;state&quot;: &quot;FULL/ -&quot;,
+      &quot;uptime&quot;: &quot;12d03h&quot;,
+      &quot;address&quot;: &quot;10.0.3.2&quot;,
+      &quot;interface&quot;: &quot;Eth1/1&quot;
+    },
+    {
+      &quot;neighbor_id&quot;: &quot;10.0.3.6&quot;,
+      &quot;priority&quot;: &quot;1&quot;,
+      &quot;state&quot;: &quot;FULL/ -&quot;,
+      &quot;uptime&quot;: &quot;12d01h&quot;,
+      &quot;address&quot;: &quot;10.0.3.6&quot;,
+      &quot;interface&quot;: &quot;Eth1/2&quot;
+    }
+  ]
+}</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_version</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;uptime&quot;: &quot;&quot;,
+    &quot;last_reboot_reason&quot;: &quot;Reset Requested by CLI command reload&quot;,
+    &quot;bios&quot;: &quot;07.69&quot;,
+    &quot;os&quot;: &quot;10.3(5)M&quot;,
+    &quot;boot_image&quot;: &quot;bootflash:///nxos64-cs.10.3.5.M.bin&quot;,
+    &quot;platform&quot;: &quot;C9364C&quot;,
+    &quot;hostname&quot;: &quot;TEST-N9K-3&quot;,
+    &quot;serial&quot;: &quot;FDO251A0003&quot;
+  }
+]</pre>
+</details>
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">show_vpc_brief</span>
+    <span class="badge parsed">PARSED</span>
+  </summary>
+  <pre class="json-output">[
+  {
+    &quot;id&quot;: &quot;1&quot;,
+    &quot;port&quot;: &quot;Po1&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;10&quot;,
+    &quot;port&quot;: &quot;Po10&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;20&quot;,
+    &quot;port&quot;: &quot;Po20&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  },
+  {
+    &quot;id&quot;: &quot;30&quot;,
+    &quot;port&quot;: &quot;Po30&quot;,
+    &quot;status&quot;: &quot;up&quot;
+  }
+]</pre>
+</details></div>
+  </div>
+</details>
+</div>
+<script>
+function setAllRaw(open) {
+  document.querySelectorAll('details.raw-block').forEach(d => { d.open = open; });
+}
+function setAllJson(open) {
+  document.querySelectorAll('details.json-block').forEach(d => { d.open = open; });
+}
+</script>
+</body>
+</html>
