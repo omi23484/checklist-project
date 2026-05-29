@@ -231,6 +231,8 @@ def _resolve(data: Any, tokens: list, current_path: str) -> list[tuple[str, Any]
         if isinstance(data, dict):
             results = []
             for k, v in data.items():
+                if rest and not isinstance(v, (dict, list)):
+                    continue  # skip flat scalars when more path tokens remain
                 results.extend(_resolve(v, rest, f"{current_path}[{k}]"))
             return results
         raise TypeError(
