@@ -303,7 +303,8 @@ def cmd_health_all(args: argparse.Namespace) -> None:
 
     print(f"\nHealth-all: {snap_dir}  ({len(snap_map)} device(s))\n")
 
-    results = []
+    device_data = []
+    results     = []
     any_failure = False
 
     for hostname, (_, snap) in sorted(snap_map.items()):
@@ -318,34 +319,34 @@ def cmd_health_all(args: argparse.Namespace) -> None:
         if s.get("failed_critical", s["failed"]) > 0 or s["error"] > 0:
             any_failure = True
 
-        safe = Path(hostname).name
-        report_path = None
-        if fmt in ("html", "both"):
-            html_path = output_dir / f"{safe}_health.html"
-            html_path.write_text(html_report.render_health(report, snap), encoding="utf-8")
-            report_path = f"{safe}_health.html"
+        device_data.append({
+            "hostname": hostname,
+            "report":   report,
+            "snapshot": snap,
+        })
+
+        # JSON per-device files if requested
         if fmt in ("json", "both"):
+            safe      = Path(hostname).name
             json_path = output_dir / f"{safe}_health.json"
             _write_output(report, str(json_path))
-            if report_path is None:
-                report_path = f"{safe}_health.json"
 
         ts = snap.get("metadata", {}).get("collection_time", "?")
         results.append({
-            "hostname":    hostname,
-            "timestamp":   ts,
-            "summary":     s,
-            "report_path": report_path,
+            "hostname":  hostname,
+            "timestamp": ts,
+            "summary":   s,
         })
 
     _print_health_all_summary(results)
 
-    index_path = output_dir / "index.html"
-    index_path.write_text(
-        html_report.render_health_index(results, str(snap_dir)),
-        encoding="utf-8"
-    )
-    print(f"  -> {index_path}")
+    if fmt in ("html", "both"):
+        html_path = output_dir / "health_report.html"
+        html_path.write_text(
+            html_report.render_health_all(device_data, args.default_checks),
+            encoding="utf-8",
+        )
+        print(f"  -> {html_path}")
 
     if any_failure:
         sys.exit(1)

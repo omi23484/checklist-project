@@ -243,11 +243,41 @@ pre.raw-output{
   .meta-compare{grid-template-columns:1fr}
   .meta-arrow{display:none}
 }
+
+/* ---- json output blocks ---- */
+details.json-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--sh-sm);overflow:hidden}
+details.json-block>summary{display:flex;align-items:center;gap:10px;padding:11px 15px;cursor:pointer;user-select:none;list-style:none}
+details.json-block>summary::-webkit-details-marker{display:none}
+pre.json-output{background:var(--code-bg);color:var(--code-fg);padding:14px 18px;margin:0;overflow-x:auto;font-size:.77rem;line-height:1.65;font-family:'SFMono-Regular',Consolas,'Courier New',monospace;white-space:pre;border-top:1px solid #1e3a5f}
+
+/* ---- check matrix ---- */
+.matrix-wrap{overflow-x:auto;margin-bottom:1.5rem}
+.check-matrix{width:100%;border-collapse:collapse;font-size:.82rem}
+.check-matrix th{background:#1a355e;color:#fff;padding:.45rem .65rem;text-align:center;white-space:nowrap;font-size:.73rem;font-weight:700}
+.check-matrix th:first-child{text-align:left;min-width:200px}
+.check-matrix td{padding:.4rem .65rem;border-bottom:1px solid #e8eaf0;text-align:center;font-size:.8rem}
+.check-matrix td:first-child{text-align:left;color:var(--text)}
+.check-matrix td a{text-decoration:none;color:inherit;display:block}
+.check-matrix td.m-pass{background:#e6f4ea;color:#1a7a40;font-weight:700}
+.check-matrix td.m-fail{background:#fdecea;color:#b31b1b;font-weight:700}
+.check-matrix td.m-error{background:#fff3e0;color:#b36b00;font-weight:700}
+.check-matrix td.m-na{color:#94a3b8;font-size:.75rem}
+.check-matrix tr:hover td{filter:brightness(.96)}
+
+/* ---- device accordion ---- */
+details.device-accordion{margin-bottom:1rem;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);box-shadow:var(--sh-sm)}
+details.device-accordion>summary{padding:.7rem 1.1rem;cursor:pointer;font-size:.95rem;display:flex;align-items:center;gap:.7rem;list-style:none;background:#f8fafc;border-radius:var(--r)}
+details.device-accordion>summary::-webkit-details-marker{display:none}
+details.device-accordion[open]>summary{border-bottom:1px solid var(--border);border-radius:var(--r) var(--r) 0 0}
+.device-inner{padding:1rem 1.2rem}
 """
 
 _JS = """
 function setAllRaw(open) {
   document.querySelectorAll('details.raw-block').forEach(d => { d.open = open; });
+}
+function setAllJson(open) {
+  document.querySelectorAll('details.json-block').forEach(d => { d.open = open; });
 }
 """
 
@@ -290,8 +320,9 @@ def render_health(report: dict, snapshot: dict) -> str:
     # Check result cards
     checks_html = _health_check_list(report.get("results", []))
 
-    # Raw output section (all commands in snapshot)
-    raw_html = _raw_outputs_section(snapshot.get("commands", {}))
+    # Raw + JSON output sections
+    raw_html  = _raw_outputs_section(snapshot.get("commands", {}))
+    json_html = _json_outputs_section(snapshot.get("commands", {}))
 
     body = f"""
 <div class="page-header">
@@ -308,9 +339,52 @@ def render_health(report: dict, snapshot: dict) -> str:
   <div class="sec-title">Check Results</div>
   {checks_html}
   {raw_html}
+  {json_html}
 </div>"""
 
     return _page(f"Health Report — {hostname}", body)
+
+
+def render_health_all(device_data: list[dict], checks_file: str) -> str:
+    """Single combined HTML report for health-all: matrix + per-device accordions."""
+    import os
+    n_devices    = len(device_data)
+    checks_name  = os.path.basename(checks_file) if checks_file else ""
+    total_checks = sum(item["report"].get("summary", {}).get("total",  0) for item in device_data)
+    total_passed = sum(item["report"].get("summary", {}).get("passed", 0) for item in device_data)
+    total_failed = sum(item["report"].get("summary", {}).get("failed", 0) for item in device_data)
+    total_errors = sum(item["report"].get("summary", {}).get("error",  0) for item in device_data)
+
+    cards = _summary_cards([
+        ("total", "Devices",      n_devices),
+        ("total", "Check Evals",  total_checks),
+        ("pass",  "Passed",       total_passed),
+        ("fail",  "Failed",       total_failed),
+        ("error", "Errors",       total_errors),
+    ])
+
+    matrix     = _check_matrix(device_data)
+    accordions = "".join(
+        _device_accordion(item["report"], item["snapshot"]) for item in device_data
+    )
+
+    body = f"""
+<div class="page-header">
+  <div class="header-left">
+    <h1>Health Report</h1>
+    <div class="sub">{n_devices} device(s) &nbsp;·&nbsp; {_e(checks_name)}</div>
+  </div>
+  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
+</div>
+<div class="container">
+  {cards}
+  <div class="sec-title">Check Results Matrix</div>
+  {matrix}
+  <div class="sec-title">Per-Device Detail</div>
+  {accordions}
+</div>"""
+
+    return _page(f"Health Report — {n_devices} Devices", body)
 
 
 def _health_check_list(results: list) -> str:
@@ -605,6 +679,131 @@ def _raw_outputs_section(commands: dict) -> str:
 <div class="sec-title">Raw Command Outputs</div>
 {toolbar}
 <div class="raw-list">{"".join(blocks)}</div>"""
+
+
+def _json_outputs_section(commands: dict) -> str:
+    if not commands:
+        return ""
+    blocks = []
+    for cmd, data in sorted(commands.items()):
+        parsed = data.get("parsed")
+        if not parsed:
+            continue
+        blocks.append(f"""
+<details class="json-block">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <span class="summary-cmd">{_e(cmd)}</span>
+    {_badge("parsed")}
+  </summary>
+  <pre class="json-output">{_e(json.dumps(parsed, indent=2))}</pre>
+</details>""")
+    if not blocks:
+        return ""
+    toolbar = """
+<div class="toolbar">
+  <span class="toolbar-label">Parsed JSON:</span>
+  <button class="btn" onclick="setAllJson(true)">Expand all</button>
+  <button class="btn" onclick="setAllJson(false)">Collapse all</button>
+</div>"""
+    return f"""
+<div class="sec-title">Parsed JSON Outputs</div>
+{toolbar}
+<div class="raw-list">{"".join(blocks)}</div>"""
+
+
+def _check_matrix(device_data: list[dict]) -> str:
+    # Collect unique check names preserving first-seen order
+    seen: dict[str, int] = {}
+    for item in device_data:
+        for r in item["report"].get("results", []):
+            name = r.get("name", "")
+            if name not in seen:
+                seen[name] = len(seen)
+    check_names = list(seen.keys())
+
+    if not check_names:
+        return "<p style='color:var(--muted)'>No checks found.</p>"
+
+    # Per-device status lookup and hostname
+    devices = []
+    for item in device_data:
+        hn = item["report"].get("metadata", {}).get("hostname", item.get("hostname", "?"))
+        lookup = {r.get("name", ""): r.get("status", "error")
+                  for r in item["report"].get("results", [])}
+        devices.append((hn, lookup))
+
+    # Header row — abbreviate long hostnames with full name as tooltip
+    hdrs = "".join(
+        f'<th title="{_e(hn)}">{_e(hn[:15] + "…" if len(hn) > 15 else hn)}</th>'
+        for hn, _ in devices
+    )
+    header_row = f'<tr><th>Check</th>{hdrs}</tr>'
+
+    # Data rows
+    data_rows = []
+    for check_name in check_names:
+        cells = ""
+        for hn, lookup in devices:
+            anchor = _e(hn.replace(" ", "_"))
+            status = lookup.get(check_name)
+            if status is None:
+                cells += '<td class="m-na">—</td>'
+            elif status == "pass":
+                cells += f'<td class="m-pass"><a href="#device-{anchor}">PASS</a></td>'
+            elif status == "fail":
+                cells += f'<td class="m-fail"><a href="#device-{anchor}">FAIL</a></td>'
+            else:
+                cells += f'<td class="m-error"><a href="#device-{anchor}">ERR</a></td>'
+        data_rows.append(f'<tr><td>{_e(check_name)}</td>{cells}</tr>')
+
+    return f"""<div class="matrix-wrap">
+<table class="check-matrix">
+  <thead>{header_row}</thead>
+  <tbody>{"".join(data_rows)}</tbody>
+</table>
+</div>"""
+
+
+def _device_accordion(report: dict, snapshot: dict) -> str:
+    meta     = report.get("metadata", {})
+    s        = report.get("summary", {})
+    hostname = meta.get("hostname", "?")
+    ts       = meta.get("collection_time", "")
+    anchor   = _e(hostname.replace(" ", "_"))
+
+    pass_badge = _badge("pass", f'✓ {s.get("passed", 0)} Passed')
+    fail_count = s.get("failed", 0)
+    err_count  = s.get("error",  0)
+    fail_badge = f" {_badge('fail',  f'✗ {fail_count} Failed')}" if fail_count else ""
+    err_badge  = f" {_badge('error', f'! {err_count} Errors')}"  if err_count  else ""
+
+    cards       = _summary_cards([
+        ("total", "Total",  s.get("total",  0)),
+        ("pass",  "Passed", s.get("passed", 0)),
+        ("fail",  "Failed", s.get("failed", 0)),
+        ("error", "Errors", s.get("error",  0)),
+    ])
+    checks_html = _health_check_list(report.get("results", []))
+    raw_html    = _raw_outputs_section(snapshot.get("commands", {}))
+    json_html   = _json_outputs_section(snapshot.get("commands", {}))
+
+    return f"""
+<details class="device-accordion" id="device-{anchor}">
+  <summary>
+    <span class="arrow-icon">▶</span>
+    <strong>{_e(hostname)}</strong>
+    <span style="font-size:.8rem;color:var(--muted)">{_e(ts)}</span>
+    {pass_badge}{fail_badge}{err_badge}
+  </summary>
+  <div class="device-inner">
+    {cards}
+    <div class="sec-title">Check Results</div>
+    {checks_html}
+    {raw_html}
+    {json_html}
+  </div>
+</details>"""
 
 
 def _summary_cards(items: list[tuple]) -> str:
