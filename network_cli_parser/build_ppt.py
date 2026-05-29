@@ -1137,8 +1137,8 @@ def slide_delta(prs):
 
 def slide_html_reports(prs):
     slide = add_slide(prs)
-    add_header_bar(slide, "HTML Reports — Self-Contained, No Internet Required",
-                   "All CSS and JS embedded; single .html file per report type")
+    add_header_bar(slide, "HTML Reports — Health & Delta",
+                   "All CSS and JS embedded; fully self-contained .html files — no internet required")
 
     add_textbox(slide, Inches(0.4), Inches(1.2), Inches(5.9), Inches(0.3),
                 "Single-device health report layout", font_size=13, bold=True, color=C_DARK_BLUE)
@@ -1148,28 +1148,13 @@ def slide_html_reports(prs):
         ["Check results", "Color-coded card per check; failures show path, actual, reason"],
         ["Severity badges", "WARN / INFO badges on non-critical failures"],
         ["Printed values", "Rendered per-item printed list (pass and fail)"],
-        ["Raw outputs", "Every command's raw CLI text; Expand All / Collapse All"],
-        ["Parsed JSON outputs", "Structured parsed data per command; separate Expand All"],
+        ["Raw CLI outputs", "Every command's raw text; Expand All / Collapse All"],
+        ["Parsed JSON outputs", "Structured parsed data per command; independent Expand All"],
     ]
     add_table_slide(slide, Inches(0.4), Inches(1.55), Inches(5.9),
                     [Inches(2.1), Inches(3.8)], rows_h, font_size=11)
 
     add_textbox(slide, Inches(6.65), Inches(1.2), Inches(6.3), Inches(0.3),
-                "Combined health-all report  (health_report.html)", font_size=13, bold=True, color=C_DARK_BLUE)
-    rows_ha = [
-        ["Section", "Description"],
-        ["Summary cards", "Devices / Total check evals / Passed / Failed / Errors"],
-        ["Check × device matrix", "Row per check, column per device; PASS/FAIL/ERR cells colour-coded"],
-        ["Matrix cell links", "Click any cell → scrolls to that device's accordion"],
-        ["Per-device accordions", "Click device name → expands full detail section"],
-        ["Accordion: checks", "Full check result list with pass/fail badges"],
-        ["Accordion: raw CLI", "All command raw outputs; Expand All / Collapse All"],
-        ["Accordion: parsed JSON", "Structured JSON per command; separate Expand All"],
-    ]
-    add_table_slide(slide, Inches(6.65), Inches(1.55), Inches(6.3),
-                    [Inches(2.4), Inches(3.9)], rows_ha, font_size=11)
-
-    add_textbox(slide, Inches(0.4), Inches(4.7), Inches(5.9), Inches(0.3),
                 "Delta report layout", font_size=13, bold=True, color=C_DARK_BLUE)
     rows_d = [
         ["Section", "Description"],
@@ -1177,27 +1162,79 @@ def slide_html_reports(prs):
         ["Summary cards", "Added / Removed / Changed / Unchanged"],
         ["Added / removed", "Command names as pills"],
         ["Changed commands", "Diff table: path / before (red) / after (green)"],
-        ["Raw outputs", "Changed: before + after side by side"],
+        ["Raw outputs", "Changed commands: before + after side by side"],
     ]
-    add_table_slide(slide, Inches(0.4), Inches(5.05), Inches(5.9),
-                    [Inches(2.1), Inches(3.8)], rows_d, font_size=11)
+    add_table_slide(slide, Inches(6.65), Inches(1.55), Inches(6.3),
+                    [Inches(2.1), Inches(4.2)], rows_d, font_size=11)
 
-    add_textbox(slide, Inches(6.65), Inches(4.7), Inches(6.3), Inches(0.3),
+    add_textbox(slide, Inches(0.4), Inches(4.65), Inches(12.5), Inches(0.3),
                 "delta-all index page", font_size=13, bold=True, color=C_DARK_BLUE)
     rows_idx = [
         ["Column", "Notes"],
-        ["Hostname / Status", "matched or UNMATCHED"],
-        ["Added / Removed / Changed / Unchanged", "counts from delta summary"],
-        ["Report link", "Links to per-device delta HTML"],
-        ["Row style", "Muted if clean; faded grey if unmatched"],
+        ["Hostname / Status", "matched → link to delta HTML;  unmatched → faded, no link"],
+        ["Added / Removed / Changed / Unchanged", "counts from compute_delta() summary"],
+        ["Row style", "Muted green-tint if zero changes; faded grey if unmatched device"],
     ]
-    add_table_slide(slide, Inches(6.65), Inches(5.05), Inches(6.3),
-                    [Inches(3.3), Inches(3.0)], rows_idx, font_size=11)
+    add_table_slide(slide, Inches(0.4), Inches(5.0), Inches(12.5),
+                    [Inches(2.8), Inches(9.7)], rows_idx, font_size=11)
 
-    add_textbox(slide, Inches(0.4), Inches(7.15), Inches(12.5), Inches(0.45),
-                "health-all produces ONE combined HTML (no per-device files, no index).  "
-                "delta-all produces per-device HTMLs + index.html.",
+    add_textbox(slide, Inches(0.4), Inches(6.55), Inches(12.5), Inches(0.45),
+                "Devices appearing in only one directory (delta-all) are listed as UNMATCHED with no report link.",
                 font_size=12, color=C_GREY_TEXT, italic=True)
+
+
+def slide_health_all_report(prs):
+    slide = add_slide(prs)
+    add_header_bar(slide, "Combined Health-All Report  (health_report.html)",
+                   "One file covers all devices — check × device matrix at the top, full detail per device below")
+
+    add_textbox(slide, Inches(0.4), Inches(1.2), Inches(5.9), Inches(0.3),
+                "Report structure", font_size=13, bold=True, color=C_DARK_BLUE)
+    rows_ha = [
+        ["Section", "Description"],
+        ["Summary cards", "Devices / Total check evals / Passed / Failed / Errors"],
+        ["Check × device matrix", "Row per check, column per device — cells PASS / FAIL / ERR / —"],
+        ["Cell colour-coding", "Green = pass  ·  Red = fail  ·  Amber = error  ·  Grey = absent"],
+        ["Matrix cell links", "Click any cell → page jumps to that device's accordion"],
+        ["Per-device accordions", "Click device name → expands full detail inline"],
+        ["Accordion: checks", "Full check result list with pass/fail/warn badges"],
+        ["Accordion: raw CLI", "All command raw outputs with Expand All / Collapse All"],
+        ["Accordion: parsed JSON", "Structured JSON per command; independent Expand All"],
+    ]
+    add_table_slide(slide, Inches(0.4), Inches(1.55), Inches(5.9),
+                    [Inches(2.4), Inches(3.5)], rows_ha, font_size=11)
+
+    add_textbox(slide, Inches(6.65), Inches(1.2), Inches(6.3), Inches(0.3),
+                "CLI invocation", font_size=13, bold=True, color=C_DARK_BLUE)
+    code1 = """\
+# Minimal — HTML only
+python report.py health-all \\
+  --dir              data/json/ \\
+  --default-checks   checks/base.yaml \\
+  --output-dir       reports/health/
+# → reports/health/health_report.html
+
+# With per-device JSON files as well
+python report.py health-all \\
+  --dir              data/json/ \\
+  --default-checks   checks/base.yaml \\
+  --device-checks-dir checks/devices/ \\
+  --output-dir       reports/health/ \\
+  --format           both
+# → health_report.html  +  {hostname}_health.json"""
+    add_code_block(slide, Inches(6.65), Inches(1.55), Inches(6.3), Inches(3.3), code1, font_size=10)
+
+    add_textbox(slide, Inches(6.65), Inches(4.95), Inches(6.3), Inches(0.3),
+                "Key behaviours", font_size=13, bold=True, color=C_DARK_BLUE)
+    bullets = [
+        "Single HTML — no per-device files, no index.html",
+        "Device-specific YAML (--device-checks-dir) overrides default checks by name",
+        "Exit code 1 if any critical check fails across any device",
+        "Matrix columns truncated at 15 chars with full name in tooltip",
+        "Raw CLI and Parsed JSON toolbars are independent (separate JS functions)",
+    ]
+    add_bullet_block(slide, Inches(6.65), Inches(5.3), Inches(6.3), Inches(2.2),
+                     bullets, font_size=11.5)
 
 
 def slide_collector(prs):
@@ -1323,6 +1360,7 @@ def build():
     slide_per_device(prs)
     slide_delta(prs)
     slide_html_reports(prs)
+    slide_health_all_report(prs)
     slide_collector(prs)
     slide_closing(prs)
 
