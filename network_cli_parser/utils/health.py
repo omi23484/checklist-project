@@ -297,10 +297,17 @@ def _parse_duration(s: str) -> float:
 def _format_print(template, path: str, value) -> str:
     if template is True:
         return f"{path} -> {value!r}"
-    try:
-        return str(template).replace("{path}", str(path)).replace("{value}", str(value))
-    except Exception:
-        return f"{path} -> {value!r}"
+    s = str(template)
+    wildcard_keys = re.findall(r'\[([^\]]+)\]', path)
+    s = s.replace('{{[*]}}', wildcard_keys[0] if wildcard_keys else '')
+    s = re.sub(
+        r'\{\{\[\*\]\[(\d+)\]\}\}',
+        lambda m: wildcard_keys[int(m.group(1))] if int(m.group(1)) < len(wildcard_keys) else '',
+        s,
+    )
+    s = s.replace('{{value}}', str(value)).replace('{{path}}', str(path))
+    s = s.replace('{value}', str(value)).replace('{path}', str(path))
+    return s
 
 
 def _apply_condition(actual: Any, condition: str, expected: Any) -> tuple[bool, str]:

@@ -575,3 +575,58 @@ class TestPrintField:
                    "path": "[*].version", "condition": "eq", "value": "17.3.1"}]
         r = evaluate_checks(snap, checks)
         assert "printed" not in r["results"][0]
+
+
+class TestPrintTemplate:
+    """Tests for {{[*]}} wildcard key capture and double-brace template syntax."""
+
+    def _run(self, data, path, template):
+        from utils.health import _format_print, _resolve_path
+        results = _resolve_path(data, path)
+        return [_format_print(template, p, v) for p, v in results]
+
+    def test_single_wildcard_key(self):
+        data = {
+            "GETVPN-P2P": {
+                "group_id": "65010",
+                "10.2.240.1": {"state": "REDUNDANT"},
+                "10.2.240.2": {"state": "LOCAL"},
+            }
+        }
+        lines = self._run(data, "GETVPN-P2P[*].state", "Peer {{[*]}} has state {{value}}")
+        assert "Peer 10.2.240.1 has state REDUNDANT" in lines
+        assert "Peer 10.2.240.2 has state LOCAL" in lines
+
+    def test_double_wildcard_indexed(self):
+        data = {
+            "vrfs": {
+                "default": {"neighbors": {"10.0.1.2": {"prefixes": 1500}}},
+            }
+        }
+        lines = self._run(
+            data,
+            "vrfs[*].neighbors[*].prefixes",
+            "VRF {{[*][0]}} neighbor {{[*][1]}} has {{value}} prefixes",
+        )
+        assert lines == ["VRF default neighbor 10.0.1.2 has 1500 prefixes"]
+
+    def test_double_brace_value_synonym(self):
+        data = {"peers": {"10.0.0.1": {"uptime": "5w2d"}}}
+        lines = self._run(data, "peers[*].uptime", "{{value}}")
+        assert lines == ["5w2d"]
+
+    def test_backward_compat_single_brace(self):
+        data = {"peers": {"10.0.0.1": {"uptime": "5w2d"}}}
+        lines = self._run(data, "peers[*].uptime", "{value}")
+        assert lines == ["5w2d"]
+
+    def test_no_wildcard_key_in_path(self):
+        # Path resolved without any [key] segment — {{[*]}} becomes empty string
+        data = {"version": "17.3.1"}
+        lines = self._run(data, "version", "Node {{[*]}} ver {{value}}")
+        assert lines == ["Node  ver 17.3.1"]
+
+    def test_out_of_range_index_graceful(self):
+        data = {"peers": {"10.0.0.1": {"uptime": "1d"}}}
+        lines = self._run(data, "peers[*].uptime", "{{[*][5]}}")
+        assert lines == [""]
