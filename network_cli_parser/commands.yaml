@@ -40,11 +40,14 @@ cisco_nxos:
     parser: ntc
     template: show interface brief
   show ip bgp summary vrf all:
-    parser: ntc
-    template: show ip bgp summary
+    parser: ttp
+    template: cisco_nxos_show_ip_bgp_summary_vrf_all
   show ip bgp neigh vrf all:
     parser: ntc
     template: show ip bgp neighbors
+  show ip ospf neighbors:
+    parser: ttp
+    template: cisco_nxos_show_ip_ospf_neighbors
   show interface description:
     parser: ntc
     template: show interface description

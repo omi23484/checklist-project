@@ -146,47 +146,60 @@
     "show_ip_bgp_summary_vrf_all": {
       "status": "parsed",
       "raw": "\nBGP summary information for VRF default, address family IPv4 Unicast\nBGP router identifier 10.0.0.1, local AS number 65001\nBGP table version is 218, IPv4 Unicast config peers 2, capable peers 2\n\nNeighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd\n10.0.1.2        4 65002   14523   14521      218    0    0 5w2d             142\n10.0.1.6        4 65003   14485   14482      218    0    0 5w1d             158\n\nBGP summary information for VRF MGMT, address family IPv4 Unicast\nBGP router identifier 192.168.1.1, local AS number 65001\nBGP table version is 4, IPv4 Unicast config peers 1, capable peers 1\n\nNeighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd\n192.168.1.254   4 65099     420     418        4    0    0 3w1d               2",
-      "parsed": [
-        {
-          "router_id": "10.0.0.1",
-          "local_as": "65001",
-          "vrf": "default",
-          "bgp_neigh": "10.0.1.2",
-          "neigh_as": "65002",
-          "msg_rcvd": "14523",
-          "msg_sent": "14521",
-          "in_queue": "0",
-          "out_queue": "0",
-          "up_down": "5w2d",
-          "state_pfxrcd": "142"
-        },
-        {
-          "router_id": "10.0.0.1",
-          "local_as": "65001",
-          "vrf": "default",
-          "bgp_neigh": "10.0.1.6",
-          "neigh_as": "65003",
-          "msg_rcvd": "14485",
-          "msg_sent": "14482",
-          "in_queue": "0",
-          "out_queue": "0",
-          "up_down": "5w1d",
-          "state_pfxrcd": "158"
-        },
-        {
-          "router_id": "192.168.1.1",
-          "local_as": "65001",
-          "vrf": "MGMT",
-          "bgp_neigh": "192.168.1.254",
-          "neigh_as": "65099",
-          "msg_rcvd": "420",
-          "msg_sent": "418",
-          "in_queue": "0",
-          "out_queue": "0",
-          "up_down": "3w1d",
-          "state_pfxrcd": "2"
-        }
-      ]
+      "parsed": {
+        "vrfs": [
+          {
+            "router_id": "10.0.0.1",
+            "local_as": "65001",
+            "vrf": "default",
+            "afi": "IPv4 Unicast",
+            "neighbors": [
+              {
+                "neighbor": "10.0.1.2",
+                "version": "4",
+                "remote_as": "65002",
+                "msg_rcvd": "14523",
+                "msg_sent": "14521",
+                "tbl_ver": "218",
+                "inq": "0",
+                "outq": "0",
+                "updown": "5w2d",
+                "state_pfx": "142"
+              },
+              {
+                "neighbor": "10.0.1.6",
+                "version": "4",
+                "remote_as": "65003",
+                "msg_rcvd": "14485",
+                "msg_sent": "14482",
+                "tbl_ver": "218",
+                "inq": "0",
+                "outq": "0",
+                "updown": "5w1d",
+                "state_pfx": "158"
+              }
+            ]
+          },
+          {
+            "router_id": "192.168.1.1",
+            "local_as": "65001",
+            "vrf": "MGMT",
+            "afi": "IPv4 Unicast",
+            "neighbors": {
+              "neighbor": "192.168.1.254",
+              "version": "4",
+              "remote_as": "65099",
+              "msg_rcvd": "420",
+              "msg_sent": "418",
+              "tbl_ver": "4",
+              "inq": "0",
+              "outq": "0",
+              "updown": "3w1d",
+              "state_pfx": "2"
+            }
+          }
+        ]
+      }
     },
     "show_ip_bgp_neigh_vrf_all": {
       "status": "parsed",

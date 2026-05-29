@@ -135,34 +135,40 @@
     "show_ip_bgp_summary_vrf_all": {
       "status": "parsed",
       "raw": "\nBGP summary information for VRF default, address family IPv4 Unicast\nBGP router identifier 10.0.0.3, local AS number 65001\nBGP table version is 88, IPv4 Unicast config peers 2, capable peers 2\n\nNeighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd\n10.0.3.2        4 65005    2880    2878       88    0    0 12d03h             87\n10.0.3.6        4 65006    2851    2848       88    0    0 12d01h             94",
-      "parsed": [
-        {
+      "parsed": {
+        "vrfs": {
           "router_id": "10.0.0.3",
           "local_as": "65001",
           "vrf": "default",
-          "bgp_neigh": "10.0.3.2",
-          "neigh_as": "65005",
-          "msg_rcvd": "2880",
-          "msg_sent": "2878",
-          "in_queue": "0",
-          "out_queue": "0",
-          "up_down": "12d03h",
-          "state_pfxrcd": "87"
-        },
-        {
-          "router_id": "10.0.0.3",
-          "local_as": "65001",
-          "vrf": "default",
-          "bgp_neigh": "10.0.3.6",
-          "neigh_as": "65006",
-          "msg_rcvd": "2851",
-          "msg_sent": "2848",
-          "in_queue": "0",
-          "out_queue": "0",
-          "up_down": "12d01h",
-          "state_pfxrcd": "94"
+          "afi": "IPv4 Unicast",
+          "neighbors": [
+            {
+              "neighbor": "10.0.3.2",
+              "version": "4",
+              "remote_as": "65005",
+              "msg_rcvd": "2880",
+              "msg_sent": "2878",
+              "tbl_ver": "88",
+              "inq": "0",
+              "outq": "0",
+              "updown": "12d03h",
+              "state_pfx": "87"
+            },
+            {
+              "neighbor": "10.0.3.6",
+              "version": "4",
+              "remote_as": "65006",
+              "msg_rcvd": "2851",
+              "msg_sent": "2848",
+              "tbl_ver": "88",
+              "inq": "0",
+              "outq": "0",
+              "updown": "12d01h",
+              "state_pfx": "94"
+            }
+          ]
         }
-      ]
+      }
     },
     "show_ip_bgp_neigh_vrf_all": {
       "status": "parsed",
