@@ -389,7 +389,7 @@ Keys are raw command strings (spaces, not underscores). The mapper normalizes th
 | `delta`      | Field-level diff between two single snapshots |
 | `delta-all`  | Per-device delta across two directories of snapshots |
 | `health`     | Evaluate a YAML check file against a single snapshot |
-| `health-all` | Run health checks across a directory of snapshots |
+| `health-all` | Run health checks across a directory — single combined HTML report |
 | `baseline`   | Auto-generate a starter check YAML from a snapshot's current values |
 | `collect`    | Collect snapshots via SSH (online) or process existing `.txt` dumps (offline) |
 
@@ -399,7 +399,7 @@ Output format is controlled by the `--output` / `--format` argument:
 |-------|--------|
 | `.json` / `json` | Machine-readable JSON (also printed to stdout when `--output` is omitted) |
 | `.html` / `html` | Self-contained HTML report with formatted results and expandable raw output |
-| `both` | Write both `.html` and `.json` per device (multi-device subcommands only) |
+| `both` | Write combined `.html` + per-device `.json` files (`health-all`) or both formats per device (`delta-all`) |
 
 ```bash
 cd network_cli_parser
@@ -432,12 +432,12 @@ python report.py health \
   --device-checks checks/devices/N9K-CAMA-WAN-1.yaml \
   --output        reports/health.html
 
-# All devices in a directory — one HTML report per device + index.html
+# All devices — single combined HTML report (health_report.html)
 python report.py health-all \
-  --dir              data/json/ \
-  --default-checks   checks/example_health_checks.yaml \
+  --dir               data/json/ \
+  --default-checks    checks/example_health_checks.yaml \
   --device-checks-dir checks/devices/ \
-  --output-dir       reports/health/
+  --output-dir        reports/health/
 
 # Single-device delta — HTML
 python report.py delta \
@@ -708,15 +708,28 @@ This means a row moving position in the list is **not** reported as a change —
 
 ## 14. HTML Reports
 
-Both `health` and `delta` subcommands produce a self-contained HTML file when `--output` ends in `.html`. No internet connection is required — all CSS and JavaScript are embedded in the file.
+All `health`, `health-all`, and `delta` subcommands produce self-contained HTML files — all CSS and JavaScript are embedded, no internet connection required.
 
-### Health report layout
+### Single-device health report (`report.py health --output health.html`)
 
 | Section | Description |
 |---------|-------------|
 | Summary cards | Total / Passed / Failed / Errors at a glance |
 | Check results | Color-coded card per check (green = pass, red = fail, amber = error); failures show the offending path, actual value, and reason |
-| Raw command outputs | Every command's raw CLI text, open by default; **Expand All / Collapse All** buttons |
+| Raw command outputs | Every command's raw CLI text; **Expand All / Collapse All** buttons |
+| Parsed JSON outputs | Every command's structured parsed data as formatted JSON; independent **Expand All / Collapse All** |
+
+### Combined health-all report (`health_report.html`)
+
+`report.py health-all` writes a **single** `health_report.html` file to `--output-dir`. No per-device HTML files are created.
+
+| Section | Description |
+|---------|-------------|
+| Summary cards | Devices / Check Evals / Total Passed / Total Failed / Errors |
+| Check Results Matrix | Check × device table — every check as a row, every device as a column; cells colour-coded **PASS** (green) / **FAIL** (red) / **ERR** (amber) / **—** (grey = absent for that device); each cell links to that device's section |
+| Per-Device Detail | Collapsible accordion per device — click to expand and see check results, raw CLI output, and parsed JSON output for that device |
+
+To also save per-device JSON alongside the combined HTML, use `--format both`.
 
 ### Delta report layout
 
@@ -728,26 +741,26 @@ Both `health` and `delta` subcommands produce a self-contained HTML file when `-
 | Changed commands | Diff table per command: path / before (red) / after (green) |
 | Raw command outputs | Changed commands show **before and after raw side by side**; unchanged commands show the current snapshot |
 
-### Index pages (`health-all` and `delta-all`)
+### `delta-all` index page
 
-Both multi-device subcommands write an `index.html` to the output directory in addition to the per-device reports.
+`delta-all` writes per-device delta HTML files **and** an `index.html` summary to the output directory.
 
-| Index | Columns | Row color |
-|-------|---------|-----------|
-| `health-all` index | Hostname / Timestamp / Status / Total / Passed / Failed / Errors / Report | Muted if all-pass; normal if any failure |
-| `delta-all` index | Hostname / Status / Added / Removed / Changed / Unchanged / Report | Muted if zero changes; normal if changes; faded if unmatched |
+| Columns | Row style |
+|---------|-----------|
+| Hostname / Status / Added / Removed / Changed / Unchanged / Report | Muted if zero changes; normal if changes; faded if unmatched |
 
-Devices that appear in only one directory (`delta-all`) or have no snapshot file (`health-all`) are listed as **UNMATCHED** with no report link.
+Devices appearing in only one directory are listed as **UNMATCHED** with no report link.
 
-### Toggling raw output
+### Toggling raw and JSON output
 
-Raw output blocks are **open by default**. Two buttons at the top of the raw section let you collapse or expand all blocks at once:
+Both raw CLI blocks and parsed JSON blocks are collapsible via `<details>` elements. Each section has its own independent toolbar:
 
 ```
-[ Expand all ]  [ Collapse all ]
+Raw output:    [ Expand all ]  [ Collapse all ]
+Parsed JSON:   [ Expand all ]  [ Collapse all ]
 ```
 
-Individual blocks can also be clicked to toggle.
+Individual blocks can also be clicked to toggle. Raw blocks start **open**; JSON blocks start **collapsed** by default.
 
 ---
 
@@ -835,7 +848,7 @@ python report.py delta-all \
   --after-dir  data/json/ \
   --output-dir reports/delta/
 
-# 3. Run health checks
+# 3. Run health checks — single combined report (health_report.html)
 python report.py health-all \
   --dir data/json/ \
   --default-checks checks/example_health_checks.yaml \
