@@ -40,7 +40,7 @@ python main.py --input data/raw/
 python main.py --input data/raw/ --output /tmp/parsed/
 ```
 
-JSON output is written to `data/json/` by default, one file per input.
+JSON output is written to `data/json/<date>/` by default (a dated subdirectory is created automatically based on the collection date embedded in the filename), one file per input.
 
 ---
 
@@ -78,8 +78,10 @@ network_cli_parser/
 │   └── example_health_checks.yaml   # Starter health check definitions
 │
 └── data/
-    ├── raw/                    # Input CLI dump .txt files
-    └── json/                   # Output JSON snapshots
+    ├── raw/
+    │   └── <date>/             # Input CLI dump .txt files (dated subdirectory)
+    └── json/
+        └── <date>/             # Output JSON snapshots (dated subdirectory)
 ```
 
 ---
@@ -491,6 +493,23 @@ Paths navigate the parsed JSON structure returned by the parser.
 
 When `[*]` expands multiple values, `contains`/`not_contains` and `matches` check **all** values. Numeric comparisons (`gt`, `lt`, etc.) check that **all** values satisfy the condition.
 
+#### Mixed-dict expansion
+
+When `[*]` is used on a dict that contains **both** flat `key: value` scalars **and** nested dicts, the flat scalar values are automatically skipped — only the nested dicts/lists are expanded.
+
+**Example — GETVPN-P2P structure:**
+
+```json
+"GETVPN-P2P": {
+  "group_id": "10",
+  "total_group_number": "2",
+  "10.2.240.1": {"state": "REDUNDANT", "per_key_mem_count": "1"},
+  "10.2.240.2": {"state": "REDUNDANT", "per_key_mem_count": "1"}
+}
+```
+
+Path `GETVPN-P2P[*].state` resolves to the two IP-keyed peer dicts and then accesses `.state` — the flat `group_id` and `total_group_number` strings are silently skipped because they are scalars, not dicts, and more path tokens (`.state`) remain to be resolved.
+
 ### 12.2 Conditions
 
 | Condition | Passes when |
@@ -655,6 +674,159 @@ checks:
 **File naming convention for `--device-checks-dir`:** `{hostname}.yaml`
 
 Example: `checks/devices/N9K-CAMA-WAN-1.yaml` is automatically loaded when processing a snapshot whose `metadata.hostname` is `N9K-CAMA-WAN-1`. Devices with no matching file use only the default checks.
+
+### 12.7 Print Templates
+
+The optional `print` field renders a human-readable line per resolved value. It appears in both terminal output and HTML reports alongside the pass/fail result, and works with all check types (single condition, `conditions` list, `branches`, and `one_of`).
+
+#### Basic usage
+
+```yaml
+# print: true — auto-format as "path -> value"
+- name: "BGP uptime"
+  command: show_ip_bgp_summary_vrf_all
+  path: "vrfs[*].neighbors[*].updown"
+  condition: duration_gte
+  value: "2d"
+  print: true
+  # output: vrfs[default].neighbors[10.0.0.1].updown -> '42w0d'
+
+# print: "template" — compose a sentence
+- name: "BGP uptime"
+  command: show_ip_bgp_summary_vrf_all
+  path: "vrfs[*].neighbors[*].updown"
+  condition: duration_gte
+  value: "2d"
+  print: "Peer {path} has been up for {value}"
+  # output: Peer vrfs[default].neighbors[10.0.0.1].updown has been up for 42w0d
+```
+
+#### All template variables
+
+| Variable | Expands to | Notes |
+|---|---|---|
+| `{value}` | The actual resolved value | Original single-brace syntax |
+| `{path}` | Full resolved path string | Original single-brace syntax |
+| `{{value}}` | Same as `{value}` | Double-brace synonym |
+| `{{path}}` | Same as `{path}` | Double-brace synonym |
+| `{{[*]}}` | First wildcard key in the resolved path | See indexing rules below |
+| `{{[*][0]}}` | First wildcard key (same as `{{[*]}}`) | Explicit index form |
+| `{{[*][1]}}` | Second wildcard key | Each `[*]` hop adds one bracket |
+| `{{[*][N]}}` | Nth wildcard key (0-based) | Out-of-range → empty string |
+| `{{.field}}` | Value of a sibling field in the same dict | See sibling lookup below |
+
+#### Wildcard key indexing — `{{[*][N]}}`
+
+Only `[*]` wildcard expansions add a `[key]` bracket to the resolved path string. Named key steps (`.field`) are invisible to `{{[*][N]}}`. So N counts only the wildcard hops, not the total path depth.
+
+**Example — three-level structure:**
+
+```json
+{
+  "vrfs": {
+    "default": {
+      "neighbors": {
+        "10.0.0.1": {
+          "address_family": {
+            "IPv4 Unicast": {
+              "pfxrcd": 1500
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Path: `vrfs[*].neighbors[*].address_family[*].pfxrcd`
+
+Resolved path for one value: `vrfs[default].neighbors[10.0.0.1].address_family[IPv4 Unicast].pfxrcd`
+
+Bracket segments extracted: `["default", "10.0.0.1", "IPv4 Unicast"]`
+
+| Placeholder | Expands to |
+|---|---|
+| `{{[*]}}` or `{{[*][0]}}` | `default` (first wildcard hop = VRF name) |
+| `{{[*][1]}}` | `10.0.0.1` (second wildcard hop = neighbor IP) |
+| `{{[*][2]}}` | `IPv4 Unicast` (third wildcard hop = address family) |
+| `{{value}}` | `1500` |
+
+**Why `address_family` doesn't add a bracket:** the step `.address_family` is a named key access, not a `[*]` expansion. The `[*]` after it expands the address-family dict, which is what adds the `[IPv4 Unicast]` bracket.
+
+```yaml
+- name: "BGP prefix counts"
+  command: show_ip_bgp_summary_vrf_all
+  path: "vrfs[*].neighbors[*].address_family[*].pfxrcd"
+  condition: gte
+  value: 1
+  print: "VRF {{[*][0]}} / neighbor {{[*][1]}} / AF {{[*][2]}} has {{value}} prefixes"
+  # output: VRF default / neighbor 10.0.0.1 / AF IPv4 Unicast has 1500 prefixes
+```
+
+#### Sibling field lookup — `{{.field}}`
+
+`{{.field}}` retrieves another field from the **same dict** that owns the value being checked. This is useful when you match one field (e.g. `pfxrcd`) but want to display a related field (e.g. the neighbor IP or uptime) in the print line.
+
+**How it works:** the engine strips the last path segment (`.pfxrcd`) from the resolved path to find the parent dict, then reads `.field` from that dict.
+
+**Example — show BGP neighbor IP alongside prefix count:**
+
+```json
+[
+  {
+    "bgp_neig": "10.0.0.1",
+    "pfxrcd":   1500,
+    "updown":   "42w0d"
+  },
+  {
+    "bgp_neig": "10.0.0.2",
+    "pfxrcd":   200,
+    "updown":   "1d03h"
+  }
+]
+```
+
+```yaml
+- name: "BGP prefix counts"
+  command: show_ip_bgp_summary
+  path: "[*].pfxrcd"
+  condition: gte
+  value: 1
+  print: "Neighbor {{.bgp_neig}} has {{value}} prefixes (up {{.updown}})"
+  # output: Neighbor 10.0.0.1 has 1500 prefixes (up 42w0d)
+  # output: Neighbor 10.0.0.2 has 200 prefixes (up 1d03h)
+```
+
+Sibling lookup works at any depth. If the sibling field does not exist in the parent dict, `{{.field}}` expands to an empty string (no error).
+
+#### NTC vs TTP for `vrf all` commands
+
+NTC Templates for `show ip bgp summary vrf all` return a **flat list** of all neighbors across all VRFs. Each row has a `vrf` field to identify which VRF it belongs to:
+
+```json
+[
+  {"vrf": "default", "bgp_neig": "10.0.0.1", "pfxrcd": "1500", "updown": "42w0d"},
+  {"vrf": "MGMT",    "bgp_neig": "10.0.1.1", "pfxrcd": "5",    "updown": "1d"}
+]
+```
+
+Path with NTC: `[*].pfxrcd` — use `{{.vrf}}` and `{{.bgp_neig}}` for sibling fields.
+
+TTP templates for the same command produce a **nested structure** with VRFs as dict keys:
+
+```json
+{
+  "vrfs": {
+    "default": {"neighbors": {"10.0.0.1": {"pfxrcd": 1500, "updown": "42w0d"}}},
+    "MGMT":    {"neighbors": {"10.0.1.1": {"pfxrcd": 5,    "updown": "1d"}}}
+  }
+}
+```
+
+Path with TTP: `vrfs[*].neighbors[*].pfxrcd` — use `{{[*][0]}}` for VRF name, `{{[*][1]}}` for neighbor IP.
+
+Choose NTC when you want flat rows and sibling access (`{{.field}}`). Choose TTP when you want the hierarchy reflected in the path brackets (`{{[*][N]}}`).
 
 ---
 
@@ -853,4 +1025,146 @@ python report.py health-all \
   --dir data/json/ \
   --default-checks checks/example_health_checks.yaml \
   --output-dir reports/health/
+```
+
+---
+
+## 16. SFTP Log Fetcher (`fetch_logs.py`)
+
+`fetch_logs.py` is a **standalone** script at the repository root. It has no imports from the parser codebase — it only depends on `paramiko` (SSH/SFTP) and Python stdlib. Its sole job is to pull raw CLI dump `.txt` files from an SFTP server into `data/raw/<date>/`.
+
+### Install
+
+```bash
+pip install paramiko
+```
+
+### Quick start
+
+```bash
+# Password authentication
+python fetch_logs.py --host 10.0.0.100 --user admin --remote /backups/logs --password secret
+
+# Key-based authentication
+python fetch_logs.py --host 10.0.0.100 --user admin --remote /backups/logs --key ~/.ssh/id_rsa
+
+# Only fetch files containing "N9K" in their filename
+python fetch_logs.py --host 10.0.0.100 --user admin --remote /logs --name-contains N9K
+```
+
+### How files are stored
+
+Each `.txt` file is expected to follow the naming convention `{hostname}_{date}.txt` where `{date}` matches `\d{2}-[A-Za-z]{3}-\d{2,4}` (e.g. `03-May-26`). The date portion is extracted from the filename and used as the local subdirectory:
+
+```
+data/raw/
+└── 03-May-26/
+    ├── N9K-CAMA-WAN-1_03-May-26.txt
+    └── N9K-CAMA-WAN-2_03-May-26.txt
+```
+
+Files whose names contain no parseable date are placed directly in `data/raw/` (flat fallback).
+
+### Authentication
+
+The script tries authentication methods in order until one succeeds:
+
+1. **Explicit key file** (`--key`) — RSA, ECDSA, Ed25519, or DSS, auto-detected
+2. **SSH agent** — uses `paramiko.Agent` (disable with `--no-agent`)
+3. **Default key files** — `~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa`, `id_dsa` (disable with `--no-keys`)
+4. **Password** — from `--password` or prompted interactively
+5. **Keyboard-interactive** — automatic fallback (disable with `--no-keyboard-interactive`)
+
+### Legacy device support
+
+Old Cisco gear often requires legacy SSH algorithms. Use these flags to negotiate compatibility:
+
+| Flag | Adds algorithms |
+|------|----------------|
+| `--legacy-kex` | `diffie-hellman-group1-sha1`, `group14-sha1`, `group-exchange-sha1` |
+| `--legacy-ciphers` | `aes128-cbc`, `aes192-cbc`, `aes256-cbc`, `3des-cbc`, `blowfish-cbc`, `arcfour128/256` |
+| `--legacy-macs` | `hmac-sha1`, `hmac-sha1-96`, `hmac-md5`, `hmac-md5-96` |
+| `--legacy-host-keys` | `ssh-rsa`, `ssh-dss` host key types |
+| `--legacy` | All four of the above at once |
+
+For most legacy Cisco NX-OS/IOS devices, `--legacy` is sufficient.
+
+### Host key verification
+
+By default the script checks `~/.ssh/known_hosts`. Options:
+
+| Flag | Behaviour |
+|------|-----------|
+| `--no-verify` | Skip host key verification entirely (insecure — use only in isolated labs) |
+| `--known-hosts <path>` | Use an alternative known_hosts file |
+| `--add-host-key` | Automatically add unknown host keys (equivalent to `StrictHostKeyChecking=accept-new`) |
+
+### File filtering
+
+| Flag | Behaviour |
+|------|-----------|
+| `--pattern <glob>` | Only fetch files matching this glob (default: `*.txt`) |
+| `--name-contains <str>` | Only fetch files whose name contains this substring (case-insensitive); can be specified multiple times — ALL substrings must match |
+
+```bash
+# Only N9K files
+python fetch_logs.py ... --name-contains N9K
+
+# Only WAN-1 files that are also N9K
+python fetch_logs.py ... --name-contains N9K --name-contains WAN-1
+```
+
+### Transfer behaviour
+
+| Flag | Default | Behaviour |
+|------|---------|-----------|
+| `--local-dir` | `data/raw/` | Root directory for downloaded files |
+| `--skip-existing` | off | Skip files that already exist locally |
+| `--dry-run` | off | List matching files without downloading |
+| `--timeout` | 30 | SSH connect timeout in seconds |
+| `--port` | 22 | SFTP port |
+
+### Full CLI reference
+
+```
+python fetch_logs.py --help
+
+Connection:
+  --host HOST             SFTP server hostname or IP (required)
+  --port PORT             SSH port (default: 22)
+  --user USER             SSH username (required)
+  --timeout SEC           Connect timeout in seconds (default: 30)
+
+Authentication:
+  --key PATH              Path to private key file
+  --password PW           SSH password (prompted if omitted and needed)
+  --no-agent              Disable SSH agent lookup
+  --no-keys               Disable default ~/.ssh/ key file lookup
+  --no-keyboard-interactive  Disable keyboard-interactive auth fallback
+
+Host key verification:
+  --no-verify             Skip host key verification (insecure)
+  --known-hosts PATH      Path to known_hosts file
+  --add-host-key          Auto-add unknown host keys
+
+Algorithm overrides (legacy devices):
+  --legacy                Enable all legacy algorithm groups at once
+  --legacy-kex            Enable legacy key-exchange algorithms
+  --legacy-ciphers        Enable legacy cipher algorithms
+  --legacy-macs           Enable legacy MAC algorithms
+  --legacy-host-keys      Enable legacy host key types (ssh-rsa, ssh-dss)
+  --kex ALGO              Prepend a specific KEX algorithm
+  --cipher ALGO           Prepend a specific cipher
+  --mac ALGO              Prepend a specific MAC
+  --host-key-type ALGO    Prepend a specific host key type
+
+Paths:
+  --remote DIR            Remote directory to fetch from (required)
+  --local-dir DIR         Local root directory (default: data/raw/)
+
+Transfer behaviour:
+  --pattern GLOB          Filename glob filter (default: *.txt)
+  --name-contains STR     Filename substring filter (repeatable; case-insensitive)
+  --skip-existing         Skip files already present locally
+  --dry-run               List files without downloading
 ```
