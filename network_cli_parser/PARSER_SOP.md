@@ -527,6 +527,322 @@ Use `match: any` when you want a check that passes as long as at least one insta
 
 Omitting `match` (or setting it to `all`) preserves the original behaviour — all values must pass.
 
+---
+
+### 12.2a AND conditions — `conditions:` list
+
+When you need a value to satisfy **multiple constraints simultaneously**, use the `conditions:` list instead of a single `condition`/`value` pair. Every entry in the list must pass for the item to be considered passing (logical AND).
+
+```yaml
+# BGP prefix count must be in a valid range — not zero, not absurdly high
+- name: "BGP prefix count in range"
+  command: show_ip_bgp_summary_vrf_all
+  path: "vrfs[*].neighbors[*].prefixes_received"
+  conditions:
+    - condition: gte
+      value: 1          # at least one prefix — neighbor is exchanging routes
+    - condition: lte
+      value: 900000     # sanity cap — more than this is almost certainly a leak
+  print: "VRF {{[*][0]}} neighbor {{[*][1]}} → {{value}} prefixes"
+```
+
+```yaml
+# Interface speed must be exactly 100G and MTU must be jumbo
+- name: "Uplink interfaces are 100G jumbo"
+  command: show_interfaces
+  path: "[*].speed"
+  conditions:
+    - condition: eq
+      value: "100G"
+  # Note: combine with a separate check for MTU — conditions: applies to the same field
+```
+
+```yaml
+# CPU utilisation: warn if over 70%, critical only if over 95%
+- name: "CPU 5-min utilisation (warn)"
+  command: show_processes_cpu
+  path: "[0].cpu_5min"
+  conditions:
+    - condition: gte
+      value: 0
+    - condition: lte
+      value: 70
+  severity: warn
+  print: "CPU 5-min: {{value}}%"
+```
+
+**Rules:**
+- `conditions:` and `condition:` are mutually exclusive — use one or the other.
+- `match: any/all` still works with `conditions:` (controls whether all *rows* must pass or just one).
+- Each item in `conditions:` has its own `condition` and `value` key.
+
+---
+
+### 12.2b OR values — `one_of` and `not_one_of`
+
+Use these conditions when the acceptable values are a finite set rather than a range.
+
+```yaml
+# Interface line protocol may be "up" or "connected" (both are healthy on NX-OS)
+- name: "Uplink line protocol is healthy"
+  command: show_interfaces
+  path: "[*].line_protocol"
+  condition: one_of
+  value: ["up", "connected"]
+```
+
+```yaml
+# No interface description should contain decommission markers
+- name: "No decom interfaces active"
+  command: show_interface_description
+  path: "[*].description"
+  condition: not_one_of
+  value: ["DECOM", "DECOMMISSIONED", "SHUTDOWN", "TBD"]
+```
+
+```yaml
+# OSPF state must be FULL or 2WAY — LOADING/INIT/DOWN are failures
+- name: "OSPF neighbor is converged"
+  command: show_ip_ospf_neighbors
+  path: "neighbors[*].state"
+  condition: one_of
+  value: ["FULL/DR", "FULL/BDR", "FULL/  -", "2WAY/DROTHER"]
+  print: "Neighbor {{[*]}} state: {{value}}"
+```
+
+| Condition | Passes when |
+|-----------|-------------|
+| `one_of` | actual value is present in the list |
+| `not_one_of` | actual value is absent from the list |
+
+Both require `value:` to be a YAML list (`[...]` or block sequence).
+
+---
+
+### 12.2c Duration conditions
+
+Uptime and timer fields from Cisco devices come as strings like `"5w2d"`, `"2d03h"`, `"00:03:42"`. The `duration_*` conditions parse both the actual value and the expected threshold through the same parser before comparing.
+
+| Condition | Passes when actual duration is |
+|-----------|-------------------------------|
+| `duration_gte` | ≥ expected |
+| `duration_gt` | > expected |
+| `duration_lte` | ≤ expected |
+| `duration_lt` | < expected |
+
+**Supported input formats** (for both `value:` and the snapshot field):
+
+| Format | Example | Parsed as |
+|--------|---------|-----------|
+| `HH:MM:SS` | `"00:03:42"` | 222 s |
+| `HH:MM` | `"10:30"` | 630 s |
+| `Xw` weeks | `"3w"` | 1 814 400 s |
+| `Xd` days | `"2d"` | 172 800 s |
+| `Xh` hours | `"4h"` | 14 400 s |
+| `Xm` minutes | `"30m"` | 1 800 s |
+| `Xs` seconds | `"90s"` | 90 s |
+| Combined | `"5w2d3h"` | full decomposition |
+| Keywords | `"never"`, `"n/a"`, `"-"` | 0 s |
+| Bare integer | `"42"` | 42 s |
+
+```yaml
+# BGP session must have been established for at least 2 days
+- name: "BGP session stability"
+  command: show_ip_bgp_summary_vrf_all
+  path: "vrfs[*].neighbors[*].updown"
+  condition: duration_gte
+  value: "2d"
+  severity: warn
+  print: "VRF {{[*][0]}} neighbor {{[*][1]}} up for {{value}}"
+
+# OSPF neighbor uptime > 1 week (high stability check)
+- name: "OSPF neighbor long uptime"
+  command: show_ip_ospf_neighbors
+  path: "neighbors[*].uptime"
+  condition: duration_gt
+  value: "1w"
+
+# PIM neighbor recently came up — flag if uptime < 1 hour (possible reset)
+- name: "PIM neighbor recently reset"
+  command: show_ip_pim_neighbor
+  path: "[*].UPTIME"
+  condition: duration_lt
+  value: "1h"
+  severity: warn
+  match: any   # alert if ANY neighbor has short uptime
+  print: "PIM neighbor {{[*]}} uptime: {{value}} (recently reset?)"
+
+# BFD session hold-timer sanity
+- name: "BFD hold timer not exceeded"
+  command: show_bfd_neighbors
+  path: "[*].holddown"
+  condition: duration_lte
+  value: "00:00:10"   # HH:MM:SS format works too
+```
+
+---
+
+### 12.2d Conditional branches — `branches:`
+
+Use `branches:` when the **correct expected value depends on some other field in the same row**. Each branch specifies a `when:` guard and a `then:` assertion; an optional `default:` fires if no `when:` matches.
+
+**Basic structure:**
+
+```yaml
+branches:
+  - when:
+      field: <field_in_the_row>
+      condition: <any supported condition>
+      value: <expected>
+    then:
+      field: <field_to_assert>
+      condition: <condition>
+      value: <expected>
+  - when: ...
+    then: ...
+  - default:
+      field: <field>
+      condition: <condition>
+      value: <expected>
+```
+
+**Rules:**
+- `path:` must resolve to **dicts** (use `[*]` to expand a list of interface dicts, etc.).
+- Branches are evaluated **in order** — first matching `when:` wins.
+- If no `when:` matches and no `default:` is defined, the row is skipped (vacuously passes).
+- `when:` supports every standard condition (`eq`, `matches`, `one_of`, etc.).
+- `print:` works with branches — one line is emitted per row using `{{value}}` (the asserted field's value).
+
+**Example 1 — MTU by interface type:**
+
+```yaml
+- name: "MTU matches interface type"
+  command: show_interfaces
+  path: "[*]"
+  branches:
+    - when:
+        field: type
+        condition: matches
+        value: "^loopback"
+      then:
+        field: mtu
+        condition: eq
+        value: 65535
+    - when:
+        field: type
+        condition: matches
+        value: "Ethernet|port-channel"
+      then:
+        field: mtu
+        condition: eq
+        value: 9216
+    - default:
+        field: mtu
+        condition: gte
+        value: 1500   # anything else must at least be a standard frame
+  print: "Interface {{path}} MTU={{value}}"
+```
+
+**Example 2 — BGP peer type determines acceptable prefix count:**
+
+```yaml
+- name: "BGP prefix count by peer type"
+  command: show_ip_bgp_summary
+  path: "neighbors[*]"
+  branches:
+    - when:
+        field: peer_type
+        condition: eq
+        value: "iBGP"
+      then:
+        field: prefixes_received
+        condition: gte
+        value: 500     # iBGP peers carry full table
+    - when:
+        field: peer_type
+        condition: eq
+        value: "eBGP"
+      then:
+        field: prefixes_received
+        conditions:
+          - condition: gte
+            value: 1
+          - condition: lte
+            value: 10  # eBGP stub peers send a handful of prefixes
+    - default:
+        field: prefixes_received
+        condition: gte
+        value: 0
+  severity: warn
+```
+
+**Example 3 — VPC role determines which checks apply:**
+
+```yaml
+- name: "VPC consistency check"
+  command: show_vpc_brief
+  path: "[*]"
+  branches:
+    - when:
+        field: vpc_role
+        condition: eq
+        value: "primary"
+      then:
+        field: peer_status
+        condition: eq
+        value: "peer-link ok"
+    - when:
+        field: vpc_role
+        condition: eq
+        value: "secondary"
+      then:
+        field: consistency_status
+        condition: eq
+        value: "SUCCESS"
+    # No default — non-VPC devices have neither field and are skipped
+```
+
+---
+
+### 12.2e Print-only checks — surfacing values without assertions
+
+Sometimes you just want to **see** what a field currently holds — no pass/fail, no condition. Omit `condition`, `value`, `conditions`, and `branches` entirely. The check always passes and the values are surfaced in the report with a blue **DISPLAY** badge.
+
+```yaml
+# Minimal — no print: field; auto-formats as "{path} -> {value!r}"
+- name: "Current NX-OS version"
+  command: show_version
+  path: "[0].version"
+
+# Explicit template — compose a readable sentence
+- name: "BGP peer uptime"
+  command: show_ip_bgp_summary_vrf_all
+  path: "vrfs[*].neighbors[*].updown"
+  print: "VRF {{[*][0]}} neighbor {{[*][1]}} up for {{value}}"
+
+# Display all interface descriptions for a quick inventory
+- name: "Interface descriptions"
+  command: show_interface_description
+  path: "[*].description"
+  print: "{{[*]}} — {{value}}"
+
+# Show GETVPN peer states without failing on any value
+- name: "GETVPN peer states (informational)"
+  command: show_crypto_gkm_ks_coop_detail
+  path: "GETVPN-P2P[*].state"
+  print: "Peer {{[*]}} → {{value}}"
+```
+
+**Behaviour:**
+- Always returns `status: pass` — never contributes to `failed` or exit code 1.
+- HTML report shows a blue `DISPLAY` badge instead of green `PASS`.
+- The Condition row is omitted from the detail section.
+- Values are rendered in blue monospace, one line per resolved item.
+- If `print:` is omitted, each value is auto-formatted as `{path} -> {value!r}`.
+- Mix freely with regular condition checks in the same YAML file.
+
+---
+
 ### 12.3 Severity levels
 
 The optional `severity` field controls whether a check failure causes `report.py health` / `health-all` to exit with code 1:
@@ -550,35 +866,134 @@ Auto-generated baseline checks (`report.py baseline`) default to `severity: warn
 
 ### 12.4 Full Example (checks)
 
+The example below covers every check type in a single realistic file so you can see them side by side.
+
 ```yaml
 checks:
-  # Scalar field check
-  - name: "Show version has OS version"
+  # ── Basic scalar ─────────────────────────────────────────────────────────────
+
+  # Regex on a single string field
+  - name: "OS version format is valid"
     command: show_version
     path: "[0].os"
     condition: matches
-    value: '^\d+'
+    value: '^\d+'        # single-quotes protect regex metacharacters in YAML
 
-  # All rows must pass (not_contains scans every row)
-  - name: "No interface description contains DECOM"
+  # ── Wildcard expansion (all rows) ────────────────────────────────────────────
+
+  # Every interface description must not contain a decom marker
+  - name: "No DECOM interface is active"
     command: show_interface_description
     path: "[*].description"
     condition: not_contains
     value: "DECOM"
 
-  # Dict VRF expansion — numeric comparison
-  - name: "Multicast routes present"
+  # Every OSPF neighbor must be in a FULL state (match: all is the default)
+  - name: "All OSPF neighbors FULL"
+    command: show_ip_ospf_neighbors
+    path: "neighbors[*].state"
+    condition: matches
+    value: '^FULL'
+    print: "Neighbor {{[*]}} → {{value}}"
+
+  # Dict VRF expansion — every VRF must have at least one multicast route
+  - name: "Multicast routes present in all VRFs"
     command: show_ip_mroute_summary
     path: "vrfs[*].summary.total_routes"
     condition: gt
     value: 0
 
-  # Regex on every neighbor state
-  - name: "All OSPF neighbors in FULL state"
-    command: show_ip_ospf_neighbors
-    path: "neighbors[*].state"
-    condition: matches
-    value: '^FULL'
+  # ── match: any (at least one must pass) ──────────────────────────────────────
+
+  - name: "At least one GETVPN key server is REDUNDANT"
+    command: show_crypto_gkm_ks_coop_detail
+    path: "GETVPN-P2P[*].state"
+    condition: eq
+    value: "REDUNDANT"
+    match: any
+    print: "KS peer {{[*]}} is {{value}}"
+
+  # ── AND conditions (conditions: list) ────────────────────────────────────────
+
+  # BGP prefix count must be within a healthy range
+  - name: "BGP prefix count in range"
+    command: show_ip_bgp_summary_vrf_all
+    path: "vrfs[*].neighbors[*].prefixes_received"
+    conditions:
+      - condition: gte
+        value: 1
+      - condition: lte
+        value: 900000
+    print: "VRF {{[*][0]}} neighbor {{[*][1]}} → {{value}} prefixes"
+
+  # ── OR values (one_of / not_one_of) ──────────────────────────────────────────
+
+  - name: "Interface line protocol is healthy"
+    command: show_interfaces
+    path: "[*].line_protocol"
+    condition: one_of
+    value: ["up", "connected"]
+
+  # ── Duration conditions ───────────────────────────────────────────────────────
+
+  - name: "BGP sessions established for at least 2 days"
+    command: show_ip_bgp_summary_vrf_all
+    path: "vrfs[*].neighbors[*].updown"
+    condition: duration_gte
+    value: "2d"
+    severity: warn
+    print: "VRF {{[*][0]}} neighbor {{[*][1]}} up for {{value}}"
+
+  # ── Conditional branches ──────────────────────────────────────────────────────
+
+  # MTU expectation depends on interface type
+  - name: "MTU matches interface type"
+    command: show_interfaces
+    path: "[*]"
+    branches:
+      - when:
+          field: type
+          condition: matches
+          value: "^loopback"
+        then:
+          field: mtu
+          condition: eq
+          value: 65535
+      - when:
+          field: type
+          condition: matches
+          value: "Ethernet|port-channel"
+        then:
+          field: mtu
+          condition: eq
+          value: 9216
+      - default:
+          field: mtu
+          condition: gte
+          value: 1500
+    severity: warn
+    print: "{{path}} MTU={{value}}"
+
+  # ── Print-only (no assertion — just display the value) ────────────────────────
+
+  - name: "Current NX-OS version (informational)"
+    command: show_version
+    path: "[0].version"
+
+  - name: "All BGP neighbor uptimes"
+    command: show_ip_bgp_summary_vrf_all
+    path: "vrfs[*].neighbors[*].updown"
+    print: "VRF {{[*][0]}} neighbor {{[*][1]}} up for {{value}}"
+
+  # ── Severity: warn — visible in report, never blocks CI ──────────────────────
+
+  - name: "CPU 5-min utilisation"
+    command: show_processes_cpu
+    path: "[0].cpu_5min"
+    condition: lte
+    value: 70
+    severity: warn
+    print: "CPU 5-min: {{value}}%"
 ```
 
 > **YAML quoting:** Always use single quotes (`'...'`) for `value` strings that contain regex metacharacters (`\d`, `\S`, `^`, etc.) to avoid YAML escape interpretation.

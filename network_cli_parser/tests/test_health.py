@@ -642,3 +642,55 @@ class TestPrintTemplate:
         r = evaluate_checks(snap, checks)
         assert r["results"][0]["status"] == "pass"
         assert r["results"][0]["printed"] == ["Peer 10.2.240.1 → REDUNDANT"]
+
+
+class TestPrintOnly:
+    """Checks with no condition/value/conditions/branches — display-only, always pass."""
+
+    def test_no_condition_is_print_only(self):
+        snap = _snap("show_version", [{"version": "17.3.1"}])
+        checks = [{"name": "c", "command": "show_version", "path": "[0].version"}]
+        r = evaluate_checks(snap, checks)
+        result = r["results"][0]
+        assert result["status"] == "pass"
+        assert result["print_only"] is True
+
+    def test_print_only_surfaces_values_with_template(self):
+        snap = _snap("show_version", [{"version": "17.3.1"}])
+        checks = [{"name": "c", "command": "show_version",
+                   "path": "[0].version",
+                   "print": "Running version {{value}}"}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["printed"] == ["Running version 17.3.1"]
+
+    def test_print_only_auto_template_when_no_print_field(self):
+        snap = _snap("show_version", [{"version": "17.3.1"}])
+        checks = [{"name": "c", "command": "show_version", "path": "[0].version"}]
+        r = evaluate_checks(snap, checks)
+        # auto-formats as "{path} -> {value!r}"
+        assert "17.3.1" in r["results"][0]["printed"][0]
+
+    def test_print_only_never_fails(self):
+        snap = _snap("show_version", [{"version": "UNEXPECTED"}])
+        checks = [{"name": "c", "command": "show_version", "path": "[0].version",
+                   "print": "Version: {{value}}"}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "pass"
+        assert r["summary"]["failed"] == 0
+
+    def test_print_only_wildcard_expand(self):
+        snap = _snap("show_bgp", {"10.0.0.1": {"pfx": 100}, "10.0.0.2": {"pfx": 200}})
+        checks = [{"name": "c", "command": "show_bgp",
+                   "path": "[*].pfx",
+                   "print": "Peer {{[*]}} has {{value}} prefixes"}]
+        r = evaluate_checks(snap, checks)
+        printed = r["results"][0]["printed"]
+        assert len(printed) == 2
+        assert any("10.0.0.1" in l and "100" in l for l in printed)
+        assert any("10.0.0.2" in l and "200" in l for l in printed)
+
+    def test_print_only_does_not_affect_exit_code(self):
+        snap = _snap("show_version", [{"version": "17.3.1"}])
+        checks = [{"name": "c", "command": "show_version", "path": "[0].version"}]
+        r = evaluate_checks(snap, checks)
+        assert r["summary"]["failed_critical"] == 0
