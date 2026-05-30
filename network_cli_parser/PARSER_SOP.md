@@ -384,16 +384,18 @@ Keys are raw command strings (spaces, not underscores). The mapper normalizes th
 
 ## 11. Report Generator (`report.py`)
 
-`report.py` operates on JSON snapshots produced by `main.py`. It provides two subcommands:
+`report.py` operates on JSON snapshots produced by `main.py`. All subcommands:
 
 | Subcommand | Purpose |
 |------------|---------|
-| `delta`      | Field-level diff between two single snapshots |
-| `delta-all`  | Per-device delta across two directories of snapshots |
-| `health`     | Evaluate a YAML check file against a single snapshot |
-| `health-all` | Run health checks across a directory — single combined HTML report |
-| `baseline`   | Auto-generate a starter check YAML from a snapshot's current values |
-| `collect`    | Collect snapshots via SSH (online) or process existing `.txt` dumps (offline) |
+| `delta`       | Field-level diff between two single snapshots |
+| `delta-all`   | Per-device delta across two directories of snapshots |
+| `health`      | Evaluate a YAML check file against a single snapshot |
+| `health-all`  | Run health checks across a directory — single combined HTML report |
+| `health-diff` | Compare two health report JSON files — show what changed between runs |
+| `coverage`    | Report which parsed commands have health checks and which do not |
+| `baseline`    | Auto-generate a starter check YAML from a snapshot's current values |
+| `collect`     | Collect snapshots via SSH (online) or process existing `.txt` dumps (offline) |
 
 Output format is controlled by the `--output` / `--format` argument:
 
@@ -406,33 +408,38 @@ Output format is controlled by the `--output` / `--format` argument:
 ```bash
 cd network_cli_parser
 
-# Auto-generate baseline checks from a snapshot
-python report.py baseline \
-  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
-  --output   checks/baseline_N9K-CAMA-WAN-1.yaml
+# ── Snapshot collection ─────────────────────────────────────────────────────
 
-# Collect snapshots via SSH (requires netmiko)
+# Collect via SSH (requires netmiko)
 python report.py collect \
   --devices    devices.yaml \
   --raw-dir    data/raw/ \
   --output-dir data/json/
 
-# Process existing .txt dumps offline (no SSH needed)
+# Process existing .txt dumps offline
 python report.py collect \
   --from-dir   data/raw/ \
   --output-dir data/json/
 
-# Single-device health — JSON to stdout
+# ── Health checks ────────────────────────────────────────────────────────────
+
+# Single-device health — print JSON to stdout (validate YAML + check results)
 python report.py health \
   --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
   --checks   checks/example_health_checks.yaml
 
-# Single-device health with per-device overrides — HTML
+# Single-device health — HTML report
 python report.py health \
   --snapshot      data/json/N9K-CAMA-WAN-1_03-May-26.json \
   --checks        checks/example_health_checks.yaml \
   --device-checks checks/devices/N9K-CAMA-WAN-1.yaml \
   --output        reports/health.html
+
+# Verify-only: run all checks, print results, write NO files (CI-safe read-only mode)
+python report.py health \
+  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
+  --checks   checks/example_health_checks.yaml \
+  --verify-only
 
 # All devices — single combined HTML report (health_report.html)
 python report.py health-all \
@@ -440,6 +447,42 @@ python report.py health-all \
   --default-checks    checks/example_health_checks.yaml \
   --device-checks-dir checks/devices/ \
   --output-dir        reports/health/
+
+# Only process snapshots collected within the last 7 days
+python report.py health-all \
+  --dir            data/json/ \
+  --default-checks checks/example_health_checks.yaml \
+  --since-days     7 \
+  --output-dir     reports/health/
+
+# Verify-only multi-device (no files written, exit code still reflects failures)
+python report.py health-all \
+  --dir            data/json/ \
+  --default-checks checks/base.yaml \
+  --verify-only
+
+# ── Health diff ──────────────────────────────────────────────────────────────
+
+# Compare two health report JSON files — show regressions and fixes
+python report.py health-diff \
+  --before reports/health/N9K-WAN-1_health_yesterday.json \
+  --after  reports/health/N9K-WAN-1_health_today.json \
+  --output reports/health/diff.html
+
+# ── Coverage analysis ────────────────────────────────────────────────────────
+
+# Which parsed commands are covered by checks? Which are not?
+python report.py coverage \
+  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
+  --checks   checks/example_health_checks.yaml
+
+# ── Baseline generation ──────────────────────────────────────────────────────
+
+python report.py baseline \
+  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
+  --output   checks/baseline_N9K-CAMA-WAN-1.yaml
+
+# ── Delta reports ────────────────────────────────────────────────────────────
 
 # Single-device delta — HTML
 python report.py delta \
@@ -454,7 +497,114 @@ python report.py delta-all \
   --output-dir reports/delta/
 ```
 
-`report.py health` and `report.py health-all` exit with code **1** if any check fails or errors — suitable for CI pipelines.
+`report.py health` and `report.py health-all` exit with code **1** if any critical check fails or errors — suitable for CI pipelines. `health-diff` exits with code **1** if any regressions (pass→fail changes) are detected.
+
+### 11.1 Health check YAML validation
+
+Every check YAML file is automatically validated when loaded. Validation catches:
+
+| Error type | Fatal? | Example |
+|---|---|---|
+| Missing `name` field | Yes — aborts | `- command: show_version` (no name) |
+| Missing `command` field | Yes | `- name: "test"` (no command) |
+| Missing `path` field | Yes | `- name: "test", command: show_version` (no path) |
+| No `condition` / `conditions` / `branches` | Yes | check with only `name`+`command`+`path` and a `value` but no condition |
+| `condition` missing `value` | Yes | `condition: eq` with no `value:` field |
+| Unknown `condition` name | Warning | `condition: equals` (should be `eq`) |
+| Unknown `severity` value | Warning | `severity: blocker` (should be `critical`/`warn`/`info`) |
+| Unknown `match` value | Warning | `match: every` (should be `all`/`any`) |
+| Duplicate check `name` | Warning | two checks named `"BGP peers up"` |
+
+Fatal errors print `[ERROR]` lines to stderr and exit before any checks run. Warnings print `[WARN]` lines to stdout but do not prevent execution.
+
+### 11.2 Verify-only mode (`--verify-only`)
+
+Both `health` and `health-all` accept `--verify-only`. When set:
+
+- All checks run and results are printed to the terminal exactly as normal.
+- **No files are written** — `--output` and `--output-dir` are ignored.
+- Exit code is still `0` (all pass) or `1` (critical failures).
+
+Use this in CI pipelines where you want the exit code but don't want to produce report artefacts — or when running from a read-only file system.
+
+```bash
+# CI usage: validate checks + assert no failures, write nothing
+python report.py health \
+  --snapshot data/json/device.json \
+  --checks   checks/base.yaml \
+  --verify-only
+echo "Exit: $?"
+```
+
+### 11.3 `--since-days` filter (`health-all`)
+
+`--since-days N` filters out snapshots whose `collection_time` date is more than N days before today. Snapshots whose date cannot be parsed are always included (never silently dropped).
+
+```bash
+# Only assert on snapshots from the last 3 days
+python report.py health-all \
+  --dir            data/json/ \
+  --default-checks checks/base.yaml \
+  --since-days     3 \
+  --output-dir     reports/health/
+```
+
+Snapshots older than N days are skipped with a `[SKIP]` message showing the collection date.
+
+### 11.4 Health diff (`health-diff`)
+
+`health-diff` compares two health report JSON files (output of `health --output report.json`). It does **not** compare snapshots — it compares previously-saved check results.
+
+```bash
+# 1. Save health results as JSON on each run
+python report.py health \
+  --snapshot data/json/device_yesterday.json \
+  --checks   checks/base.yaml \
+  --output   reports/health_yesterday.json
+
+python report.py health \
+  --snapshot data/json/device_today.json \
+  --checks   checks/base.yaml \
+  --output   reports/health_today.json
+
+# 2. Diff the two runs
+python report.py health-diff \
+  --before reports/health_yesterday.json \
+  --after  reports/health_today.json \
+  --output reports/health_diff.html
+```
+
+Output shows each check with one of five change categories:
+
+| Terminal tag | Meaning | HTML badge |
+|---|---|---|
+| `[REGRESS]` | pass → fail (new failure) | red ⬇ Regressed |
+| `[FIXED  ]` | fail → pass (resolved) | green ⬆ Fixed |
+| `[ADDED  ]` | check only in after (newly added) | blue ✚ Added |
+| `[REMOVED]` | check only in before (removed from YAML) | muted ✖ Removed |
+| `[--     ]` | same status in both | grey — |
+
+**Exit code:** `0` if no regressions; `1` if any check went from pass to fail.
+
+### 11.5 Coverage report (`coverage`)
+
+`coverage` cross-references a snapshot against a check file and reports the gaps.
+
+```bash
+python report.py coverage \
+  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
+  --checks   checks/example_health_checks.yaml
+```
+
+Output sections:
+
+| Section | What it shows |
+|---|---|
+| **Parsed but unchecked** | Commands in the snapshot that have structured parsed output but no check targeting them — prime candidates for new health checks |
+| **Checks with no snapshot data** | Check YAML references a `command` key that doesn't appear in the snapshot at all — the check will silently return no results |
+| **Checks on non-parsed commands** | Command exists in snapshot but has status `no_template`/`partial`/`failed` — check may evaluate against empty data |
+
+Without `--checks`, `coverage` lists all parsed commands and counts, useful as a quick summary of what the snapshot contains.
 
 ---
 

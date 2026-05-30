@@ -2,13 +2,15 @@
 Network CLI Report Generator
 
 Usage:
-    python report.py delta      --before <old.json> --after <new.json> [--output out.html]
-    python report.py delta-all  --before-dir <dir> --after-dir <dir> [--output-dir out/] [--format html|json|both]
-    python report.py health     --snapshot <snap.json> --checks <checks.yaml> [--device-checks <dev.yaml>] [--output out.html]
-    python report.py health-all --dir <dir> --default-checks <checks.yaml> [--device-checks-dir <dir>] [--output-dir out/] [--format html|json|both]
-    python report.py baseline   --snapshot <snap.json> [--output checks/baseline.yaml]
-    python report.py collect    --devices <devices.yaml> [--raw-dir data/raw/] [--output-dir data/json/] [--password <pw>]
-    python report.py collect    --from-dir <dir> [--output-dir data/json/]
+    python report.py delta       --before <old.json> --after <new.json> [--output out.html]
+    python report.py delta-all   --before-dir <dir> --after-dir <dir> [--output-dir out/] [--format html|json|both]
+    python report.py health      --snapshot <snap.json> --checks <checks.yaml> [--device-checks <dev.yaml>] [--output out.html] [--verify-only]
+    python report.py health-all  --dir <dir> --default-checks <checks.yaml> [--device-checks-dir <dir>] [--output-dir out/] [--format html|json|both] [--since-days N] [--verify-only]
+    python report.py health-diff --before <health.json> --after <health.json> [--output diff.html]
+    python report.py coverage    --snapshot <snap.json> [--checks <checks.yaml>] [--output cov.json]
+    python report.py baseline    --snapshot <snap.json> [--output checks/baseline.yaml]
+    python report.py collect     --devices <devices.yaml> [--raw-dir data/raw/] [--output-dir data/json/] [--password <pw>]
+    python report.py collect     --from-dir <dir> [--output-dir data/json/]
 
 Output format is inferred from the --output extension (.html or .json).
 When --output is omitted, JSON is printed to stdout.
@@ -18,13 +20,13 @@ import argparse
 import json
 import sys
 import tempfile
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import yaml
 
 from utils.delta import compute_delta
-from utils.health import evaluate_checks, merge_checks
+from utils.health import evaluate_checks, merge_checks, validate_checks
 from utils import html_report
 
 
@@ -43,10 +45,15 @@ def _load_checks(path: str) -> list:
     if data is None:
         return []
     if isinstance(data, list):
-        return data
-    if isinstance(data, dict):
-        return data.get("checks", [])
-    raise ValueError(f"{path}: expected a list or mapping, got {type(data).__name__}")
+        checks = data
+    elif isinstance(data, dict):
+        checks = data.get("checks", [])
+    else:
+        raise ValueError(f"{path}: expected a list or mapping, got {type(data).__name__}")
+    warnings = validate_checks(checks, source=path)
+    for w in warnings:
+        print(w)
+    return checks
 
 
 def _write_output(data: dict, output=None) -> None:
@@ -241,13 +248,14 @@ def cmd_health(args: argparse.Namespace) -> None:
     report = evaluate_checks(snapshot, checks)
     _print_health_summary(report)
 
-    if _is_html(args.output):
-        out = Path(args.output)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(html_report.render_health(report, snapshot), encoding="utf-8")
-        print(f"  -> {args.output}")
-    else:
-        _write_output(report, args.output)
+    if not getattr(args, "verify_only", False):
+        if _is_html(args.output):
+            out = Path(args.output)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(html_report.render_health(report, snapshot), encoding="utf-8")
+            print(f"  -> {args.output}")
+        else:
+            _write_output(report, args.output)
 
     s = report["summary"]
     if s.get("failed_critical", s["failed"]) > 0 or s["error"] > 0:
@@ -290,16 +298,42 @@ def _print_health_summary(report: dict) -> None:
 # health-all subcommand
 # ---------------------------------------------------------------------------
 
-def cmd_health_all(args: argparse.Namespace) -> None:
-    snap_dir   = Path(args.dir)
-    output_dir = Path(args.output_dir)
-    fmt        = args.format
-    dev_dir    = Path(args.device_checks_dir) if args.device_checks_dir else None
+def _parse_collection_date(ts: str):
+    """Parse a collection_time string to a date object.  Returns None on failure."""
+    for fmt in ("%d-%b-%y", "%d-%b-%Y", "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S"):
+        try:
+            return datetime.strptime(ts, fmt).date()
+        except ValueError:
+            continue
+    return None
 
-    output_dir.mkdir(parents=True, exist_ok=True)
+
+def cmd_health_all(args: argparse.Namespace) -> None:
+    snap_dir    = Path(args.dir)
+    output_dir  = Path(args.output_dir)
+    fmt         = args.format
+    dev_dir     = Path(args.device_checks_dir) if args.device_checks_dir else None
+    verify_only = getattr(args, "verify_only", False)
+    since_days  = getattr(args, "since_days", None)
+
+    if not verify_only:
+        output_dir.mkdir(parents=True, exist_ok=True)
 
     default_checks = _load_checks(args.default_checks)
     snap_map       = _load_dir_snapshots(snap_dir)
+
+    # Apply --since-days filter
+    if since_days is not None:
+        cutoff = datetime.now().date() - timedelta(days=since_days)
+        filtered = {}
+        for hostname, (p, snap) in snap_map.items():
+            ts = snap.get("metadata", {}).get("collection_time", "")
+            d  = _parse_collection_date(ts)
+            if d is None or d >= cutoff:
+                filtered[hostname] = (p, snap)
+            else:
+                print(f"  [SKIP] {hostname}: collection date {ts!r} is older than {since_days} day(s)")
+        snap_map = filtered
 
     print(f"\nHealth-all: {snap_dir}  ({len(snap_map)} device(s))\n")
 
@@ -325,8 +359,7 @@ def cmd_health_all(args: argparse.Namespace) -> None:
             "snapshot": snap,
         })
 
-        # JSON per-device files if requested
-        if fmt in ("json", "both"):
+        if not verify_only and fmt in ("json", "both"):
             safe      = Path(hostname).name
             json_path = output_dir / f"{safe}_health.json"
             _write_output(report, str(json_path))
@@ -340,7 +373,7 @@ def cmd_health_all(args: argparse.Namespace) -> None:
 
     _print_health_all_summary(results)
 
-    if fmt in ("html", "both"):
+    if not verify_only and fmt in ("html", "both"):
         html_path = output_dir / "health_report.html"
         html_path.write_text(
             html_report.render_health_all(device_data, args.default_checks),
@@ -348,8 +381,178 @@ def cmd_health_all(args: argparse.Namespace) -> None:
         )
         print(f"  -> {html_path}")
 
+    if verify_only:
+        print("  [verify-only] no files written")
+
     if any_failure:
         sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# health-diff subcommand
+# ---------------------------------------------------------------------------
+
+def cmd_health_diff(args: argparse.Namespace) -> None:
+    """Diff two health report JSON files and report status changes."""
+    before = _load_json(args.before)
+    after  = _load_json(args.after)
+
+    bm = before.get("metadata", {})
+    am = after.get("metadata", {})
+
+    before_map = {r["name"]: r for r in before.get("results", [])}
+    after_map  = {r["name"]: r for r in after.get("results", [])}
+
+    all_names = list(dict.fromkeys(list(before_map) + list(after_map)))
+
+    regressions = 0
+    fixed       = 0
+    added       = 0
+    removed     = 0
+    unchanged   = 0
+    diff_rows   = []
+
+    for name in all_names:
+        br = before_map.get(name)
+        ar = after_map.get(name)
+        if br and ar:
+            bs, as_ = br["status"], ar["status"]
+            if bs == as_:
+                unchanged += 1
+                change = "unchanged"
+            elif bs == "pass" and as_ != "pass":
+                regressions += 1
+                change = "regressed"
+            else:
+                fixed += 1
+                change = "fixed"
+        elif br and not ar:
+            removed += 1
+            change = "removed"
+            as_    = None
+        else:
+            added += 1
+            change = "added"
+            bs     = None
+        diff_rows.append({"name": name, "before": bs if br else None,
+                           "after": as_ if ar else None, "change": change})
+
+    print(f"\nHealth diff")
+    print(f"  host:   {bm.get('hostname', '?')}")
+    print(f"  before: {bm.get('collection_time', '?')}  ({args.before})")
+    print(f"  after:  {am.get('collection_time', '?')}  ({args.after})")
+    print(f"\n  regressions: {regressions}  fixed: {fixed}  added: {added}  removed: {removed}  unchanged: {unchanged}\n")
+
+    _TAGS = {
+        "regressed": "[REGRESS]",
+        "fixed":     "[FIXED  ]",
+        "added":     "[ADDED  ]",
+        "removed":   "[REMOVED]",
+        "unchanged": "[--     ]",
+    }
+    for row in diff_rows:
+        tag = _TAGS.get(row["change"], "[?      ]")
+        b   = row["before"].upper() if row["before"] else "—"
+        a   = row["after"].upper()  if row["after"]  else "—"
+        print(f"  {tag} {row['name']}  ({b} → {a})")
+    print()
+
+    result = {
+        "metadata": {"before": bm, "after": am},
+        "summary": {
+            "regressions": regressions, "fixed": fixed,
+            "added": added, "removed": removed, "unchanged": unchanged,
+        },
+        "diff": diff_rows,
+    }
+
+    if not getattr(args, "verify_only", False):
+        if _is_html(getattr(args, "output", None)):
+            out = Path(args.output)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            out.write_text(
+                html_report.render_health_diff(before, after, args.before, args.after),
+                encoding="utf-8",
+            )
+            print(f"  -> {args.output}")
+        elif getattr(args, "output", None):
+            _write_output(result, args.output)
+
+    if regressions > 0:
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# coverage subcommand
+# ---------------------------------------------------------------------------
+
+def cmd_coverage(args: argparse.Namespace) -> None:
+    """Report which parsed commands have health checks and which do not."""
+    from utils.normalization import normalize_command
+
+    snapshot = _load_json(args.snapshot)
+    meta     = snapshot.get("metadata", {})
+    cmds     = snapshot.get("commands", {})
+
+    checks_path = getattr(args, "checks", None)
+    checks      = _load_checks(checks_path) if checks_path else []
+
+    # Build sets using normalized command keys (how checks reference them)
+    parsed_cmds  = {cmd for cmd, d in cmds.items()
+                    if d.get("status") == "parsed" and d.get("parsed")}
+    all_cmds     = set(cmds.keys())
+    checked_cmds = {c["command"] for c in checks if c.get("command")}
+
+    covered      = parsed_cmds & checked_cmds
+    unchecked    = parsed_cmds - checked_cmds
+    missing_snap = checked_cmds - all_cmds
+    partial      = {cmd for cmd in checked_cmds & all_cmds
+                    if cmds[cmd].get("status") in ("no_template", "raw_only", "partial", "failed")}
+
+    print(f"\nCheck coverage: {meta.get('hostname', '?')}  "
+          f"({meta.get('collection_time', '?')})")
+    print(f"  parsed commands:              {len(parsed_cmds)}")
+    print(f"  health checks defined:        {len(checks)}")
+    print(f"\n  covered (parsed + checked):   {len(covered)}")
+    print(f"  parsed but unchecked:         {len(unchecked)}")
+    print(f"  checks with no snapshot data: {len(missing_snap)}")
+    if partial:
+        print(f"  checks on non-parsed cmds:    {len(partial)}")
+
+    if unchecked:
+        print("\n  [Parsed but unchecked — consider adding health checks:]")
+        for cmd in sorted(unchecked):
+            print(f"    {cmd}")
+
+    if missing_snap:
+        print("\n  [Checks reference commands absent from snapshot:]")
+        for cmd in sorted(missing_snap):
+            print(f"    {cmd}")
+
+    if partial:
+        print("\n  [Commands with non-parsed status — checks may return no data:]")
+        for cmd in sorted(partial):
+            print(f"    {cmd}  ({cmds[cmd].get('status', '?')})")
+
+    result = {
+        "metadata": meta,
+        "summary": {
+            "parsed_commands": len(parsed_cmds),
+            "checks_defined": len(checks),
+            "covered": len(covered),
+            "unchecked": len(unchecked),
+            "missing_snapshot_data": len(missing_snap),
+            "checks_on_partial_data": len(partial),
+        },
+        "unchecked": sorted(unchecked),
+        "missing_snapshot_data": sorted(missing_snap),
+        "partial_data": sorted(partial),
+        "covered": sorted(covered),
+    }
+
+    output = getattr(args, "output", None)
+    if output:
+        _write_output(result, output)
 
 
 # ---------------------------------------------------------------------------
@@ -553,6 +756,8 @@ def main() -> None:
     p_health.add_argument("--checks",        required=True, help="Default health checks YAML")
     p_health.add_argument("--device-checks", default=None,  help="Device-specific checks YAML (overrides on name clash)")
     p_health.add_argument("--output",        default=None,  help="Output file (.json or .html); default: stdout")
+    p_health.add_argument("--verify-only",   action="store_true",
+                          help="Run checks and print results but write no output files")
     p_health.set_defaults(func=cmd_health)
 
     # health-all
@@ -563,7 +768,27 @@ def main() -> None:
     p_hall.add_argument("--output-dir",       default="health-reports", help="Output directory (default: health-reports/)")
     p_hall.add_argument("--format", choices=["html", "json", "both"], default="html",
                         help="Per-device report format (default: html)")
+    p_hall.add_argument("--since-days", type=int, default=None, metavar="N",
+                        help="Only process snapshots collected within the last N days")
+    p_hall.add_argument("--verify-only", action="store_true",
+                        help="Run checks and print results but write no output files")
     p_hall.set_defaults(func=cmd_health_all)
+
+    # health-diff
+    p_hdiff = sub.add_parser("health-diff",
+                              help="Diff two health report JSON files — show what changed between runs")
+    p_hdiff.add_argument("--before", required=True, help="Older health report JSON (output of 'health')")
+    p_hdiff.add_argument("--after",  required=True, help="Newer health report JSON (output of 'health')")
+    p_hdiff.add_argument("--output", default=None,  help="Output file (.json or .html); default: stdout")
+    p_hdiff.set_defaults(func=cmd_health_diff)
+
+    # coverage
+    p_cov = sub.add_parser("coverage",
+                            help="Report which parsed commands have health checks and which do not")
+    p_cov.add_argument("--snapshot", required=True, help="Snapshot JSON file")
+    p_cov.add_argument("--checks",   default=None,  help="Health checks YAML (optional — shows full gap analysis when provided)")
+    p_cov.add_argument("--output",   default=None,  help="Output JSON file; default: stdout")
+    p_cov.set_defaults(func=cmd_coverage)
 
     # baseline
     p_base = sub.add_parser("baseline", help="Auto-generate check YAML from a snapshot's current values")

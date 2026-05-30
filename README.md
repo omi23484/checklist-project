@@ -18,18 +18,24 @@ Parses Cisco IOS/NX-OS CLI dumps, evaluates health checks, and generates delta/h
 ```bash
 pip install -r network_cli_parser/requirements.txt
 
-# Parse CLI dumps → JSON
-python network_cli_parser/main.py --input data/raw/03-May-26/
+# 1. Fetch raw logs from SFTP server
+pip install paramiko
+python fetch_logs.py --host 10.0.0.100 --user admin --remote /logs
 
-# Run health checks
+# 2. Parse CLI dumps → JSON
+python network_cli_parser/main.py --input network_cli_parser/data/raw/03-May-26/
+
+# 3. Run health checks (HTML report + exit 1 on critical failures)
 python network_cli_parser/report.py health \
   --snapshot network_cli_parser/data/json/03-May-26/N9K-WAN-1_03-May-26.json \
   --checks   network_cli_parser/checks/example_health_checks.yaml \
   --output   health.html
 
-# Fetch raw logs from SFTP server first
-pip install paramiko
-python fetch_logs.py --host 10.0.0.100 --user admin --remote /logs
+# 3b. CI mode — no files written, exit code only
+python network_cli_parser/report.py health \
+  --snapshot network_cli_parser/data/json/03-May-26/N9K-WAN-1_03-May-26.json \
+  --checks   network_cli_parser/checks/example_health_checks.yaml \
+  --verify-only
 ```
 
 ---
@@ -85,6 +91,19 @@ health.html  delta.html
 Both raw `.txt` files and JSON snapshots are stored in date-named subdirectories extracted from the filename. For example, `N9K-WAN-1_03-May-26.txt` is placed under `03-May-26/`. Files are overwritten if re-processed.
 
 ---
+
+## `report.py` subcommand reference
+
+| Subcommand | Key flags | Purpose |
+|---|---|---|
+| `health` | `--snapshot` `--checks` `--output` `--verify-only` | Single-device health check |
+| `health-all` | `--dir` `--default-checks` `--since-days` `--verify-only` | All devices — combined HTML matrix |
+| `health-diff` | `--before` `--after` `--output` | Diff two health report JSONs — show regressions |
+| `coverage` | `--snapshot` `--checks` | Gap analysis — which commands have no checks |
+| `delta` | `--before` `--after` `--output` | Field-level diff between two snapshots |
+| `delta-all` | `--before-dir` `--after-dir` `--output-dir` | Per-device delta across two directories |
+| `baseline` | `--snapshot` `--output` | Auto-generate starter check YAML |
+| `collect` | `--devices` or `--from-dir` `--output-dir` | SSH collection or offline .txt → JSON |
 
 ## Health checks quick reference
 

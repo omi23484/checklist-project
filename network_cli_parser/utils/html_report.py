@@ -1071,3 +1071,114 @@ def _health_index_table(results: list[dict]) -> str:
   </tr></thead>
   <tbody>{"".join(rows)}</tbody>
 </table>"""
+
+
+def render_health_diff(
+    before_report: dict,
+    after_report:  dict,
+    before_path:   str = "",
+    after_path:    str = "",
+) -> str:
+    """Render an HTML page comparing two health report JSON files."""
+    bm = before_report.get("metadata", {})
+    am = after_report.get("metadata", {})
+
+    before_map = {r["name"]: r for r in before_report.get("results", [])}
+    after_map  = {r["name"]: r for r in after_report.get("results", [])}
+    all_names  = list(dict.fromkeys(list(before_map) + list(after_map)))
+
+    regressions = fixed = added = removed = unchanged = 0
+    rows_html   = []
+
+    for name in all_names:
+        br = before_map.get(name)
+        ar = after_map.get(name)
+
+        if br and ar:
+            bs, as_ = br["status"], ar["status"]
+            if bs == as_:
+                unchanged += 1
+                change_badge = f'<span style="color:var(--muted)">—</span>'
+                row_cls = ""
+            elif bs == "pass" and as_ != "pass":
+                regressions += 1
+                change_badge = _badge("fail", "⬇ Regressed")
+                row_cls = ' style="background:#fff8f8"'
+            else:
+                fixed += 1
+                change_badge = _badge("pass", "⬆ Fixed")
+                row_cls = ' style="background:#f8fff8"'
+        elif br and not ar:
+            removed += 1
+            bs, as_ = br["status"], None
+            change_badge = _badge("removed", "✖ Removed")
+            row_cls = ' style="opacity:.6"'
+        else:
+            added += 1
+            bs, as_ = None, ar["status"]
+            change_badge = _badge("added", "✚ Added")
+            row_cls = ""
+
+        b_cell = _badge(bs) if bs else '<span style="color:var(--faint)">—</span>'
+        a_cell = _badge(as_) if as_ else '<span style="color:var(--faint)">—</span>'
+        rows_html.append(
+            f'<tr{row_cls}>'
+            f'<td>{_e(name)}</td>'
+            f'<td style="text-align:center">{b_cell}</td>'
+            f'<td style="text-align:center">{a_cell}</td>'
+            f'<td style="text-align:center">{change_badge}</td>'
+            f'</tr>'
+        )
+
+    cards = _summary_cards([
+        ("fail",      "Regressions", regressions),
+        ("pass",      "Fixed",       fixed),
+        ("info",      "Added",       added),
+        ("unchanged", "Removed",     removed),
+        ("total",     "Unchanged",   unchanged),
+    ])
+
+    regression_banner = (
+        f'<div style="background:var(--fail-bg);color:var(--fail);font-weight:600;'
+        f'padding:10px 16px;border-radius:var(--r);margin-bottom:1rem">'
+        f'⚠ {regressions} regression(s) detected — checks that were passing are now failing'
+        f'</div>'
+    ) if regressions else ""
+
+    table_html = f"""
+<table class="diff-table" style="width:100%">
+  <thead>
+    <tr>
+      <th style="text-align:left">Check name</th>
+      <th>Before</th>
+      <th>After</th>
+      <th>Change</th>
+    </tr>
+  </thead>
+  <tbody>{"".join(rows_html)}</tbody>
+</table>"""
+
+    body = f"""
+<div class="page-header">
+  <div class="header-left">
+    <h1>Health Diff</h1>
+    <div class="sub">
+      {_e(bm.get("hostname", "?"))} &nbsp;·&nbsp;
+      {_e(bm.get("collection_time", "?"))} → {_e(am.get("collection_time", "?"))}
+    </div>
+  </div>
+  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
+</div>
+<div class="container">
+  <div class="sec-title">Summary</div>
+  {cards}
+  {regression_banner}
+  <div class="sec-title">Check-by-check Diff</div>
+  <div style="font-size:.8rem;color:var(--muted);margin-bottom:.75rem">
+    Before: <code>{_e(before_path)}</code> &nbsp;·&nbsp;
+    After: <code>{_e(after_path)}</code>
+  </div>
+  {table_html}
+</div>"""
+
+    return _page(f"Health Diff — {bm.get('hostname', '?')}", body)

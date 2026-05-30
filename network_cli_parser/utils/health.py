@@ -1,7 +1,126 @@
 """Health check evaluation against a JSON snapshot."""
 
 import re
+import sys
 from typing import Any
+
+# ---------------------------------------------------------------------------
+# Check validation
+# ---------------------------------------------------------------------------
+
+_VALID_CONDITIONS = {
+    "eq", "ne", "gt", "gte", "lt", "lte",
+    "contains", "not_contains", "matches",
+    "one_of", "not_one_of",
+    "duration_gt", "duration_gte", "duration_lt", "duration_lte",
+}
+_VALID_SEVERITIES = {"critical", "warn", "info"}
+_VALID_MATCH      = {"all", "any"}
+
+
+def validate_checks(checks: list, source: str = "") -> list[str]:
+    """
+    Validate a list of health check dicts.
+
+    Prints [ERROR] lines to stderr and raises ValueError for fatal structural
+    problems (missing required fields, unknown values).  Returns a list of
+    non-fatal [WARN] strings (duplicate names, unrecognised condition names)
+    that the caller may print.
+
+    Args:
+        checks: list of check dicts (output of _load_checks)
+        source: label for error messages — e.g. the file path
+
+    Returns:
+        list of warning strings (empty when all checks are clean)
+
+    Raises:
+        ValueError: if any fatal validation errors are found
+    """
+    label  = f" in {source!r}" if source else ""
+    seen: dict[str, int] = {}
+    warnings: list[str] = []
+    errors:   list[str] = []
+
+    for i, check in enumerate(checks):
+        pos = f"check[{i}]{label}"
+
+        if not isinstance(check, dict):
+            errors.append(f"{pos}: expected a dict, got {type(check).__name__}")
+            continue
+
+        name = check.get("name", "")
+        if not name:
+            errors.append(f"{pos}: missing required field 'name'")
+        else:
+            pos = f"'{name}'{label}"
+            if name in seen:
+                warnings.append(f"[WARN] duplicate check name {name!r} "
+                                 f"(check[{i}] shadows check[{seen[name]}]){label}")
+            seen[name] = i
+
+        if not check.get("command"):
+            errors.append(f"{pos}: missing required field 'command'")
+
+        if not check.get("path"):
+            errors.append(f"{pos}: missing required field 'path'")
+
+        has_cond       = "condition" in check
+        has_conditions = "conditions" in check
+        has_branches   = "branches"  in check
+        is_print_only  = (
+            not has_cond and not has_conditions and not has_branches
+            and "value" not in check
+        )
+
+        if not is_print_only:
+            if not has_cond and not has_conditions and not has_branches:
+                errors.append(f"{pos}: must have 'condition', 'conditions', or 'branches'")
+
+            if has_cond:
+                cond = check.get("condition")
+                if cond not in _VALID_CONDITIONS:
+                    warnings.append(
+                        f"[WARN] {pos}: unknown condition {cond!r} "
+                        f"(known: {', '.join(sorted(_VALID_CONDITIONS))})"
+                    )
+                if "value" not in check and cond not in ("one_of", "not_one_of"):
+                    errors.append(f"{pos}: condition {cond!r} requires a 'value' field")
+
+            if has_conditions:
+                for j, spec in enumerate(check.get("conditions", [])):
+                    if not isinstance(spec, dict):
+                        errors.append(f"{pos}: conditions[{j}]: expected a dict")
+                        continue
+                    c = spec.get("condition")
+                    if c not in _VALID_CONDITIONS:
+                        warnings.append(
+                            f"[WARN] {pos}: conditions[{j}]: unknown condition {c!r}"
+                        )
+                    if "value" not in spec:
+                        errors.append(f"{pos}: conditions[{j}]: missing 'value'")
+
+        sev = check.get("severity")
+        if sev and sev not in _VALID_SEVERITIES:
+            warnings.append(
+                f"[WARN] {pos}: unknown severity {sev!r} "
+                f"(valid: {', '.join(sorted(_VALID_SEVERITIES))})"
+            )
+
+        match = check.get("match")
+        if match and match not in _VALID_MATCH:
+            warnings.append(
+                f"[WARN] {pos}: unknown match value {match!r} (valid: all, any)"
+            )
+
+    if errors:
+        for e in errors:
+            print(f"[ERROR] {e}", file=sys.stderr)
+        raise ValueError(
+            f"{len(errors)} validation error(s){label} — fix and retry"
+        )
+
+    return warnings
 
 
 def evaluate_checks(snapshot: dict, checks: list[dict]) -> dict:
