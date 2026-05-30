@@ -47,10 +47,11 @@ python network_cli_parser/report.py health \
 ```
 checklist-project/
 ├── fetch_logs.py                    # Standalone SFTP fetcher (paramiko)
+├── playbook.py                      # Job runner — executes CSV-defined step sequences
 │
 └── network_cli_parser/
     ├── main.py                      # Parser entry point
-    ├── report.py                    # delta / health / baseline / collect
+    ├── report.py                    # health / delta / coverage / diff / baseline / collect
     ├── commands.yaml                # Command → parser strategy registry
     ├── requirements.txt
     │
@@ -59,14 +60,18 @@ checklist-project/
     │   ├── custom/                  # TextFSM templates (.textfsm)
     │   └── ttp/                     # TTP templates (.ttp)
     ├── utils/
-    │   ├── health.py                # Check evaluator
+    │   ├── health.py                # Check evaluator + YAML schema validation
     │   ├── delta.py                 # Field-level diff
     │   ├── html_report.py           # Self-contained HTML renderer
     │   ├── normalization.py
     │   └── json_builder.py
     ├── checks/
     │   ├── example_health_checks.yaml
-    │   └── devices/                 # Per-device check overrides
+    │   └── devices/                 # Per-device check overrides ({hostname}.yaml)
+    ├── playbooks/
+    │   ├── reference.csv            # Full cheat-sheet — every step type + flag variant
+    │   ├── example.csv              # 7-step end-to-end workflow
+    │   └── daily_health.csv         # Minimal 3-step offline workflow
     └── data/
         ├── raw/<date>/              # Input .txt CLI dumps (date from filename)
         └── json/<date>/             # Output JSON snapshots (dated subdirectory)

@@ -47,41 +47,51 @@ JSON output is written to `data/json/<date>/` by default (a dated subdirectory i
 ## 3. Directory Structure
 
 ```
-network_cli_parser/
-├── main.py                     # Parser entry point — orchestrates per-file processing
-├── report.py                   # Report generator (delta + health subcommands)
-├── commands.yaml               # Command registry (platform → command → strategy)
-├── requirements.txt
+checklist-project/                    # Repository root
+├── fetch_logs.py                     # Standalone SFTP log fetcher (paramiko only)
+├── playbook.py                       # Playbook runner — executes CSV-defined job sequences
 │
-├── parsers/
-│   ├── command_mapper.py       # Loads commands.yaml; returns strategy per command
-│   ├── splitter.py             # Splits CLI dump into {cmd: raw_output} dict
-│   ├── ntc_engine.py           # Wrapper around ntc-templates library
-│   ├── custom_engine.py        # TextFSM engine; auto-discovery support
-│   ├── ttp_engine.py           # TTP engine; auto-discovery support
-│   └── multicast_parser.py     # Hierarchical Python parsers for mroute commands
-│
-├── templates/
-│   ├── custom/                 # TextFSM templates (.textfsm)
-│   │   └── routing/            # Subdirectory by category (arbitrary, rglob scans all)
-│   └── ttp/                    # TTP templates (.ttp)
-│       └── routing/
-│
-├── utils/
-│   ├── normalization.py        # Platform detection, hostname extraction, cmd normalization
-│   ├── json_builder.py         # Assembles and writes the JSON snapshot
-│   ├── delta.py                # Field-level diff engine between two snapshots
-│   ├── health.py               # YAML-driven check evaluator against a snapshot
-│   └── html_report.py          # Self-contained HTML renderer for both report types
-│
-├── checks/
-│   └── example_health_checks.yaml   # Starter health check definitions
-│
-└── data/
-    ├── raw/
-    │   └── <date>/             # Input CLI dump .txt files (dated subdirectory)
-    └── json/
-        └── <date>/             # Output JSON snapshots (dated subdirectory)
+└── network_cli_parser/
+    ├── main.py                       # Parser entry point — orchestrates per-file processing
+    ├── report.py                     # Report generator (health / delta / coverage / diff…)
+    ├── commands.yaml                 # Command registry (platform → command → strategy)
+    ├── requirements.txt
+    │
+    ├── parsers/
+    │   ├── command_mapper.py         # Loads commands.yaml; returns strategy per command
+    │   ├── splitter.py               # Splits CLI dump into {cmd: raw_output} dict
+    │   ├── ntc_engine.py             # Wrapper around ntc-templates library
+    │   ├── custom_engine.py          # TextFSM engine; auto-discovery support
+    │   ├── ttp_engine.py             # TTP engine; auto-discovery support
+    │   └── multicast_parser.py       # Hierarchical Python parsers for mroute commands
+    │
+    ├── templates/
+    │   ├── custom/                   # TextFSM templates (.textfsm)
+    │   │   └── routing/              # Subdirectory by category (rglob scans all)
+    │   └── ttp/                      # TTP templates (.ttp)
+    │       └── routing/
+    │
+    ├── utils/
+    │   ├── normalization.py          # Platform detection, hostname extraction, cmd normalization
+    │   ├── json_builder.py           # Assembles and writes the JSON snapshot
+    │   ├── delta.py                  # Field-level diff engine between two snapshots
+    │   ├── health.py                 # YAML-driven check evaluator + validate_checks()
+    │   └── html_report.py            # Self-contained HTML renderer (health / delta / diff)
+    │
+    ├── checks/
+    │   ├── example_health_checks.yaml  # Starter health check definitions
+    │   └── devices/                  # Per-device check override files ({hostname}.yaml)
+    │
+    ├── playbooks/
+    │   ├── reference.csv             # Full reference — every step type with all flag variants
+    │   ├── example.csv               # 7-step end-to-end: fetch → parse → health → diff → delta
+    │   └── daily_health.csv          # Minimal offline 3-step: collect → health-all → coverage
+    │
+    └── data/
+        ├── raw/
+        │   └── <date>/               # Input CLI dump .txt files (dated subdirectory)
+        └── json/
+            └── <date>/               # Output JSON snapshots (dated subdirectory)
 ```
 
 ---
@@ -1572,5 +1582,6 @@ Steps with `enabled=no` and steps filtered out by `--step` / `--from-step` / `--
 
 | File | Purpose |
 |---|---|
-| `network_cli_parser/playbooks/example.csv` | Full 7-step reference: fetch (SFTP) → parse → health-all → coverage → health-diff → delta-all |
+| `network_cli_parser/playbooks/reference.csv` | 30-row cheat-sheet — every step type with every meaningful flag variant (all `enabled=no`; copy rows to build your own) |
+| `network_cli_parser/playbooks/example.csv` | 7-step end-to-end: SFTP fetch → parse → health-all → coverage → health-diff → delta-all |
 | `network_cli_parser/playbooks/daily_health.csv` | Minimal 3-step offline workflow: collect → health-all → coverage |
