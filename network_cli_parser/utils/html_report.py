@@ -27,6 +27,7 @@ def _raw_block(cmd: str, status: str, raw_text: str, extra_html: str = "") -> st
     <span class="arrow-icon">▶</span>
     <span class="summary-cmd">{_e(cmd)}</span>
     {_badge(status)}
+    <button class="copy-btn" onclick="event.stopPropagation();copyText(this,this.closest('details').querySelector('pre').textContent)">Copy</button>
   </summary>
   <pre class="raw-output">{_e(raw_text.strip())}</pre>
   {extra_html}
@@ -270,6 +271,26 @@ details.device-accordion>summary{padding:.7rem 1.1rem;cursor:pointer;font-size:.
 details.device-accordion>summary::-webkit-details-marker{display:none}
 details.device-accordion[open]>summary{border-bottom:1px solid var(--border);border-radius:var(--r) var(--r) 0 0}
 .device-inner{padding:1rem 1.2rem}
+
+/* ---- copy button ---- */
+.copy-btn{margin-left:auto;padding:2px 10px;font-size:.72rem;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface);cursor:pointer;color:var(--muted);font-family:inherit;transition:background .12s,color .12s,border-color .12s;flex-shrink:0}
+.copy-btn:hover{background:var(--border);color:var(--text)}
+.copy-btn.copied{border-color:var(--pass);color:var(--pass);background:var(--pass-bg)}
+
+/* ---- json tree browser ---- */
+.jt-tree{background:var(--code-bg);padding:12px 16px;overflow-x:auto;border-top:1px solid #1e3a5f;font-family:'SFMono-Regular',Consolas,monospace;font-size:.77rem;line-height:1.65}
+.jt-leaf{cursor:pointer;padding:1px 3px;border-radius:3px;color:var(--code-fg)}
+.jt-leaf:hover{background:rgba(255,255,255,.07)}
+details.jt-group{margin:0}
+.jt-sum{cursor:pointer;list-style:none;padding:1px 3px;border-radius:3px;color:var(--code-fg)}
+.jt-sum::-webkit-details-marker{display:none}
+.jt-sum:hover{background:rgba(255,255,255,.07)}
+.jt-ch{padding-left:18px;border-left:1px solid #2d4a6e}
+.jt-key{color:#7dd3fc}.jt-idx{color:#94a3b8}
+.jt-str{color:#86efac}.jt-num{color:#fbbf24}.jt-bool{color:#f472b6}.jt-null{color:#94a3b8;font-style:italic}
+.jt-preview{color:#64748b;font-size:.73rem}
+.jt-path-toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0f172a;color:#e2e8f0;padding:7px 16px;border-radius:8px;font-size:.78rem;font-family:'SFMono-Regular',Consolas,monospace;pointer-events:none;opacity:0;transition:opacity .2s;z-index:9999;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.jt-path-toast.show{opacity:1}
 """
 
 _JS = """
@@ -279,6 +300,68 @@ function setAllRaw(open) {
 function setAllJson(open) {
   document.querySelectorAll('details.json-block').forEach(d => { d.open = open; });
 }
+function copyText(btn, text) {
+  navigator.clipboard.writeText(text).then(function() {
+    var t = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() { btn.textContent = t; btn.classList.remove('copied'); }, 1500);
+  }).catch(function() {});
+}
+function _jtE(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _jtVal(v){
+  if(v===null) return '<span class="jt-null">null</span>';
+  if(typeof v==='boolean') return '<span class="jt-bool">'+v+'</span>';
+  if(typeof v==='number') return '<span class="jt-num">'+v+'</span>';
+  if(typeof v==='string') return '<span class="jt-str">"'+_jtE(v)+'"</span>';
+  return '';
+}
+function _jtNode(key, val, path){
+  var isIdx = typeof key==='number';
+  var keyHtml = isIdx ? '<span class="jt-idx">['+key+']</span>' : '<span class="jt-key">"'+_jtE(String(key))+'"</span>';
+  var pa = 'data-path="'+_jtE(path)+'"';
+  if(val!==null && typeof val==='object'){
+    var arr=Array.isArray(val);
+    var entries=arr?val.map(function(v,i){return [i,v];}):Object.entries(val);
+    var cnt=entries.length;
+    var prev=arr?'['+cnt+']':'{'+cnt+'}';
+    if(cnt===0) return '<div class="jt-leaf" '+pa+' onclick="jtPath(event,this)">'+keyHtml+': <span class="jt-preview">'+prev+'</span></div>';
+    var inner=entries.map(function(e){return _jtNode(e[0],e[1],arr?path+'['+e[0]+']':path+'.'+e[0]);}).join('');
+    return '<details class="jt-group"><summary class="jt-sum" '+pa+' onclick="jtPath(event,this)">'+keyHtml+': <span class="jt-preview">'+prev+'</summary><div class="jt-ch">'+inner+'</div></details>';
+  }
+  return '<div class="jt-leaf" '+pa+' onclick="jtPath(event,this)">'+keyHtml+': '+_jtVal(val)+'</div>';
+}
+function _jtRender(data, base){
+  if(Array.isArray(data)) return data.map(function(v,i){return _jtNode(i,v,base+'['+i+']');}).join('');
+  if(data!==null && typeof data==='object') return Object.entries(data).map(function(e){return _jtNode(e[0],e[1],base?base+'.'+e[0]:e[0]);}).join('');
+  return '<span class="jt-leaf">'+_jtVal(data)+'</span>';
+}
+function jtPath(e,el){
+  e.stopPropagation();
+  var path=el.dataset.path||'';
+  navigator.clipboard.writeText(path).then(function(){
+    var t=document.getElementById('jt-toast');
+    if(!t){t=document.createElement('div');t.id='jt-toast';t.className='jt-path-toast';document.body.appendChild(t);}
+    t.textContent=path||'(root)';
+    t.classList.add('show');
+    clearTimeout(t._tid);
+    t._tid=setTimeout(function(){t.classList.remove('show');},2200);
+  }).catch(function(){});
+}
+function jtInit(det){
+  var src=det.querySelector('.jt-src');
+  var tree=det.querySelector('.jt-tree');
+  if(!src||!tree||tree.dataset.loaded) return;
+  try{
+    var data=JSON.parse(src.textContent);
+    tree.innerHTML=_jtRender(data,'');
+    tree.dataset.loaded='1';
+  }catch(ex){tree.textContent='JSON parse error: '+ex.message;}
+}
+document.addEventListener('toggle',function(e){
+  var d=e.target;
+  if(d.open&&d.classList&&d.classList.contains('json-block')) jtInit(d);
+},true);
 """
 
 
@@ -689,14 +772,17 @@ def _json_outputs_section(commands: dict) -> str:
         parsed = data.get("parsed")
         if not parsed:
             continue
+        json_str = json.dumps(parsed, indent=2, default=str)
         blocks.append(f"""
 <details class="json-block">
   <summary>
     <span class="arrow-icon">▶</span>
     <span class="summary-cmd">{_e(cmd)}</span>
     {_badge("parsed")}
+    <button class="copy-btn" onclick="event.stopPropagation();copyText(this,this.closest('details').querySelector('.jt-src').textContent)">Copy JSON</button>
   </summary>
-  <pre class="json-output">{_e(json.dumps(parsed, indent=2))}</pre>
+  <div class="jt-src" style="display:none">{_e(json_str)}</div>
+  <div class="jt-tree"></div>
 </details>""")
     if not blocks:
         return ""
