@@ -1,7 +1,7 @@
 import pytest
 from utils.health import (
     _parse_duration, _apply_condition, _resolve_path,
-    evaluate_checks, merge_checks,
+    evaluate_checks, merge_checks, _format_print,
 )
 
 
@@ -575,3 +575,70 @@ class TestPrintField:
                    "path": "[*].version", "condition": "eq", "value": "17.3.1"}]
         r = evaluate_checks(snap, checks)
         assert "printed" not in r["results"][0]
+
+
+class TestPrintTemplate:
+    """Tests for {{[*]}} wildcard key capture and double-brace template syntax."""
+
+    def _run(self, data, path, template):
+        """Resolve path against data and format each result with the template."""
+        results = _resolve_path(data, path)
+        return [_format_print(template, rp, val) for rp, val in results]
+
+    def test_single_wildcard_key(self):
+        data = {"GETVPN-P2P": {"10.2.240.1": {"state": "REDUNDANT"}}}
+        lines = self._run(data, "GETVPN-P2P[*].state", "Peer {{[*]}} has state {{value}}")
+        assert lines == ["Peer 10.2.240.1 has state REDUNDANT"]
+
+    def test_double_wildcard_indexed(self):
+        data = {"vrfs": {"default": {"neighbors": {"10.0.0.1": {"prefix_count": 42}}}}}
+        lines = self._run(
+            data,
+            "vrfs[*].neighbors[*].prefix_count",
+            "VRF {{[*][0]}} neighbor {{[*][1]}} has {{value}} prefixes",
+        )
+        assert lines == ["VRF default neighbor 10.0.0.1 has 42 prefixes"]
+
+    def test_double_brace_value_same_as_single(self):
+        data = [{"version": "17.3.1"}]
+        lines_double = self._run(data, "[0].version", "Version: {{value}}")
+        lines_single = self._run(data, "[0].version", "Version: {value}")
+        assert lines_double == lines_single == ["Version: 17.3.1"]
+
+    def test_backward_compat_single_brace(self):
+        data = [{"hostname": "N9K-1"}]
+        lines = self._run(data, "[0].hostname", "Host is {value}")
+        assert lines == ["Host is N9K-1"]
+
+    def test_no_wildcard_key_empty_string(self):
+        # Path with no bracket segments — {{[*]}} substitutes empty string
+        data = {"version": "17.3"}
+        lines = self._run(data, "version", "Node {{[*]}} ver {{value}}")
+        assert lines == ["Node  ver 17.3"]
+
+    def test_list_index_in_bracket(self):
+        # [*] over a list → bracket key is the numeric index
+        data = [{"version": "17.3"}]
+        lines = self._run(data, "[*].version", "Item {{[*]}} ver {{value}}")
+        assert lines == ["Item 0 ver 17.3"]
+
+    def test_out_of_range_index_empty_string(self):
+        # {{[*][5]}} when only one bracket key exists → empty string, no crash
+        data = {"peers": {"10.0.0.1": {"uptime": "5d"}}}
+        lines = self._run(data, "peers[*].uptime", "{{[*][5]}}")
+        assert lines == [""]
+
+    def test_print_true_fallback(self):
+        data = [{"state": "up"}]
+        lines = self._run(data, "[0].state", True)
+        assert lines == ["[0].state -> 'up'"]
+
+    def test_via_evaluate_checks_single_wildcard(self):
+        snap = _snap("show_crypto", {"10.2.240.1": {"state": "REDUNDANT"}})
+        checks = [{"name": "c", "command": "show_crypto",
+                   "path": "[*].state",
+                   "condition": "eq", "value": "REDUNDANT",
+                   "print": "Peer {{[*]}} → {{value}}"}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "pass"
+        assert r["results"][0]["printed"] == ["Peer 10.2.240.1 → REDUNDANT"]
