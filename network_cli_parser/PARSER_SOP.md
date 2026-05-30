@@ -495,20 +495,40 @@ When `[*]` expands multiple values, `contains`/`not_contains` and `matches` chec
 
 #### Mixed-dict expansion
 
-When `[*]` is used on a dict that contains **both** flat `key: value` scalars **and** nested dicts, the flat scalar values are automatically skipped — only the nested dicts/lists are expanded.
+When `[*]` is used on a dict that has both flat key:value pairs AND nested dicts, the flat scalar values are automatically skipped — only nested dicts/lists are expanded. This means you never need to filter out scalar siblings manually; the path resolver only descends into items that can actually yield the next path token.
 
-**Example — GETVPN-P2P structure:**
+**Example — GETVPN-P2P parsed output:**
 
 ```json
-"GETVPN-P2P": {
-  "group_id": "10",
-  "total_group_number": "2",
-  "10.2.240.1": {"state": "REDUNDANT", "per_key_mem_count": "1"},
-  "10.2.240.2": {"state": "REDUNDANT", "per_key_mem_count": "1"}
+{
+  "group_id": "12345",
+  "total_group_number": "3",
+  "10.1.1.1": {
+    "state": "Active",
+    "uptime": "2d03h"
+  },
+  "10.1.1.2": {
+    "state": "Active",
+    "uptime": "5d11h"
+  },
+  "10.1.1.3": {
+    "state": "Passive",
+    "uptime": "1d00h"
+  }
 }
 ```
 
-Path `GETVPN-P2P[*].state` resolves to the two IP-keyed peer dicts and then accesses `.state` — the flat `group_id` and `total_group_number` strings are silently skipped because they are scalars, not dicts, and more path tokens (`.state`) remain to be resolved.
+This dict has `group_id` and `total_group_number` as flat string values alongside IP-keyed nested dicts. Using `[*].state` expands only the three IP-keyed nested dicts — `group_id` and `total_group_number` are automatically skipped because they are scalar strings, not dicts that carry a `.state` field.
+
+```yaml
+- name: "All GETVPN peers active"
+  command: show_crypto_gkm_ks_coop_detail
+  path: "[*].state"
+  condition: eq
+  value: "Active"
+```
+
+This check expands to `10.1.1.1.state`, `10.1.1.2.state`, and `10.1.1.3.state` — the flat `group_id` and `total_group_number` strings are silently bypassed.
 
 ### 12.2 Conditions
 
