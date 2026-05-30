@@ -697,7 +697,7 @@ Example: `checks/devices/N9K-CAMA-WAN-1.yaml` is automatically loaded when proce
 
 ### 12.7 Print Templates
 
-The optional `print` field renders a human-readable line per resolved value. It appears in both terminal output and HTML reports alongside the pass/fail result, and works with all check types (single condition, `conditions` list, `branches`, and `one_of`).
+The optional `print` field on any check renders a human-readable line per resolved value. It appears in both terminal output and HTML reports alongside the pass/fail result.
 
 #### Basic usage
 
@@ -705,20 +705,17 @@ The optional `print` field renders a human-readable line per resolved value. It 
 # print: true — auto-format as "path -> value"
 - name: "BGP uptime"
   command: show_ip_bgp_summary_vrf_all
-  path: "vrfs[*].neighbors[*].updown"
+  path: "[*].updown"
   condition: duration_gte
   value: "2d"
   print: true
-  # output: vrfs[default].neighbors[10.0.0.1].updown -> '42w0d'
+  # output: [0].updown -> '42w0d'
 
 # print: "template" — compose a sentence
 - name: "BGP uptime"
-  command: show_ip_bgp_summary_vrf_all
-  path: "vrfs[*].neighbors[*].updown"
-  condition: duration_gte
-  value: "2d"
+  ...
   print: "Peer {path} has been up for {value}"
-  # output: Peer vrfs[default].neighbors[10.0.0.1].updown has been up for 42w0d
+  # output: Peer [0].updown has been up for 42w0d
 ```
 
 #### All template variables
@@ -729,124 +726,182 @@ The optional `print` field renders a human-readable line per resolved value. It 
 | `{path}` | Full resolved path string | Original single-brace syntax |
 | `{{value}}` | Same as `{value}` | Double-brace synonym |
 | `{{path}}` | Same as `{path}` | Double-brace synonym |
-| `{{[*]}}` | First wildcard key in the resolved path | See indexing rules below |
-| `{{[*][0]}}` | First wildcard key (same as `{{[*]}}`) | Explicit index form |
-| `{{[*][1]}}` | Second wildcard key | Each `[*]` hop adds one bracket |
-| `{{[*][N]}}` | Nth wildcard key (0-based) | Out-of-range → empty string |
-| `{{.field}}` | Value of a sibling field in the same dict | See sibling lookup below |
+| `{{[*]}}` | First wildcard key in the resolved path | Shorthand for `{{[*][0]}}` |
+| `{{[*][N]}}` | Nth wildcard key (0-indexed) | N counts `[*]` hops only |
+| `{{.field}}` | Value of a sibling field in the same dict row | Fetched from the same parent dict |
 
-#### Wildcard key indexing — `{{[*][N]}}`
+#### How `{{[*][N]}}` indexing works
 
-Only `[*]` wildcard expansions add a `[key]` bracket to the resolved path string. Named key steps (`.field`) are invisible to `{{[*][N]}}`. So N counts only the wildcard hops, not the total path depth.
+Only `[*]` wildcard expansions add a bracket to the resolved path. Named key accesses (`.field`) never add a bracket — they are invisible to the index counter.
 
-**Example — three-level structure:**
+**Path:** `[*][*].address_family[*].pfxrcd`
 
+As `_resolve()` walks the data, it builds the path string step by step:
+
+```
+""
+→ [default]                                        ← [*] on VRF dict       → bracket added
+→ [default][11.11.226.26]                          ← [*] on neighbor dict   → bracket added
+→ [default][11.11.226.26].address_family           ← .address_family        → dot, NO bracket
+→ [default][11.11.226.26].address_family[ipv4]     ← [*] on AF dict        → bracket added
+→ [default][11.11.226.26].address_family[ipv4].pfxrcd  ← .pfxrcd           → dot, NO bracket
+```
+
+Brackets extracted by `re.findall(r'\[([^\]]+)\]', path)`:
+
+```
+[default][11.11.226.26].address_family[ipv4].pfxrcd
+    ↑           ↑                       ↑
+index 0      index 1                index 2
+```
+
+Result: `['default', '11.11.226.26', 'ipv4']`
+
+`.address_family` and `.pfxrcd` contribute zero to the index because they were named explicitly in the path — `_resolve()` uses dot notation for them, not brackets.
+
+**Mental model:** Count `[*]` tokens left-to-right in your path string. Each `[*]` = one index slot. Each `.field` = nothing.
+
+```
+  [*]         [*]    .address_family    [*]    .pfxrcd
+   ↑           ↑                        ↑
+index 0     index 1                  index 2
+```
+
+#### Full nested JSON example
+
+**Data:**
 ```json
 {
-  "vrfs": {
-    "default": {
-      "neighbors": {
-        "10.0.0.1": {
-          "address_family": {
-            "IPv4 Unicast": {
-              "pfxrcd": 1500
-            }
-          }
-        }
+  "default": {
+    "11.11.226.26": {
+      "address_family": {
+        "ipv4": {"updown": "42w0d", "pfxrcd": "419918"},
+        "ipv6": {"updown": "42w0d", "pfxrcd": "1500"}
+      }
+    },
+    "20.20.20.85": {
+      "address_family": {
+        "ipv4": {"updown": "2d15h", "pfxrcd": "418890"}
+      }
+    }
+  },
+  "MGMT": {
+    "10.10.10.1": {
+      "address_family": {
+        "ipv4": {"updown": "5d12h", "pfxrcd": "1234"}
       }
     }
   }
 }
 ```
 
-Path: `vrfs[*].neighbors[*].address_family[*].pfxrcd`
+**Path:** `[*][*].address_family[*].pfxrcd`
 
-Resolved path for one value: `vrfs[default].neighbors[10.0.0.1].address_family[IPv4 Unicast].pfxrcd`
+**All resolved rows and what each index captures:**
 
-Bracket segments extracted: `["default", "10.0.0.1", "IPv4 Unicast"]`
+| Resolved path | `{{[*][0]}}` | `{{[*][1]}}` | `{{[*][2]}}` | `{{value}}` |
+|---|---|---|---|---|
+| `[default][11.11.226.26].address_family[ipv4].pfxrcd` | `default` | `11.11.226.26` | `ipv4` | `419918` |
+| `[default][11.11.226.26].address_family[ipv6].pfxrcd` | `default` | `11.11.226.26` | `ipv6` | `1500` |
+| `[default][20.20.20.85].address_family[ipv4].pfxrcd` | `default` | `20.20.20.85` | `ipv4` | `418890` |
+| `[MGMT][10.10.10.1].address_family[ipv4].pfxrcd` | `MGMT` | `10.10.10.1` | `ipv4` | `1234` |
 
-| Placeholder | Expands to |
-|---|---|
-| `{{[*]}}` or `{{[*][0]}}` | `default` (first wildcard hop = VRF name) |
-| `{{[*][1]}}` | `10.0.0.1` (second wildcard hop = neighbor IP) |
-| `{{[*][2]}}` | `IPv4 Unicast` (third wildcard hop = address family) |
-| `{{value}}` | `1500` |
-
-**Why `address_family` doesn't add a bracket:** the step `.address_family` is a named key access, not a `[*]` expansion. The `[*]` after it expands the address-family dict, which is what adds the `[IPv4 Unicast]` bracket.
-
+**Check YAML:**
 ```yaml
 - name: "BGP prefix counts"
   command: show_ip_bgp_summary_vrf_all
-  path: "vrfs[*].neighbors[*].address_family[*].pfxrcd"
+  path: "[*][*].address_family[*].pfxrcd"
   condition: gte
-  value: 1
-  print: "VRF {{[*][0]}} / neighbor {{[*][1]}} / AF {{[*][2]}} has {{value}} prefixes"
-  # output: VRF default / neighbor 10.0.0.1 / AF IPv4 Unicast has 1500 prefixes
+  value: "1"
+  print: "VRF={{[*][0]}} Neighbor={{[*][1]}} AF={{[*][2]}} uptime={{.updown}} prefixes={{value}}"
 ```
 
-#### Sibling field lookup — `{{.field}}`
-
-`{{.field}}` retrieves another field from the **same dict** that owns the value being checked. This is useful when you match one field (e.g. `pfxrcd`) but want to display a related field (e.g. the neighbor IP or uptime) in the print line.
-
-**How it works:** the engine strips the last path segment (`.pfxrcd`) from the resolved path to find the parent dict, then reads `.field` from that dict.
-
-**Example — show BGP neighbor IP alongside prefix count:**
-
-```json
-[
-  {
-    "bgp_neig": "10.0.0.1",
-    "pfxrcd":   1500,
-    "updown":   "42w0d"
-  },
-  {
-    "bgp_neig": "10.0.0.2",
-    "pfxrcd":   200,
-    "updown":   "1d03h"
-  }
-]
+**Output:**
+```
+VRF=default Neighbor=11.11.226.26 AF=ipv4 uptime=42w0d prefixes=419918
+VRF=default Neighbor=11.11.226.26 AF=ipv6 uptime=42w0d prefixes=1500
+VRF=default Neighbor=20.20.20.85  AF=ipv4 uptime=2d15h prefixes=418890
+VRF=MGMT    Neighbor=10.10.10.1   AF=ipv4 uptime=5d12h prefixes=1234
 ```
 
-```yaml
-- name: "BGP prefix counts"
-  command: show_ip_bgp_summary
-  path: "[*].pfxrcd"
-  condition: gte
-  value: 1
-  print: "Neighbor {{.bgp_neig}} has {{value}} prefixes (up {{.updown}})"
-  # output: Neighbor 10.0.0.1 has 1500 prefixes (up 42w0d)
-  # output: Neighbor 10.0.0.2 has 200 prefixes (up 1d03h)
-```
+Note: `{{.updown}}` works here because `updown` is a sibling field inside the same dict as `pfxrcd` — see Sibling Field Lookup below.
 
-Sibling lookup works at any depth. If the sibling field does not exist in the parent dict, `{{.field}}` expands to an empty string (no error).
+#### When neighbour IP is the dict key
 
-#### NTC vs TTP for `vrf all` commands
-
-NTC Templates for `show ip bgp summary vrf all` return a **flat list** of all neighbors across all VRFs. Each row has a `vrf` field to identify which VRF it belongs to:
-
-```json
-[
-  {"vrf": "default", "bgp_neig": "10.0.0.1", "pfxrcd": "1500", "updown": "42w0d"},
-  {"vrf": "MGMT",    "bgp_neig": "10.0.1.1", "pfxrcd": "5",    "updown": "1d"}
-]
-```
-
-Path with NTC: `[*].pfxrcd` — use `{{.vrf}}` and `{{.bgp_neig}}` for sibling fields.
-
-TTP templates for the same command produce a **nested structure** with VRFs as dict keys:
+If the parser produces a dict-of-dicts where the neighbour IP IS the key (not a field inside the dict), use `{{[*]}}` to capture it:
 
 ```json
 {
-  "vrfs": {
-    "default": {"neighbors": {"10.0.0.1": {"pfxrcd": 1500, "updown": "42w0d"}}},
-    "MGMT":    {"neighbors": {"10.0.1.1": {"pfxrcd": 5,    "updown": "1d"}}}
-  }
+  "11.11.226.26": {"updown": "42w0d", "pfxrcd": "419918"},
+  "20.20.20.85":  {"updown": "2d15h", "pfxrcd": "418890"}
 }
 ```
 
-Path with TTP: `vrfs[*].neighbors[*].pfxrcd` — use `{{[*][0]}}` for VRF name, `{{[*][1]}}` for neighbor IP.
+```yaml
+path:  "[*].pfxrcd"
+print: "Neighbor {{[*]}} uptime={{.updown}} prefixes={{value}}"
+# → "Neighbor 11.11.226.26 uptime=42w0d prefixes=419918"
+```
 
-Choose NTC when you want flat rows and sibling access (`{{.field}}`). Choose TTP when you want the hierarchy reflected in the path brackets (`{{[*][N]}}`).
+Even if there are named key levels between the neighbour key and the target field, `{{[*]}}` still captures the neighbour IP because named keys don't add brackets:
+
+```json
+{"11.11.226.26": {"address_family": {"pfxrcd": "419918", "updown": "42w0d"}}}
+```
+
+```yaml
+path:  "[*].address_family.pfxrcd"
+# Resolved: [11.11.226.26].address_family.pfxrcd
+# Brackets: ['11.11.226.26']  ← .address_family is invisible
+print: "Neighbor {{[*]}} uptime={{.updown}} prefixes={{value}}"
+```
+
+#### Sibling field lookup (`{{.field}}`)
+
+`{{.field}}` fetches another field from the same dict as the resolved value. It strips the last segment from the resolved path to get the parent, then looks up `.field` from the original data.
+
+```yaml
+# Data: [{prefix: "10.0.0.0/8", bgp_neig: "10.2.240.1", state: "up"}, ...]
+path:  "[*].prefix"
+print: "neig={{.bgp_neig}} prefix={{value}}"
+# → "neig=10.2.240.1 prefix=10.0.0.0/8"
+```
+
+Combine with wildcard key capture for full context:
+
+```yaml
+path:  "[*][*].address_family[*].pfxrcd"
+print: "VRF={{[*][0]}} Neighbor={{[*][1]}} AF={{[*][2]}} uptime={{.updown}} prefixes={{value}}"
+```
+
+#### NTC vs TTP for `show ip bgp summary vrf all`
+
+NTC templates parse this command into a **flat list** — one dict per neighbor row. VRF information may be lost depending on the template version. All values are strings.
+
+```json
+[
+  {"bgp_neighbor": "11.11.226.26", "bgp_as": "1000", "bgp_updown": "42w0d", "bgp_state_pfxrcd": "419918"},
+  {"bgp_neighbor": "20.20.20.85",  "bgp_as": "300",  "bgp_updown": "2d15h", "bgp_state_pfxrcd": "418890"}
+]
+```
+
+Path: `[*].bgp_state_pfxrcd` — no VRF separation possible.
+
+TTP templates preserve the hierarchy (VRF → neighbors) and are preferred for `vrf all` commands:
+
+```json
+[{"vrfs": [
+  {"vrf": "default", "neighbors": [
+    {"neighbor": "11.11.226.26", "updown": "42w0d", "state_pfx": "419918"}
+  ]},
+  {"vrf": "MGMT", "neighbors": [
+    {"neighbor": "10.10.10.1", "updown": "5d12h", "state_pfx": "1234"}
+  ]}
+]}]
+```
+
+Path: `[0].vrfs[*].neighbors[*].state_pfx`
+Print: `"VRF={{[*][0]}} Neighbor={{.neighbor}} uptime={{.updown}} prefixes={{value}}"`
 
 ---
 
@@ -1051,140 +1106,223 @@ python report.py health-all \
 
 ## 16. SFTP Log Fetcher (`fetch_logs.py`)
 
-`fetch_logs.py` is a **standalone** script at the repository root. It has no imports from the parser codebase — it only depends on `paramiko` (SSH/SFTP) and Python stdlib. Its sole job is to pull raw CLI dump `.txt` files from an SFTP server into `data/raw/<date>/`.
+`fetch_logs.py` is a standalone script located at the **project root** (one level above `network_cli_parser/`). It downloads device CLI log files from a remote SFTP server and saves them into the dated `data/raw/<date>/` directory structure that the parser expects.
 
-### Install
+### Purpose
+
+Network devices or jump hosts often write CLI log files to a central SFTP server after each collection run. `fetch_logs.py` automates retrieval of those files without requiring any other project dependencies — it is completely independent of `requirements.txt`.
+
+### Location
+
+```
+checklist-project/          ← project root
+├── fetch_logs.py           ← this script
+└── network_cli_parser/
+    ├── main.py
+    └── ...
+```
+
+Run from the project root:
+
+```bash
+cd /path/to/checklist-project
+python fetch_logs.py --host 10.0.0.5 --username collector
+```
+
+### Dependency
+
+`fetch_logs.py` requires only `paramiko` — install it independently:
 
 ```bash
 pip install paramiko
 ```
 
+This dependency is intentionally **not** listed in `network_cli_parser/requirements.txt` because the fetcher is a standalone utility. If you use a virtual environment for the parser, activate the same one before installing:
+
+```bash
+source venv/bin/activate
+pip install paramiko
+```
+
+### Files saved to `data/raw/<date>/`
+
+The script extracts a date string from each remote filename (expected format: `{hostname}_{DD-Mon-YY}.txt`, e.g. `N9K-CAMA-WAN-1_03-May-26.txt`). It places downloaded files into `network_cli_parser/data/raw/<date>/` where `<date>` is the date extracted from the filename. If the date cannot be parsed, files fall back to a `data/raw/unknown/` subdirectory.
+
+This matches the dated directory convention used by `main.py` and `report.py collect` so that the pipeline works end-to-end without manual file moves.
+
 ### Quick start
 
 ```bash
-# Password authentication
-python fetch_logs.py --host 10.0.0.100 --user admin --remote /backups/logs --password secret
+# Download all .txt files from the default remote path
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --password 's3cr3t'
 
-# Key-based authentication
-python fetch_logs.py --host 10.0.0.100 --user admin --remote /backups/logs --key ~/.ssh/id_rsa
+# Download only files whose names contain "WAN"
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --name-contains WAN
 
-# Only fetch files containing "N9K" in their filename
-python fetch_logs.py --host 10.0.0.100 --user admin --remote /logs --name-contains N9K
+# Use a private key, skip host-key verification (lab only)
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --key ~/.ssh/id_rsa \
+  --no-verify-host
+
+# Legacy gear: force older algorithms
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --legacy
 ```
 
-### How files are stored
+### CLI option reference
 
-Each `.txt` file is expected to follow the naming convention `{hostname}_{date}.txt` where `{date}` matches `\d{2}-[A-Za-z]{3}-\d{2,4}` (e.g. `03-May-26`). The date portion is extracted from the filename and used as the local subdirectory:
+All options are passed on the command line. There is no config file — use shell aliases or wrapper scripts for frequently used combinations.
 
-```
-data/raw/
-└── 03-May-26/
-    ├── N9K-CAMA-WAN-1_03-May-26.txt
-    └── N9K-CAMA-WAN-2_03-May-26.txt
-```
+#### Connection
 
-Files whose names contain no parseable date are placed directly in `data/raw/` (flat fallback).
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--host` | *(required)* | SFTP server hostname or IP address |
+| `--port` | `22` | SSH/SFTP port |
+| `--timeout` | `30` | TCP connect + banner timeout in seconds |
 
-### Authentication
+#### Authentication
 
-The script tries authentication methods in order until one succeeds:
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--username` | *(required)* | SSH username |
+| `--password` | *(none)* | Password (used if key auth fails or `--password` is explicitly given) |
+| `--key` | *(none)* | Path to a specific private key file (e.g. `~/.ssh/id_rsa`) |
 
-1. **Explicit key file** (`--key`) — RSA, ECDSA, Ed25519, or DSS, auto-detected
-2. **SSH agent** — uses `paramiko.Agent` (disable with `--no-agent`)
-3. **Default key files** — `~/.ssh/id_ed25519`, `id_ecdsa`, `id_rsa`, `id_dsa` (disable with `--no-keys`)
-4. **Password** — from `--password` or prompted interactively
-5. **Keyboard-interactive** — automatic fallback (disable with `--no-keyboard-interactive`)
+**Authentication order:** The script tries authentication methods in the following priority:
 
-### Legacy device support
+1. **Explicit key** — if `--key` is provided, tries that key file first (with and without passphrase).
+2. **SSH agent** — if an SSH agent is running (e.g. `ssh-agent`), offers agent keys.
+3. **Default key files** — tries `~/.ssh/id_rsa`, `~/.ssh/id_ecdsa`, `~/.ssh/id_ed25519` in that order.
+4. **Password** — if `--password` is provided, falls back to password authentication.
+5. **Keyboard-interactive** — as a final fallback, attempts keyboard-interactive (responds with `--password` value if available).
 
-Old Cisco gear often requires legacy SSH algorithms. Use these flags to negotiate compatibility:
+If no authentication method succeeds, the script exits with an error and lists what was attempted.
 
-| Flag | Adds algorithms |
-|------|----------------|
-| `--legacy-kex` | `diffie-hellman-group1-sha1`, `group14-sha1`, `group-exchange-sha1` |
-| `--legacy-ciphers` | `aes128-cbc`, `aes192-cbc`, `aes256-cbc`, `3des-cbc`, `blowfish-cbc`, `arcfour128/256` |
-| `--legacy-macs` | `hmac-sha1`, `hmac-sha1-96`, `hmac-md5`, `hmac-md5-96` |
-| `--legacy-host-keys` | `ssh-rsa`, `ssh-dss` host key types |
-| `--legacy` | All four of the above at once |
+#### Host key verification
 
-For most legacy Cisco NX-OS/IOS devices, `--legacy` is sufficient.
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--known-hosts` | `~/.ssh/known_hosts` | Path to a known_hosts file |
+| `--no-verify-host` | off | Disable host key checking entirely (lab/test use only — MITM risk) |
+| `--add-host-key` | off | Auto-accept and save an unknown host key to `--known-hosts` on first connect |
 
-### Host key verification
+By default the script enforces strict host key verification. If the server's key is not in `~/.ssh/known_hosts` the connection fails with a clear error message. Use `--add-host-key` to trust-on-first-use (TOFU), or `--no-verify-host` only in isolated lab environments.
 
-By default the script checks `~/.ssh/known_hosts`. Options:
+#### Algorithm overrides (legacy)
 
-| Flag | Behaviour |
-|------|-----------|
-| `--no-verify` | Skip host key verification entirely (insecure — use only in isolated labs) |
-| `--known-hosts <path>` | Use an alternative known_hosts file |
-| `--add-host-key` | Automatically add unknown host keys (equivalent to `StrictHostKeyChecking=accept-new`) |
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--legacy` | off | Enable a bundled set of legacy KEX, cipher, and host-key algorithms for old network gear |
+| `--kex` | *(paramiko default)* | Comma-separated list of KEX algorithms to allow (e.g. `diffie-hellman-group1-sha1`) |
+| `--ciphers` | *(paramiko default)* | Comma-separated list of encryption ciphers to allow (e.g. `aes128-cbc,3des-cbc`) |
+| `--host-key-algs` | *(paramiko default)* | Comma-separated list of host key algorithms to accept |
 
-### File filtering
+The `--legacy` flag is a shortcut that enables all of the following without specifying each individually:
 
-| Flag | Behaviour |
-|------|-----------|
-| `--pattern <glob>` | Only fetch files matching this glob (default: `*.txt`) |
-| `--name-contains <str>` | Only fetch files whose name contains this substring (case-insensitive); can be specified multiple times — ALL substrings must match |
+- KEX: `diffie-hellman-group14-sha1`, `diffie-hellman-group1-sha1`, `diffie-hellman-group-exchange-sha1`
+- Ciphers: `aes128-cbc`, `aes192-cbc`, `aes256-cbc`, `3des-cbc`
+- Host key algorithms: `ssh-rsa`, `ssh-dss`
+
+Use `--legacy` when connecting to older Cisco IOS or NX-OS devices that do not support modern algorithms. Combine with `--no-verify-host` only when the device cannot present a key that matches `known_hosts`.
+
+#### Paths
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--remote-dir` | `/logs` | Remote SFTP directory to list and download from |
+| `--remote-recursive` | off | Recurse into subdirectories of `--remote-dir` |
+| `--local-dir` | `network_cli_parser/data/raw` | Local base directory; files land in `<local-dir>/<date>/` |
+| `--filename-pattern` | `*.txt` | Glob pattern to match remote filenames (applied before `--name-contains`) |
+
+#### Transfer behaviour
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--name-contains` | *(none)* | Only download files whose name contains this substring (case-insensitive). Useful for pulling logs for a specific device or site (e.g. `--name-contains WAN` or `--name-contains N9K-CAMA`). |
+| `--if-exists` | `skip` | What to do when the local file already exists: `overwrite` replaces it unconditionally; `skip` leaves the existing file untouched; `resume` appends bytes from the remote offset (useful for large partially-downloaded files). |
+| `--dry-run` | off | List files that would be downloaded without actually transferring anything |
+| `--workers` | `4` | Number of parallel SFTP download threads |
+| `--progress` | off | Show a per-file progress bar (requires `tqdm`: `pip install tqdm`) |
+
+### Example commands for common scenarios
 
 ```bash
-# Only N9K files
-python fetch_logs.py ... --name-contains N9K
+# --- Basic: password auth, download everything ---
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --password 's3cr3t'
 
-# Only WAN-1 files that are also N9K
-python fetch_logs.py ... --name-contains N9K --name-contains WAN-1
-```
+# --- Key auth with a non-default key path ---
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --key ~/.ssh/collector_rsa
 
-### Transfer behaviour
+# --- Filter by device name substring ---
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --name-contains N9K-CAMA-WAN
 
-| Flag | Default | Behaviour |
-|------|---------|-----------|
-| `--local-dir` | `data/raw/` | Root directory for downloaded files |
-| `--skip-existing` | off | Skip files that already exist locally |
-| `--dry-run` | off | List matching files without downloading |
-| `--timeout` | 30 | SSH connect timeout in seconds |
-| `--port` | 22 | SFTP port |
+# --- Overwrite existing files instead of skipping ---
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --if-exists overwrite
 
-### Full CLI reference
+# --- Resume a partial download ---
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --if-exists resume
 
-```
-python fetch_logs.py --help
+# --- Dry run: see what would be downloaded ---
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --dry-run
 
-Connection:
-  --host HOST             SFTP server hostname or IP (required)
-  --port PORT             SSH port (default: 22)
-  --user USER             SSH username (required)
-  --timeout SEC           Connect timeout in seconds (default: 30)
+# --- Legacy network gear (old algorithms, no host-key check) ---
+python fetch_logs.py \
+  --host 192.168.1.254 \
+  --username admin \
+  --password 'cisco' \
+  --legacy \
+  --no-verify-host
 
-Authentication:
-  --key PATH              Path to private key file
-  --password PW           SSH password (prompted if omitted and needed)
-  --no-agent              Disable SSH agent lookup
-  --no-keys               Disable default ~/.ssh/ key file lookup
-  --no-keyboard-interactive  Disable keyboard-interactive auth fallback
+# --- Custom remote path and local destination ---
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --remote-dir /var/log/network/daily \
+  --local-dir /mnt/nas/network_cli_parser/data/raw
 
-Host key verification:
-  --no-verify             Skip host key verification (insecure)
-  --known-hosts PATH      Path to known_hosts file
-  --add-host-key          Auto-add unknown host keys
+# --- Recursive remote directory with progress bar ---
+pip install tqdm
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --remote-recursive \
+  --progress \
+  --workers 8
 
-Algorithm overrides (legacy devices):
-  --legacy                Enable all legacy algorithm groups at once
-  --legacy-kex            Enable legacy key-exchange algorithms
-  --legacy-ciphers        Enable legacy cipher algorithms
-  --legacy-macs           Enable legacy MAC algorithms
-  --legacy-host-keys      Enable legacy host key types (ssh-rsa, ssh-dss)
-  --kex ALGO              Prepend a specific KEX algorithm
-  --cipher ALGO           Prepend a specific cipher
-  --mac ALGO              Prepend a specific MAC
-  --host-key-type ALGO    Prepend a specific host key type
-
-Paths:
-  --remote DIR            Remote directory to fetch from (required)
-  --local-dir DIR         Local root directory (default: data/raw/)
-
-Transfer behaviour:
-  --pattern GLOB          Filename glob filter (default: *.txt)
-  --name-contains STR     Filename substring filter (repeatable; case-insensitive)
-  --skip-existing         Skip files already present locally
-  --dry-run               List files without downloading
+# --- Integrate into full pipeline ---
+python fetch_logs.py --host 10.0.0.5 --username collector && \
+python network_cli_parser/main.py --input network_cli_parser/data/raw/ && \
+python network_cli_parser/report.py health-all \
+  --dir network_cli_parser/data/json/ \
+  --default-checks network_cli_parser/checks/example_health_checks.yaml \
+  --output-dir reports/health/
 ```
