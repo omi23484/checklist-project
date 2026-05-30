@@ -1476,3 +1476,101 @@ python network_cli_parser/report.py health-all \
   --default-checks network_cli_parser/checks/example_health_checks.yaml \
   --output-dir reports/health/
 ```
+
+---
+
+## 17. Playbook Runner (`playbook.py`)
+
+The playbook runner executes a sequence of toolchain jobs defined in a CSV file. A single `python playbook.py --playbook <file>` call can fetch logs, parse them, run health checks, do a coverage analysis, and generate a diff report — in the right order, with per-step failure control.
+
+### Location
+
+`playbook.py` lives at the **repository root** alongside `fetch_logs.py`. Playbook CSV files live in `network_cli_parser/playbooks/`.
+
+### CSV format
+
+The CSV must have a header row. All columns below are required; `description` is optional but recommended.
+
+| Column | Type | Purpose |
+|---|---|---|
+| `step` | integer | Execution order — lower numbers run first |
+| `name` | string | Human-readable label shown in the job log |
+| `enabled` | `yes` / `no` | Set `no` to skip a step without deleting its row |
+| `type` | string | Which script/subcommand to invoke (see table below) |
+| `args` | string | CLI arguments passed verbatim to the script |
+| `continue_on_error` | `yes` / `no` | If `no` (default), a non-zero exit aborts the whole playbook |
+| `description` | string | Notes — ignored by the runner |
+
+### Step types
+
+| `type` | Calls |
+|---|---|
+| `fetch` | `python fetch_logs.py <args>` |
+| `parse` | `python network_cli_parser/main.py <args>` |
+| `health` | `python network_cli_parser/report.py health <args>` |
+| `health-all` | `python network_cli_parser/report.py health-all <args>` |
+| `health-diff` | `python network_cli_parser/report.py health-diff <args>` |
+| `coverage` | `python network_cli_parser/report.py coverage <args>` |
+| `delta` | `python network_cli_parser/report.py delta <args>` |
+| `delta-all` | `python network_cli_parser/report.py delta-all <args>` |
+| `baseline` | `python network_cli_parser/report.py baseline <args>` |
+| `collect` | `python network_cli_parser/report.py collect <args>` |
+
+### Variable substitution
+
+Variables in the `args` column are replaced at runtime before the command is built. They are computed once when the playbook starts, so all steps in a single run use the same timestamp.
+
+| Variable | Expands to | Example |
+|---|---|---|
+| `{date}` | Today in filename format | `30-May-26` |
+| `{today}` | Today in ISO format | `2026-05-30` |
+| `{yesterday}` | Yesterday in ISO format | `2026-05-29` |
+| `{timestamp}` | Current datetime | `20260530_143000` |
+
+Use `{date}` in paths that match snapshot filenames (which use the `DD-Mon-YY` convention). Use `{today}` / `{yesterday}` for ISO-format directory names or report paths.
+
+### Example CSV
+
+```csv
+step,name,enabled,type,args,continue_on_error,description
+1,Fetch NXOS logs,yes,fetch,--host 10.0.0.100 --user admin --remote /backups/nxos --local-dir network_cli_parser/data/raw/ --legacy --name-contains N9K --skip-existing,no,Pull today's NX-OS CLI dumps via SFTP
+2,Parse all raw dumps,yes,parse,--input network_cli_parser/data/raw/{date}/,no,Convert .txt files to JSON snapshots
+3,Health checks on all devices,yes,health-all,--dir network_cli_parser/data/json/{date}/ --default-checks network_cli_parser/checks/base.yaml --device-checks-dir network_cli_parser/checks/devices/ --output-dir reports/{date}/health/ --since-days 1,no,Assert health checks; exit 1 on critical failures
+4,Coverage analysis,yes,coverage,--snapshot network_cli_parser/data/json/{date}/N9K-WAN-1_{date}.json --checks network_cli_parser/checks/base.yaml,yes,Show which commands lack health checks
+5,Health diff vs yesterday,no,health-diff,--before reports/{yesterday}/health/device_health.json --after reports/{today}/health/device_health.json --output reports/{today}/diff.html,yes,Highlight regressions (disabled until second day of data)
+```
+
+### Runner CLI
+
+```bash
+# Run all enabled steps
+python playbook.py --playbook network_cli_parser/playbooks/daily.csv
+
+# List steps without running
+python playbook.py --playbook network_cli_parser/playbooks/daily.csv --list
+
+# Dry-run: print commands but don't execute
+python playbook.py --playbook network_cli_parser/playbooks/daily.csv --dry-run
+
+# Run only step 3
+python playbook.py --playbook network_cli_parser/playbooks/daily.csv --step 3
+
+# Start from step 2 (skip steps before it)
+python playbook.py --playbook network_cli_parser/playbooks/daily.csv --from-step 2
+
+# Run only fetch and parse steps (skip health checks etc.)
+python playbook.py --playbook network_cli_parser/playbooks/daily.csv --only-type fetch,parse
+```
+
+### Exit code
+
+The runner exits `0` if all executed steps succeeded. It exits with the exit code of the first failed step that has `continue_on_error=no`. If all failed steps have `continue_on_error=yes`, it exits `1` after all steps complete.
+
+Steps with `enabled=no` and steps filtered out by `--step` / `--from-step` / `--only-type` do not contribute to the failure count.
+
+### Shipped playbooks
+
+| File | Purpose |
+|---|---|
+| `network_cli_parser/playbooks/example.csv` | Full 7-step reference: fetch (SFTP) → parse → health-all → coverage → health-diff → delta-all |
+| `network_cli_parser/playbooks/daily_health.csv` | Minimal 3-step offline workflow: collect → health-all → coverage |

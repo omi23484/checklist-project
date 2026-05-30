@@ -10,6 +10,8 @@ Parses Cisco IOS/NX-OS CLI dumps, evaluates health checks, and generates delta/h
 |------|---------|
 | `network_cli_parser/` | Main parser, report generator, health checks, templates |
 | `fetch_logs.py` | Standalone SFTP log fetcher — no shared imports with the parser |
+| `playbook.py` | Job runner — executes a CSV-defined sequence of toolchain steps |
+| `network_cli_parser/playbooks/` | Example playbook CSV files |
 
 ---
 
@@ -140,9 +142,34 @@ python fetch_logs.py --host 10.0.0.100 --user admin \
 
 ---
 
+## Playbook runner
+
+Chain multiple steps into a single job using a CSV file:
+
+```bash
+# List steps without running
+python playbook.py --playbook network_cli_parser/playbooks/example.csv --list
+
+# Dry-run — print commands without executing
+python playbook.py --playbook network_cli_parser/playbooks/example.csv --dry-run
+
+# Run the full playbook
+python playbook.py --playbook network_cli_parser/playbooks/daily_health.csv
+
+# Run only fetch + parse steps
+python playbook.py --playbook network_cli_parser/playbooks/example.csv --only-type fetch,parse
+
+# Resume from step 3 after a previous partial run
+python playbook.py --playbook network_cli_parser/playbooks/example.csv --from-step 3
+```
+
+`{date}`, `{today}`, `{yesterday}`, and `{timestamp}` in the `args` column are substituted at runtime, so a single playbook file works across daily runs without editing.
+
+---
+
 ## Documentation
 
-Full operating procedure — parser chain, template authoring, commands.yaml reference, health check syntax, report subcommands, and the snapshot collector — is in [`network_cli_parser/PARSER_SOP.md`](network_cli_parser/PARSER_SOP.md).
+Full operating procedure — parser chain, template authoring, commands.yaml reference, health check syntax, report subcommands, playbook runner, and the snapshot collector — is in [`network_cli_parser/PARSER_SOP.md`](network_cli_parser/PARSER_SOP.md).
 
 ---
 

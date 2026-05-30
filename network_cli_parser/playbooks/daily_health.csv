@@ -1,0 +1,4 @@
+step,name,enabled,type,args,continue_on_error,description
+1,Collect snapshots offline,yes,collect,--from-dir network_cli_parser/data/raw/{date}/ --output-dir network_cli_parser/data/json/,no,Parse any .txt dumps already sitting in data/raw/
+2,Run health checks,yes,health-all,--dir network_cli_parser/data/json/{date}/ --default-checks network_cli_parser/checks/example_health_checks.yaml --output-dir reports/{date}/health/ --since-days 1,no,Assert all health checks — writes reports/{date}/health/health_report.html
+3,Coverage check,yes,coverage,--snapshot network_cli_parser/data/json/{date}/N9K-CAMA-WAN-1_{date}.json --checks network_cli_parser/checks/example_health_checks.yaml,yes,Gap analysis on first device; adjust --snapshot path per environment
