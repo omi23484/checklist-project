@@ -176,6 +176,26 @@ def _run_check(check: dict, commands: dict) -> dict:
             "note":     f"Path '{path}' resolved to 0 items (vacuously true)",
         }
 
+    # Print-only: no condition/value/conditions/branches — just surface the resolved values
+    is_print_only = (
+        "condition" not in check
+        and "value"      not in check
+        and "conditions" not in check
+        and "branches"   not in check
+    )
+    if is_print_only:
+        tpl = print_tpl if print_tpl is not None else True
+        printed = [_format_print(tpl, rp, act, parsed) for rp, act in values]
+        return {
+            "name":       name,
+            "status":     "pass",
+            "severity":   severity,
+            "check":      check,
+            "printed":    printed,
+            "print_only": True,
+            "note":       f"{len(values)} value(s) resolved",
+        }
+
     match_mode = check.get("match", "all")
     if match_mode not in ("all", "any"):
         print(f"[WARN] check '{name}': unknown match mode '{match_mode}' — treating as 'all'")
@@ -247,7 +267,7 @@ def _run_check_multi(check: dict, name: str, severity: str, match_mode: str,
 
 
 def _run_check_branches(check: dict, name: str, severity: str, match_mode: str,
-                        values: list, print_tpl, parsed) -> dict:
+                     values: list, print_tpl, parsed) -> dict:
     """IF/ELIF/ELSE logic: for each resolved dict row, find the first matching branch."""
     branches     = check.get("branches", [])
     default_spec = next((b["default"] for b in branches if "default" in b), None)
