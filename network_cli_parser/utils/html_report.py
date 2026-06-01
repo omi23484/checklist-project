@@ -502,6 +502,84 @@ def _health_check_list(results: list) -> str:
 <div class="dg">
   <span class="dk">Command</span><code>{_e(cmd)}</code>
   <span class="dk">Path</span><code>{_e(path)}</code>
+</div>"""
+        elif "branches" in check:
+            branch_parts = []
+            for b in check["branches"]:
+                if "when" in b:
+                    w = b["when"]
+                    t = b.get("then", {})
+                    branch_parts.append(
+                        f"IF {_e(str(w.get('field','')))} {_e(str(w.get('condition','')))} "
+                        f"{_e(str(w.get('value','')))} "
+                        f"-> {_e(str(t.get('field','')))} {_e(str(t.get('condition','')))} "
+                        f"{_e(str(t.get('value','')))}"
+                    )
+                elif "default" in b:
+                    d = b["default"]
+                    branch_parts.append(
+                        f"ELSE {_e(str(d.get('field','')))} {_e(str(d.get('condition','')))} "
+                        f"{_e(str(d.get('value','')))}"
+                    )
+            cond_html = "<br>".join(branch_parts)
+            detail_rows = f"""
+<div class="dg">
+  <span class="dk">Command</span><code>{_e(cmd)}</code>
+  <span class="dk">Path</span><code>{_e(path)}</code>
+  <span class="dk">Condition</span><span>{cond_html}</span>{match_tag}
+</div>"""
+        elif "conditions" in check:
+            parts = []
+            for s in check["conditions"]:
+                parts.append(f"<code>{_e(str(s.get('condition','')))} {_e(str(s.get('value','')))}</code>")
+            cond_html = ' <span style="color:var(--muted);font-weight:700">AND</span> '.join(parts)
+            detail_rows = f"""
+<div class="dg">
+  <span class="dk">Command</span><code>{_e(cmd)}</code>
+  <span class="dk">Path</span><code>{_e(path)}</code>
+  <span class="dk">Condition</span><span>{cond_html}</span>{match_tag}
+</div>"""
+        elif cond in ("one_of", "not_one_of") and isinstance(val, list):
+            pills = "".join(
+                f'<span style="background:var(--info-bg);color:var(--info);padding:1px 6px;'
+                f'border-radius:3px;font-size:.78rem;margin-right:4px">{_e(str(v))}</span>'
+                for v in val
+            )
+            cond_html = f"<code>{_e(cond)}</code> {pills}"
+            detail_rows = f"""
+<div class="dg">
+  <span class="dk">Command</span><code>{_e(cmd)}</code>
+  <span class="dk">Path</span><code>{_e(path)}</code>
+  <span class="dk">Condition</span><span>{cond_html}</span>{match_tag}
+</div>"""
+        else:
+            cond_html = f"<code>{_e(cond)} {_e(str(val))}</code>"
+            detail_rows = f"""
+<div class="dg">
+  <span class="dk">Command</span><code>{_e(cmd)}</code>
+  <span class="dk">Path</span><code>{_e(path)}</code>
+  <span class="dk">Condition</span><span>{cond_html}</span>{match_tag}
+</div>"""
+
+        extra = ""
+        if status == "fail":
+            failures = r.get("failures", [])
+            rows = ""
+            for f in failures:
+                msgs = f.get("messages") or ([f["message"]] if f.get("message") else [])
+                reason_html = "".join(f'<div class="fr">{_e(m)}</div>' for m in msgs)
+                rows += f"""<div class="failure-row">
+  <div class="fp">{_e(f["path"])}</div>
+  <div class="fa">Actual: <span>{_e(str(f["actual"]))}</span></div>
+  {reason_html}
+</div>"""
+            extra = f'<div class="failures">{rows}</div>'
+        elif status == "error":
+            msg = r.get("message", "")
+            extra = f'<div class="failure-row"><div class="fr">{_e(msg)}</div></div>'
+        elif r.get("note") and not print_only:
+            extra = f'<div style="font-size:.78rem;color:var(--muted);margin-top:4px">&#x2139; {_e(r["note"])}</div>'
+
         # print: always show resolved values (blue for print-only, muted for regular)
         printed = r.get("printed")
         if printed:
@@ -514,8 +592,9 @@ def _health_check_list(results: list) -> str:
             extra += f'<div style="margin-top:6px">{printed_rows}</div>'
 
         status_badge = _badge("display", "DISPLAY") if print_only else f"{_badge(status)}{sev_badge}"
+        card_class = 'pass' if print_only else _e(status)
         items.append(f"""
-<div class="check-card {'pass' if print_only else _e(status)}">
+<div class="check-card {card_class}">
   <div class="check-hdr">
     {status_badge}
     <span class="check-name">{_e(name)}</span>
