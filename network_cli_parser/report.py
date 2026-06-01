@@ -3,9 +3,9 @@ Network CLI Report Generator
 
 Usage:
     python report.py delta       --before <old.json> --after <new.json> [--output out.html]
-    python report.py delta-all   --before-dir <dir> --after-dir <dir> [--output-dir out/] [--format html|json|both]
+    python report.py delta-all   --before-dir <dir> --after-dir <dir> [--output-dir out/] [--output-file index.html] [--format html|json|both]
     python report.py health      --snapshot <snap.json> --checks <checks.yaml> [--device-checks <dev.yaml>] [--output out.html] [--verify-only]
-    python report.py health-all  --dir <dir> --default-checks <checks.yaml> [--device-checks-dir <dir>] [--output-dir out/] [--format html|json|both] [--since-days N] [--verify-only]
+    python report.py health-all  --dir <dir> --default-checks <checks.yaml> [--device-checks-dir <dir>] [--output-dir out/] [--output-file health_report.html] [--format html|json|both] [--since-days N] [--verify-only]
     python report.py health-diff --before <health.json> --after <health.json> [--output diff.html]
     python report.py coverage    --snapshot <snap.json> [--checks <checks.yaml>] [--output cov.json]
     python report.py baseline    --snapshot <snap.json> [--output checks/baseline.yaml]
@@ -206,7 +206,7 @@ def cmd_delta_all(args: argparse.Namespace) -> None:
 
     _print_delta_all_summary(results)
 
-    index_path = output_dir / "index.html"
+    index_path = output_dir / (getattr(args, "output_file", None) or "index.html")
     index_path.write_text(
         html_report.render_delta_index(results, str(before_dir), str(after_dir)),
         encoding="utf-8"
@@ -374,7 +374,7 @@ def cmd_health_all(args: argparse.Namespace) -> None:
     _print_health_all_summary(results)
 
     if not verify_only and fmt in ("html", "both"):
-        html_path = output_dir / "health_report.html"
+        html_path = output_dir / (getattr(args, "output_file", None) or "health_report.html")
         html_path.write_text(
             html_report.render_health_all(device_data, args.default_checks),
             encoding="utf-8",
@@ -746,6 +746,8 @@ def main() -> None:
     p_dall.add_argument("--before-dir", required=True, help="Directory of 'before' snapshots")
     p_dall.add_argument("--after-dir",  required=True, help="Directory of 'after' snapshots")
     p_dall.add_argument("--output-dir", default="delta-reports", help="Output directory (default: delta-reports/)")
+    p_dall.add_argument("--output-file", default=None, metavar="FILENAME",
+                        help="Index HTML filename inside output-dir (default: index.html)")
     p_dall.add_argument("--format", choices=["html", "json", "both"], default="html",
                         help="Per-device report format (default: html)")
     p_dall.set_defaults(func=cmd_delta_all)
@@ -766,6 +768,8 @@ def main() -> None:
     p_hall.add_argument("--default-checks",   required=True, help="Default health checks YAML (applies to all devices)")
     p_hall.add_argument("--device-checks-dir", default=None, help="Directory of per-device YAML files named {hostname}.yaml")
     p_hall.add_argument("--output-dir",       default="health-reports", help="Output directory (default: health-reports/)")
+    p_hall.add_argument("--output-file", default=None, metavar="FILENAME",
+                        help="Combined HTML report filename inside output-dir (default: health_report.html)")
     p_hall.add_argument("--format", choices=["html", "json", "both"], default="html",
                         help="Per-device report format (default: html)")
     p_hall.add_argument("--since-days", type=int, default=None, metavar="N",
