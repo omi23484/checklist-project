@@ -2,6 +2,7 @@
 
 import re
 import sys
+from datetime import datetime, timezone
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -13,6 +14,10 @@ _VALID_CONDITIONS = {
     "contains", "not_contains", "matches",
     "one_of", "not_one_of",
     "duration_gt", "duration_gte", "duration_lt", "duration_lte",
+    "len_eq", "len_ne", "len_gt", "len_gte", "len_lt", "len_lte",
+    "date_before", "date_after", "date_within_days", "date_older_than_days",
+    "diff_eq", "diff_ne", "diff_gt", "diff_gte", "diff_lt", "diff_lte",
+    "diff_pct_gt", "diff_pct_gte", "diff_pct_lt", "diff_pct_lte",
 }
 _VALID_SEVERITIES = {"critical", "warn", "info"}
 _VALID_MATCH      = {"all", "any"}
@@ -59,11 +64,16 @@ def validate_checks(checks: list, source: str = "") -> list[str]:
                                  f"(check[{i}] shadows check[{seen[name]}]){label}")
             seen[name] = i
 
-        if not check.get("command"):
-            errors.append(f"{pos}: missing required field 'command'")
+        is_metadata_check     = "metadata"          in check
+        is_cross_check        = "cross_check"        in check
+        is_count_check        = "count"              in check
+        is_baseline_check     = "compare_baseline"   in check
 
-        if not check.get("path"):
-            errors.append(f"{pos}: missing required field 'path'")
+        if not is_metadata_check and not is_cross_check:
+            if not check.get("command"):
+                errors.append(f"{pos}: missing required field 'command'")
+            if not is_count_check and not check.get("path"):
+                errors.append(f"{pos}: missing required field 'path'")
 
         has_cond       = "condition" in check
         has_conditions = "conditions" in check
@@ -71,9 +81,11 @@ def validate_checks(checks: list, source: str = "") -> list[str]:
         is_print_only  = (
             not has_cond and not has_conditions and not has_branches
             and "value" not in check
+            and not is_count_check and not is_baseline_check and not is_metadata_check
         )
 
-        if not is_print_only:
+        if not is_print_only and not is_count_check and not is_baseline_check \
+                and not is_metadata_check and not is_cross_check:
             if not has_cond and not has_conditions and not has_branches:
                 errors.append(f"{pos}: must have 'condition', 'conditions', or 'branches'")
 
@@ -123,9 +135,11 @@ def validate_checks(checks: list, source: str = "") -> list[str]:
     return warnings
 
 
-def evaluate_checks(snapshot: dict, checks: list[dict]) -> dict:
-    commands = snapshot.get("commands", {})
-    results = [_run_check(c, commands) for c in checks]
+def evaluate_checks(snapshot: dict, checks: list[dict], baseline: dict = None) -> dict:
+    commands          = snapshot.get("commands", {})
+    metadata          = snapshot.get("metadata", {})
+    baseline_commands = baseline.get("commands", {}) if baseline else {}
+    results = [_run_check(c, commands, metadata, baseline_commands) for c in checks]
 
     passed  = sum(1 for r in results if r["status"] == "pass")
     failed  = sum(1 for r in results if r["status"] == "fail")
@@ -146,7 +160,8 @@ def evaluate_checks(snapshot: dict, checks: list[dict]) -> dict:
     }
 
 
-def _run_check(check: dict, commands: dict) -> dict:
+def _run_check(check: dict, commands: dict,
+               metadata: dict = None, baseline_commands: dict = None) -> dict:
     name      = check.get("name", "(unnamed)")
     cmd       = check.get("command", "")
     path      = check.get("path", "")
@@ -155,8 +170,11 @@ def _run_check(check: dict, commands: dict) -> dict:
     severity  = check.get("severity", "critical")
     print_tpl = check.get("print")
 
+    if "metadata" in check:
+        return _run_metadata_check(check, metadata or {})
+
     if "cross_check" in check:
-        return _run_cross_check(check, commands)
+        return _run_cross_check(check, commands, metadata or {})
 
     if cmd not in commands:
         return _result_error(name, check, f"Command '{cmd}' not in snapshot", severity)
@@ -178,6 +196,14 @@ def _run_check(check: dict, commands: dict) -> dict:
             "actual":   [],
             "note":     f"Path '{path}' resolved to 0 items (vacuously true)",
         }
+
+    # count: — assert how many items the path resolved to
+    if "count" in check:
+        return _run_check_count(check, name, severity, values)
+
+    # compare_baseline: — delta check against a previous snapshot
+    if "compare_baseline" in check:
+        return _run_compare_baseline(check, name, severity, cmd, path, values, baseline_commands)
 
     # Print-only: no condition/value/conditions/branches — just surface the resolved values
     is_print_only = (
@@ -205,7 +231,8 @@ def _run_check(check: dict, commands: dict) -> dict:
         match_mode = "all"
 
     if "branches" in check:
-        return _run_check_branches(check, name, severity, match_mode, values, print_tpl, parsed)
+        return _run_check_branches(check, name, severity, match_mode, values, print_tpl, parsed,
+                                   metadata or {})
     if "conditions" in check:
         return _run_check_multi(check, name, severity, match_mode, values, print_tpl, parsed)
 
@@ -269,36 +296,145 @@ def _run_check_multi(check: dict, name: str, severity: str, match_mode: str,
     return r
 
 
-def _run_cross_check(check: dict, commands: dict) -> dict:
+def _run_metadata_check(check: dict, metadata: dict) -> dict:
+    """Check a field from snapshot metadata."""
+    name      = check.get("name", "(unnamed)")
+    severity  = check.get("severity", "critical")
+    field     = check["metadata"]
+    condition = check.get("condition", "eq")
+    expected  = check.get("value")
+
+    actual = metadata.get(field)
+    if actual is None:
+        return _result_error(name, check, f"metadata field '{field}' not found in snapshot", severity)
+
+    ok, msg = _apply_condition(actual, condition, expected)
+    if ok:
+        return {"name": name, "status": "pass", "severity": severity, "check": check, "actual": [actual]}
+    return {"name": name, "status": "fail", "severity": severity, "check": check,
+            "failures": [{"path": f"metadata.{field}", "actual": actual, "message": msg}]}
+
+
+def _run_check_count(check: dict, name: str, severity: str, values: list) -> dict:
+    """Assert the number of items resolved by the path."""
+    count_spec = check["count"]
+    condition  = count_spec.get("condition", "eq")
+    expected   = count_spec.get("value")
+    actual_cnt = len(values)
+
+    ok, msg = _apply_condition(actual_cnt, condition, expected)
+    if ok:
+        return {"name": name, "status": "pass", "severity": severity, "check": check,
+                "actual": [actual_cnt], "note": f"{actual_cnt} item(s) resolved"}
+    return {"name": name, "status": "fail", "severity": severity, "check": check,
+            "failures": [{"path": "count", "actual": actual_cnt, "message": msg}]}
+
+
+def _run_compare_baseline(check: dict, name: str, severity: str,
+                          cmd: str, path: str, values: list,
+                          baseline_commands: dict) -> dict:
+    """Compare current values against the same path in the baseline snapshot."""
+    if not baseline_commands:
+        return _result_error(name, check, "compare_baseline requires --baseline snapshot", severity)
+
+    cb_spec   = check["compare_baseline"]
+    condition = cb_spec.get("condition", "eq")
+    cb_value  = cb_spec.get("value")    # only used for diff_* conditions
+
+    if cmd not in baseline_commands:
+        return _result_error(name, check, f"Command '{cmd}' not found in baseline snapshot", severity)
+
+    baseline_parsed = baseline_commands[cmd].get("parsed", {})
+    try:
+        baseline_vals = _resolve_path(baseline_parsed, path)
+    except Exception as exc:
+        return _result_error(name, check, f"Baseline path resolution failed: {exc}", severity)
+
+    baseline_map = {rp: v for rp, v in baseline_vals}
+
+    failures, passes = [], []
+    for resolved_path, actual in values:
+        if resolved_path not in baseline_map:
+            failures.append({"path": resolved_path, "actual": actual,
+                             "message": f"path not found in baseline snapshot"})
+            continue
+        baseline_val = baseline_map[resolved_path]
+
+        if condition.startswith("diff"):
+            try:
+                a, b = float(actual), float(baseline_val)
+                diff = abs(a - b)
+                if condition.endswith("pct_lte") or condition.endswith("pct_gte") \
+                        or condition.endswith("pct_lt") or condition.endswith("pct_gt"):
+                    if b == 0:
+                        ok, msg = (a == 0), f"baseline is 0, cannot compute percentage"
+                    else:
+                        pct = diff / abs(b) * 100
+                        ops = {"diff_pct_lte": pct <= float(cb_value),
+                               "diff_pct_gte": pct >= float(cb_value),
+                               "diff_pct_lt":  pct <  float(cb_value),
+                               "diff_pct_gt":  pct >  float(cb_value)}
+                        ok  = ops.get(condition, False)
+                        msg = f"|{actual} - {baseline_val}| / {baseline_val} * 100 = {pct:.1f}% not {condition.split('_',1)[1]} {cb_value}%"
+                else:
+                    ops = {"diff_lte": diff <= float(cb_value),
+                           "diff_gte": diff >= float(cb_value),
+                           "diff_lt":  diff <  float(cb_value),
+                           "diff_gt":  diff >  float(cb_value),
+                           "diff_eq":  diff == float(cb_value),
+                           "diff_ne":  diff != float(cb_value)}
+                    ok  = ops.get(condition, False)
+                    msg = f"|{actual} - {baseline_val}| = {diff} not {condition.split('_',1)[1]} {cb_value}"
+            except (ValueError, TypeError) as exc:
+                ok, msg = False, f"Diff condition error: {exc}"
+        else:
+            ok, msg = _apply_condition(actual, condition, baseline_val)
+
+        (passes if ok else failures).append({"path": resolved_path, "actual": actual,
+                                              "baseline": baseline_val, "message": msg})
+
+    if failures:
+        return {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
+    return {"name": name, "status": "pass", "severity": severity, "check": check,
+            "actual": [p["actual"] for p in passes]}
+
+
+def _run_cross_check(check: dict, commands: dict, metadata: dict = None) -> dict:
     """Cross-row check: IF rows matching one condition exist, THEN assert on different rows."""
     name        = check.get("name", "(unnamed)")
     severity    = check.get("severity", "critical")
     cc          = check["cross_check"]
     default_cmd = check.get("command", "")
+    metadata    = metadata or {}
 
     if_spec   = cc["if"]
     then_spec = cc["then"]
 
-    # IF side
-    if_cmd   = if_spec.get("command", default_cmd)
-    if_field = if_spec.get("field", "")
+    # IF side — may use metadata instead of a command path
     if_cond  = if_spec.get("condition", "eq")
     if_value = if_spec.get("value")
 
-    if if_cmd not in commands:
-        return _result_error(name, check, f"Command '{if_cmd}' not in snapshot", severity)
-    if_parsed = commands[if_cmd].get("parsed", {})
-    try:
-        if_rows = _resolve_path(if_parsed, if_spec.get("path", ""))
-    except Exception as exc:
-        return _result_error(name, check, f"IF path resolution failed: {exc}", severity)
-
-    if_matches = []
-    for rp, row in if_rows:
-        actual = row.get(if_field) if isinstance(row, dict) else row
+    if "metadata" in if_spec:
+        meta_field = if_spec["metadata"]
+        actual = metadata.get(meta_field)
         ok, _ = _apply_condition(actual, if_cond, if_value)
-        if ok:
-            if_matches.append((rp, row))
+        if_matches = [("metadata." + meta_field, actual)] if ok else []
+    else:
+        if_cmd   = if_spec.get("command", default_cmd)
+        if_field = if_spec.get("field", "")
+        if if_cmd not in commands:
+            return _result_error(name, check, f"Command '{if_cmd}' not in snapshot", severity)
+        if_parsed = commands[if_cmd].get("parsed", {})
+        try:
+            if_rows = _resolve_path(if_parsed, if_spec.get("path", ""))
+        except Exception as exc:
+            return _result_error(name, check, f"IF path resolution failed: {exc}", severity)
+        if_matches = []
+        for rp, row in if_rows:
+            actual = row.get(if_field) if isinstance(row, dict) else row
+            ok, _ = _apply_condition(actual, if_cond, if_value)
+            if ok:
+                if_matches.append((rp, row))
 
     if not if_matches:
         return {"name": name, "status": "pass", "severity": severity, "check": check,
@@ -346,11 +482,12 @@ def _run_cross_check(check: dict, commands: dict) -> dict:
 
 
 def _run_check_branches(check: dict, name: str, severity: str, match_mode: str,
-                     values: list, print_tpl, parsed) -> dict:
+                     values: list, print_tpl, parsed, metadata: dict = None) -> dict:
     """IF/ELIF/ELSE logic: for each resolved dict row, find the first matching branch."""
     branches     = check.get("branches", [])
     default_spec = next((b["default"] for b in branches if "default" in b), None)
     when_specs   = [b for b in branches if "when" in b]
+    metadata     = metadata or {}
 
     failures, passes, printed_lines = [], [], []
     for resolved_path, row in values:
@@ -364,7 +501,11 @@ def _run_check_branches(check: dict, name: str, severity: str, match_mode: str,
         then_spec = None
         for b in when_specs:
             when = b["when"]
-            field_val = row.get(when.get("field", ""))
+            # when: can match a metadata field instead of a row field
+            if "metadata" in when:
+                field_val = metadata.get(when["metadata"])
+            else:
+                field_val = row.get(when.get("field", ""))
             ok, _ = _apply_condition(field_val, when.get("condition", "eq"), when.get("value"))
             if ok:
                 then_spec = b["then"]
@@ -490,8 +631,40 @@ _HH_MM    = re.compile(r'^(\d+):(\d+)$')
 _ZERO_KEYWORDS = {"never", "n/a", "unknown", "-", ""}
 
 
+_DATE_FORMATS = [
+    "%d-%b-%Y",   # 03-May-2026
+    "%d-%b-%y",   # 03-May-26
+    "%d-%m-%Y",   # 03-05-2026
+    "%d/%m/%Y",   # 03/05/2026
+    "%Y-%m-%d",   # 2026-05-03
+    "%Y/%m/%d",   # 2026/05/03
+    "%b %d %Y",   # May 03 2026
+    "%d %b %Y",   # 03 May 2026
+    "%b %d, %Y",  # May 3, 2026
+    "%Y-%m-%dT%H:%M:%S",  # ISO with time
+    "%Y-%m-%d %H:%M:%S",  # ISO with space
+    "%d-%b-%Y %H:%M:%S",  # 03-May-2026 10:00:00
+]
+
+
+def _parse_date(s: str):
+    """Parse a calendar date string. Returns datetime or None if unrecognised."""
+    s = s.strip()
+    for fmt in _DATE_FORMATS:
+        try:
+            return datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+    return None
+
+
 def _parse_duration(s: str) -> float:
-    s = s.strip().lower()
+    s = s.strip()
+    # Try calendar date first — convert to age in seconds (positive = past, negative = future)
+    dt = _parse_date(s)
+    if dt is not None:
+        return (datetime.now() - dt).total_seconds()
+    s = s.lower()
     if s in _ZERO_KEYWORDS:
         return 0.0
     m = _HH_MM_SS.match(s)
@@ -582,6 +755,33 @@ def _apply_condition(actual: Any, condition: str, expected: Any) -> tuple[bool, 
                 return False, f"not_one_of requires a list value, got {type(expected).__name__}"
             ok = actual not in expected
             return ok, f"{actual!r} is in {expected!r} (should not be)"
+        if condition in ("len_eq", "len_ne", "len_gt", "len_gte", "len_lt", "len_lte"):
+            n = len(actual)
+            e = int(expected)
+            base = condition[4:]  # strip "len_"
+            ops = {"eq": n == e, "ne": n != e, "gt": n > e, "gte": n >= e, "lt": n < e, "lte": n <= e}
+            sym = {"eq": "==", "ne": "!=", "gt": ">", "gte": ">=", "lt": "<", "lte": "<="}
+            ok  = ops[base]
+            return ok, f"len({actual!r}) = {n}, not {sym[base]} {e}"
+        if condition in ("date_before", "date_after"):
+            dt_actual   = _parse_date(str(actual))
+            dt_expected = _parse_date(str(expected))
+            if dt_actual is None:
+                return False, f"Cannot parse date from {actual!r}"
+            if dt_expected is None:
+                return False, f"Cannot parse expected date from {expected!r}"
+            ok = (dt_actual < dt_expected) if condition == "date_before" else (dt_actual > dt_expected)
+            sym = "<" if condition == "date_before" else ">"
+            return ok, f"{actual!r} is not {sym} {expected!r}"
+        if condition in ("date_within_days", "date_older_than_days"):
+            dt_actual = _parse_date(str(actual))
+            if dt_actual is None:
+                return False, f"Cannot parse date from {actual!r}"
+            age_days = (datetime.now() - dt_actual).total_seconds() / 86400
+            e_days   = float(expected)
+            ok = (age_days <= e_days) if condition == "date_within_days" else (age_days > e_days)
+            sym = "<=" if condition == "date_within_days" else ">"
+            return ok, f"date {actual!r} is {age_days:.1f} days old, not {sym} {e_days} days"
         return False, f"Unknown condition: {condition!r}"
     except (ValueError, TypeError, re.error) as exc:
         return False, f"Condition error: {exc}"

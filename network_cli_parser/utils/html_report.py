@@ -503,6 +503,28 @@ def _health_check_list(results: list) -> str:
   <span class="dk">Command</span><code>{_e(cmd)}</code>
   <span class="dk">Path</span><code>{_e(path)}</code>
 </div>"""
+        elif "metadata" in check:
+            detail_rows = f"""
+<div class="dg">
+  <span class="dk">Metadata</span><code>{_e(check['metadata'])}</code>
+  <span class="dk">Condition</span><code>{_e(cond)} {_e(str(val))}</code>
+</div>"""
+        elif "count" in check:
+            cs = check["count"]
+            detail_rows = f"""
+<div class="dg">
+  <span class="dk">Command</span><code>{_e(cmd)}</code>
+  <span class="dk">Path</span><code>{_e(path)}</code>
+  <span class="dk">Count</span><code>{_e(str(cs.get('condition','')))} {_e(str(cs.get('value','')))}</code>
+</div>"""
+        elif "compare_baseline" in check:
+            cb = check["compare_baseline"]
+            detail_rows = f"""
+<div class="dg">
+  <span class="dk">Command</span><code>{_e(cmd)}</code>
+  <span class="dk">Path</span><code>{_e(path)}</code>
+  <span class="dk">vs Baseline</span><code>{_e(str(cb.get('condition','')))} {_e(str(cb.get('value','baseline')))}</code>
+</div>"""
         elif "cross_check" in check:
             cc   = check["cross_check"]
             if_s = cc.get("if", {})

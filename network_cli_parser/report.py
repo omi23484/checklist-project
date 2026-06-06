@@ -4,8 +4,8 @@ Network CLI Report Generator
 Usage:
     python report.py delta       --before <old.json> --after <new.json> [--output out.html]
     python report.py delta-all   --before-dir <dir> --after-dir <dir> [--output-dir out/] [--output-file index.html] [--format html|json|both]
-    python report.py health      --snapshot <snap.json> --checks <checks.yaml> [--device-checks <dev.yaml>] [--output out.html] [--verify-only]
-    python report.py health-all  --dir <dir> --default-checks <checks.yaml> [--device-checks-dir <dir>] [--output-dir out/] [--output-file health_report.html] [--format html|json|both] [--since-days N] [--verify-only]
+    python report.py health      --snapshot <snap.json> --checks <checks.yaml> [--device-checks <dev.yaml>] [--baseline <old.json>] [--output out.html] [--verify-only]
+    python report.py health-all  --dir <dir> --default-checks <checks.yaml> [--device-checks-dir <dir>] [--baseline-dir <dir>] [--output-dir out/] [--output-file health_report.html] [--format html|json|both] [--since-days N_OR_DATE] [--verify-only]
     python report.py health-diff --before <health.json> --after <health.json> [--output diff.html]
     python report.py coverage    --snapshot <snap.json> [--checks <checks.yaml>] [--output cov.json]
     python report.py baseline    --snapshot <snap.json> [--output checks/baseline.yaml]
@@ -245,7 +245,8 @@ def cmd_health(args: argparse.Namespace) -> None:
         device_checks = _load_checks(args.device_checks)
         checks = merge_checks(checks, device_checks)
 
-    report = evaluate_checks(snapshot, checks)
+    baseline = _load_json(args.baseline) if getattr(args, "baseline", None) else None
+    report = evaluate_checks(snapshot, checks, baseline=baseline)
     _print_health_summary(report)
 
     if not getattr(args, "verify_only", False):
@@ -299,22 +300,49 @@ def _print_health_summary(report: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def _parse_collection_date(ts: str):
-    """Parse a collection_time string to a date object.  Returns None on failure."""
-    for fmt in ("%d-%b-%y", "%d-%b-%Y", "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S"):
-        try:
-            return datetime.strptime(ts, fmt).date()
-        except ValueError:
-            continue
-    return None
+    """Parse a collection_time string to a date object using unified _parse_date. Returns None on failure."""
+    from utils.health import _parse_date
+    dt = _parse_date(ts)
+    return dt.date() if dt else None
+
+
+def _find_baseline(baseline_dir: Path, hostname: str):
+    """Find the newest baseline snapshot for hostname in baseline_dir."""
+    if not baseline_dir or not baseline_dir.exists():
+        return None
+    candidates = sorted(baseline_dir.glob(f"{hostname}*.json"))
+    if not candidates:
+        return None
+    try:
+        with open(candidates[-1], encoding="utf-8") as fh:
+            import json as _json
+            return _json.load(fh)
+    except Exception:
+        return None
 
 
 def cmd_health_all(args: argparse.Namespace) -> None:
-    snap_dir    = Path(args.dir)
-    output_dir  = Path(args.output_dir)
-    fmt         = args.format
-    dev_dir     = Path(args.device_checks_dir) if args.device_checks_dir else None
-    verify_only = getattr(args, "verify_only", False)
-    since_days  = getattr(args, "since_days", None)
+    snap_dir     = Path(args.dir)
+    output_dir   = Path(args.output_dir)
+    fmt          = args.format
+    dev_dir      = Path(args.device_checks_dir) if args.device_checks_dir else None
+    verify_only  = getattr(args, "verify_only", False)
+    baseline_dir = Path(args.baseline_dir) if getattr(args, "baseline_dir", None) else None
+
+    # --since accepts integer days OR a date string
+    since_raw  = getattr(args, "since_days", None)
+    since_days = None
+    if since_raw is not None:
+        try:
+            since_days = int(since_raw)
+        except (ValueError, TypeError):
+            from utils.health import _parse_date
+            dt = _parse_date(str(since_raw))
+            if dt:
+                since_days = (datetime.now() - dt).days
+            else:
+                print(f"[WARN] --since value {since_raw!r} not recognised as integer or date — ignoring",
+                      file=sys.stderr)
 
     if not verify_only:
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -322,7 +350,7 @@ def cmd_health_all(args: argparse.Namespace) -> None:
     default_checks = _load_checks(args.default_checks)
     snap_map       = _load_dir_snapshots(snap_dir)
 
-    # Apply --since-days filter
+    # Apply --since filter
     if since_days is not None:
         cutoff = datetime.now().date() - timedelta(days=since_days)
         filtered = {}
@@ -347,7 +375,8 @@ def cmd_health_all(args: argparse.Namespace) -> None:
         if dev_file and dev_file.exists():
             checks = merge_checks(default_checks, _load_checks(str(dev_file)))
 
-        report = evaluate_checks(snap, checks)
+        baseline = _find_baseline(baseline_dir, hostname) if baseline_dir else None
+        report = evaluate_checks(snap, checks, baseline=baseline)
         s      = report["summary"]
 
         if s.get("failed_critical", s["failed"]) > 0 or s["error"] > 0:
@@ -757,6 +786,7 @@ def main() -> None:
     p_health.add_argument("--snapshot",      required=True, help="Snapshot JSON file")
     p_health.add_argument("--checks",        required=True, help="Default health checks YAML")
     p_health.add_argument("--device-checks", default=None,  help="Device-specific checks YAML (overrides on name clash)")
+    p_health.add_argument("--baseline",      default=None,  help="Previous snapshot JSON for compare_baseline: checks")
     p_health.add_argument("--output",        default=None,  help="Output file (.json or .html); default: stdout")
     p_health.add_argument("--verify-only",   action="store_true",
                           help="Run checks and print results but write no output files")
@@ -772,8 +802,10 @@ def main() -> None:
                         help="Combined HTML report filename inside output-dir (default: health_report.html)")
     p_hall.add_argument("--format", choices=["html", "json", "both"], default="html",
                         help="Per-device report format (default: html)")
-    p_hall.add_argument("--since-days", type=int, default=None, metavar="N",
-                        help="Only process snapshots collected within the last N days")
+    p_hall.add_argument("--since-days", default=None, metavar="N_OR_DATE",
+                        help="Only process snapshots newer than N days ago or a specific date (e.g. 03-May-2026)")
+    p_hall.add_argument("--baseline-dir", default=None,
+                        help="Directory of previous snapshots for compare_baseline: checks (matched by hostname)")
     p_hall.add_argument("--verify-only", action="store_true",
                         help="Run checks and print results but write no output files")
     p_hall.set_defaults(func=cmd_health_all)

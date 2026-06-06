@@ -1,7 +1,8 @@
 import pytest
+from datetime import datetime
 from utils.health import (
     _parse_duration, _apply_condition, _resolve_path,
-    evaluate_checks, merge_checks, _format_print,
+    evaluate_checks, merge_checks, _format_print, _parse_date,
 )
 
 
@@ -834,3 +835,186 @@ class TestCrossCheck:
         }
         r = evaluate_checks(snap, [check])
         assert r["results"][0]["status"] == "pass"
+
+
+# ---------------------------------------------------------------------------
+# TestCountCheck
+# ---------------------------------------------------------------------------
+
+class TestCountCheck:
+    def _check(self, cond, val):
+        return {"name": "c", "command": "show_bgp", "path": "neighbors[*]",
+                "count": {"condition": cond, "value": val}}
+
+    def _snap(self, n):
+        return _snap("show_bgp", {"neighbors": [{"ip": f"10.0.0.{i}"} for i in range(n)]})
+
+    def test_count_gte_pass(self):
+        r = evaluate_checks(self._snap(4), [self._check("gte", 4)])
+        assert r["results"][0]["status"] == "pass"
+        assert r["results"][0]["actual"] == [4]
+
+    def test_count_gte_fail(self):
+        r = evaluate_checks(self._snap(2), [self._check("gte", 4)])
+        assert r["results"][0]["status"] == "fail"
+
+    def test_count_eq_pass(self):
+        r = evaluate_checks(self._snap(3), [self._check("eq", 3)])
+        assert r["results"][0]["status"] == "pass"
+
+    def test_count_zero(self):
+        r = evaluate_checks(self._snap(0), [self._check("eq", 0)])
+        assert r["results"][0]["status"] == "pass"
+
+
+# ---------------------------------------------------------------------------
+# TestLenConditions
+# ---------------------------------------------------------------------------
+
+class TestLenConditions:
+    def test_len_gte_string_pass(self):
+        snap = _snap("show_version", [{"hostname": "N9K-WAN-1"}])
+        checks = [{"name": "c", "command": "show_version", "path": "[0].hostname",
+                   "condition": "len_gte", "value": 5}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "pass"
+
+    def test_len_gte_string_fail(self):
+        snap = _snap("show_version", [{"hostname": "hi"}])
+        checks = [{"name": "c", "command": "show_version", "path": "[0].hostname",
+                   "condition": "len_gte", "value": 5}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "fail"
+
+    def test_len_eq_list(self):
+        snap = _snap("show_bgp", {"items": [1, 2, 3]})
+        checks = [{"name": "c", "command": "show_bgp", "path": "items",
+                   "condition": "len_eq", "value": 3}]
+        r = evaluate_checks(snap, checks)
+        assert r["results"][0]["status"] == "pass"
+
+
+# ---------------------------------------------------------------------------
+# TestDateConditions
+# ---------------------------------------------------------------------------
+
+class TestDateConditions:
+    def _snap_date(self, val):
+        return _snap("show_cert", [{"expiry": val}])
+
+    def test_date_before_pass(self):
+        r = evaluate_checks(self._snap_date("03-May-2030"),
+                            [{"name": "c", "command": "show_cert", "path": "[0].expiry",
+                              "condition": "date_before", "value": "01-Jan-2031"}])
+        assert r["results"][0]["status"] == "pass"
+
+    def test_date_before_fail(self):
+        r = evaluate_checks(self._snap_date("03-May-2030"),
+                            [{"name": "c", "command": "show_cert", "path": "[0].expiry",
+                              "condition": "date_before", "value": "01-Jan-2025"}])
+        assert r["results"][0]["status"] == "fail"
+
+    def test_date_within_days_pass(self):
+        from datetime import timedelta
+        future = (datetime.now() + timedelta(days=5)).strftime("%d-%b-%Y")
+        # a date 5 days in the future is -5 days old → date_within_days checks age <= N
+        # actually date is in the future so age_days < 0 which is <= 30 → passes
+        r = evaluate_checks(self._snap_date(future),
+                            [{"name": "c", "command": "show_cert", "path": "[0].expiry",
+                              "condition": "date_within_days", "value": 30}])
+        assert r["results"][0]["status"] == "pass"
+
+    def test_date_older_than_days_pass(self):
+        r = evaluate_checks(self._snap_date("01-Jan-2020"),
+                            [{"name": "c", "command": "show_cert", "path": "[0].expiry",
+                              "condition": "date_older_than_days", "value": 100}])
+        assert r["results"][0]["status"] == "pass"
+
+    def test_multiple_date_formats(self):
+        from utils.health import _parse_date
+        assert _parse_date("03-May-2026") is not None
+        assert _parse_date("03/05/2026") is not None
+        assert _parse_date("2026-05-03") is not None
+        assert _parse_date("03-05-2026") is not None
+        assert _parse_date("03-May-26") is not None
+        assert _parse_date("not-a-date") is None
+
+
+# ---------------------------------------------------------------------------
+# TestBaselineCheck
+# ---------------------------------------------------------------------------
+
+class TestBaselineCheck:
+    def _make_snap(self, prefix_count):
+        return _snap("show_bgp", {"neighbors": [{"ip": "10.0.0.1", "pfx": prefix_count}]})
+
+    def _check(self, cond, val=None):
+        c = {"name": "c", "command": "show_bgp", "path": "neighbors[*].pfx",
+             "compare_baseline": {"condition": cond}}
+        if val is not None:
+            c["compare_baseline"]["value"] = val
+        return c
+
+    def test_gte_passes_when_not_lower(self):
+        current  = self._make_snap(100)
+        baseline = self._make_snap(90)
+        r = evaluate_checks(current, [self._check("gte")], baseline=baseline)
+        assert r["results"][0]["status"] == "pass"
+
+    def test_gte_fails_when_lower(self):
+        current  = self._make_snap(50)
+        baseline = self._make_snap(100)
+        r = evaluate_checks(current, [self._check("gte")], baseline=baseline)
+        assert r["results"][0]["status"] == "fail"
+
+    def test_diff_lte_pass(self):
+        current  = self._make_snap(95)
+        baseline = self._make_snap(100)
+        r = evaluate_checks(current, [self._check("diff_lte", 10)], baseline=baseline)
+        assert r["results"][0]["status"] == "pass"
+
+    def test_diff_lte_fail(self):
+        current  = self._make_snap(80)
+        baseline = self._make_snap(100)
+        r = evaluate_checks(current, [self._check("diff_lte", 10)], baseline=baseline)
+        assert r["results"][0]["status"] == "fail"
+
+    def test_no_baseline_errors(self):
+        r = evaluate_checks(self._make_snap(100), [self._check("gte")])
+        assert r["results"][0]["status"] == "error"
+
+
+# ---------------------------------------------------------------------------
+# TestMetadataCheck
+# ---------------------------------------------------------------------------
+
+class TestMetadataCheck:
+    def _meta_snap(self, hostname="N9K-WAN-1", platform="cisco_nxos",
+                   collection_time="01-Jan-2020"):
+        return {"metadata": {"hostname": hostname, "platform": platform,
+                              "collection_time": collection_time},
+                "commands": {}}
+
+    def test_hostname_matches_pass(self):
+        r = evaluate_checks(self._meta_snap(),
+                            [{"name": "c", "metadata": "hostname",
+                              "condition": "matches", "value": "^N9K-"}])
+        assert r["results"][0]["status"] == "pass"
+
+    def test_hostname_matches_fail(self):
+        r = evaluate_checks(self._meta_snap(hostname="IOS-RTR-1"),
+                            [{"name": "c", "metadata": "hostname",
+                              "condition": "matches", "value": "^N9K-"}])
+        assert r["results"][0]["status"] == "fail"
+
+    def test_platform_eq_pass(self):
+        r = evaluate_checks(self._meta_snap(),
+                            [{"name": "c", "metadata": "platform",
+                              "condition": "eq", "value": "cisco_nxos"}])
+        assert r["results"][0]["status"] == "pass"
+
+    def test_missing_field_errors(self):
+        r = evaluate_checks(self._meta_snap(),
+                            [{"name": "c", "metadata": "serial_number",
+                              "condition": "eq", "value": "ABC123"}])
+        assert r["results"][0]["status"] == "error"
