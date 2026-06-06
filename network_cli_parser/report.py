@@ -2,15 +2,18 @@
 Network CLI Report Generator
 
 Usage:
-    python report.py delta       --before <old.json> --after <new.json> [--output out.html]
-    python report.py delta-all   --before-dir <dir> --after-dir <dir> [--output-dir out/] [--output-file index.html] [--format html|json|both]
-    python report.py health      --snapshot <snap.json> --checks <checks.yaml> [--device-checks <dev.yaml>] [--baseline <old.json>] [--output out.html] [--verify-only]
-    python report.py health-all  --dir <dir> --default-checks <checks.yaml> [--device-checks-dir <dir>] [--baseline-dir <dir>] [--output-dir out/] [--output-file health_report.html] [--format html|json|both] [--since-days N_OR_DATE] [--verify-only]
-    python report.py health-diff --before <health.json> --after <health.json> [--output diff.html]
-    python report.py coverage    --snapshot <snap.json> [--checks <checks.yaml>] [--output cov.json]
-    python report.py baseline    --snapshot <snap.json> [--output checks/baseline.yaml]
-    python report.py collect     --devices <devices.yaml> [--raw-dir data/raw/] [--output-dir data/json/] [--password <pw>]
-    python report.py collect     --from-dir <dir> [--output-dir data/json/]
+    python report.py delta         --before <old.json> --after <new.json> [--output out.html]
+    python report.py delta-all     --before-dir <dir> --after-dir <dir> [--output-dir out/] [--output-file index.html] [--format html|json|both]
+    python report.py health        --snapshot <snap.json> --checks <checks.yaml> [--device-checks <dev.yaml>] [--baseline <old.json>] [--tags tag1,tag2] [--output out.html] [--verify-only]
+    python report.py health-all    --dir <dir> --default-checks <checks.yaml> [--device-checks-dir <dir>] [--baseline-dir <dir>] [--output-dir out/] [--output-file health_report.html] [--format html|json|both] [--since-days N_OR_DATE] [--tags tag1,tag2] [--verify-only]
+    python report.py health-diff   --before <health.json> --after <health.json> [--output diff.html]
+    python report.py health-trend  --runs-dir <dir> --checks <checks.yaml> [--output trend.html]
+    python report.py validate      --checks <checks.yaml>
+    python report.py test-template --template <file.textfsm|ttp> --raw <output.txt>
+    python report.py coverage      --snapshot <snap.json> [--checks <checks.yaml>] [--output cov.json]
+    python report.py baseline      --snapshot <snap.json> [--output checks/baseline.yaml]
+    python report.py collect       --devices <devices.yaml> [--raw-dir data/raw/] [--output-dir data/json/] [--password <pw>]
+    python report.py collect       --from-dir <dir> [--output-dir data/json/]
 
 Output format is inferred from the --output extension (.html or .json).
 When --output is omitted, JSON is printed to stdout.
@@ -246,7 +249,8 @@ def cmd_health(args: argparse.Namespace) -> None:
         checks = merge_checks(checks, device_checks)
 
     baseline = _load_json(args.baseline) if getattr(args, "baseline", None) else None
-    report = evaluate_checks(snapshot, checks, baseline=baseline)
+    tags = [t.strip() for t in args.tags.split(",")] if getattr(args, "tags", None) else None
+    report = evaluate_checks(snapshot, checks, baseline=baseline, tags=tags)
     _print_health_summary(report)
 
     if not getattr(args, "verify_only", False):
@@ -269,7 +273,9 @@ def _print_health_summary(report: dict) -> None:
     print(f"\nHealth report")
     print(f"  host:      {meta.get('hostname', '?')}")
     print(f"  timestamp: {meta.get('collection_time', '?')}")
-    print(f"  checks:    {s['total']}  passed: {s['passed']}  failed: {s['failed']}  error: {s['error']}")
+    skipped = s.get("skipped", 0)
+    skip_str = f"  skipped: {skipped}" if skipped else ""
+    print(f"  checks:    {s['total']}  passed: {s['passed']}  failed: {s['failed']}  error: {s['error']}{skip_str}")
     fc, fw, fi = s.get("failed_critical", 0), s.get("failed_warn", 0), s.get("failed_info", 0)
     if s["failed"] > 0:
         print(f"             critical: {fc}  warn: {fw}  info: {fi}")
@@ -288,7 +294,7 @@ def _print_health_summary(report: dict) -> None:
                     print(f"          reason:  {msg}")
         elif r["status"] == "error":
             print(f"          {r.get('message')}")
-        elif r["status"] == "pass" and r.get("note"):
+        elif r["status"] in ("pass", "skip") and r.get("note"):
             print(f"          note: {r['note']}")
         for line in r.get("printed", []):
             print(f"          {line}")
@@ -347,6 +353,7 @@ def cmd_health_all(args: argparse.Namespace) -> None:
     if not verify_only:
         output_dir.mkdir(parents=True, exist_ok=True)
 
+    tags = [t.strip() for t in args.tags.split(",")] if getattr(args, "tags", None) else None
     default_checks = _load_checks(args.default_checks)
     snap_map       = _load_dir_snapshots(snap_dir)
 
@@ -376,7 +383,7 @@ def cmd_health_all(args: argparse.Namespace) -> None:
             checks = merge_checks(default_checks, _load_checks(str(dev_file)))
 
         baseline = _find_baseline(baseline_dir, hostname) if baseline_dir else None
-        report = evaluate_checks(snap, checks, baseline=baseline)
+        report = evaluate_checks(snap, checks, baseline=baseline, tags=tags)
         s      = report["summary"]
 
         if s.get("failed_critical", s["failed"]) > 0 or s["error"] > 0:
@@ -737,6 +744,147 @@ def cmd_collect(args: argparse.Namespace) -> None:
         sys.exit(1)
 
 
+# ---------------------------------------------------------------------------
+# validate subcommand
+# ---------------------------------------------------------------------------
+
+def cmd_validate(args: argparse.Namespace) -> None:
+    """Validate a checks YAML for syntax errors without needing a snapshot."""
+    try:
+        checks = _load_checks(args.checks)
+        print(f"OK — {len(checks)} check(s) validated: {args.checks}")
+    except (ValueError, Exception) as exc:
+        print(f"FAIL — {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# test-template subcommand
+# ---------------------------------------------------------------------------
+
+def cmd_test_template(args: argparse.Namespace) -> None:
+    """Parse a raw CLI output file with a TextFSM or TTP template and show results."""
+    raw_text = Path(args.raw).read_text(encoding="utf-8")
+    template_path = getattr(args, "template", None)
+
+    if template_path:
+        tpl = Path(template_path)
+        if not tpl.exists():
+            print(f"ERROR: template file not found: {template_path}", file=sys.stderr)
+            sys.exit(1)
+        ext = tpl.suffix.lower()
+        if ext == ".textfsm":
+            try:
+                import textfsm
+                import io
+                with open(template_path, encoding="utf-8") as fh:
+                    fsm = textfsm.TextFSM(fh)
+                rows = fsm.ParseTextToDicts(raw_text)
+                _print_template_result(template_path, "textfsm", rows, fsm.header)
+            except Exception as exc:
+                print(f"ERROR: {exc}", file=sys.stderr)
+                sys.exit(1)
+        elif ext in (".ttp", ".j2"):
+            try:
+                from parsers.ttp_engine import parse_path as ttp_parse
+                rows = ttp_parse(template_path, raw_text)
+                _print_template_result(template_path, "ttp", rows if isinstance(rows, list) else [rows], [])
+            except Exception as exc:
+                print(f"ERROR: {exc}", file=sys.stderr)
+                sys.exit(1)
+        else:
+            print(f"ERROR: unknown template extension {ext!r} (use .textfsm or .ttp)", file=sys.stderr)
+            sys.exit(1)
+    elif getattr(args, "command", None) and getattr(args, "platform", None):
+        from utils.normalization import normalize_command
+        from parsers.custom_engine import find_by_convention, parse_path
+        from parsers import ttp_engine
+        norm = normalize_command(args.command)
+        tpl_path = find_by_convention(args.platform, norm)
+        if tpl_path is None:
+            tpl_path = ttp_engine.find_by_convention(args.platform, norm)
+            if tpl_path:
+                rows = ttp_engine.parse_path(tpl_path, raw_text)
+                _print_template_result(str(tpl_path), "ttp", rows if isinstance(rows, list) else [rows], [])
+                return
+        if tpl_path is None:
+            print(f"ERROR: no template found for {args.platform}/{norm}", file=sys.stderr)
+            sys.exit(1)
+        rows = parse_path(str(tpl_path), raw_text)
+        _print_template_result(str(tpl_path), "textfsm", rows, [])
+    else:
+        print("ERROR: specify --template <file> or --command + --platform", file=sys.stderr)
+        sys.exit(1)
+
+
+def _print_template_result(template_path: str, engine: str, rows: list, header: list) -> None:
+    print(f"\nTemplate: {template_path}  [{engine}]")
+    print(f"Rows:     {len(rows)}")
+    if rows:
+        cols = header if header else (list(rows[0].keys()) if isinstance(rows[0], dict) else [])
+        if cols:
+            print(f"Columns:  {', '.join(cols)}")
+        print("\nFirst 5 rows:")
+        for row in rows[:5]:
+            print(f"  {json.dumps(row, indent=None)}")
+    print()
+
+
+# ---------------------------------------------------------------------------
+# health-trend subcommand
+# ---------------------------------------------------------------------------
+
+def cmd_health_trend(args: argparse.Namespace) -> None:
+    """Build a time-series trend HTML report from multiple health JSON result files."""
+    runs_dir = Path(args.runs_dir)
+    if not runs_dir.exists():
+        print(f"ERROR: --runs-dir {runs_dir} does not exist", file=sys.stderr)
+        sys.exit(1)
+
+    # Load all health JSON files in the directory
+    run_files = sorted(runs_dir.glob("*.json"))
+    if not run_files:
+        print(f"No JSON files found in {runs_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    # trend_data: list of {filename, date_str, hostname, results}
+    trend_data = []
+    for p in run_files:
+        try:
+            data = _load_json(str(p))
+            hostname = data.get("metadata", {}).get("hostname", p.stem)
+            ts       = data.get("metadata", {}).get("collection_time", p.stem)
+            trend_data.append({
+                "filename":  p.name,
+                "timestamp": ts,
+                "hostname":  hostname,
+                "results":   data.get("results", []),
+                "summary":   data.get("summary", {}),
+            })
+        except Exception as exc:
+            print(f"  [WARN] {p.name}: failed to load ({exc}) — skipping")
+
+    if not trend_data:
+        print("No valid health JSON files found.", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"\nHealth Trend: {len(trend_data)} run(s) from {runs_dir}\n")
+    for item in trend_data:
+        s = item["summary"]
+        print(f"  {item['timestamp']:<20} {item['hostname']:<32}"
+              f" pass:{s.get('passed',0)} fail:{s.get('failed',0)} error:{s.get('error',0)}")
+    print()
+
+    output = getattr(args, "output", None) or "health_trend.html"
+    if _is_html(output):
+        out = Path(output)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(html_report.render_health_trend(trend_data), encoding="utf-8")
+        print(f"  -> {output}")
+    else:
+        _write_output({"runs": trend_data}, output)
+
+
 def _print_health_all_summary(results: list) -> None:
     header = f"  {'Device':<32} {'Timestamp':<14} {'Total':>6} {'Pass':>6} {'Fail':>6} {'Error':>6}"
     print(header)
@@ -788,6 +936,8 @@ def main() -> None:
     p_health.add_argument("--device-checks", default=None,  help="Device-specific checks YAML (overrides on name clash)")
     p_health.add_argument("--baseline",      default=None,  help="Previous snapshot JSON for compare_baseline: checks")
     p_health.add_argument("--output",        default=None,  help="Output file (.json or .html); default: stdout")
+    p_health.add_argument("--tags",          default=None,
+                          help="Comma-separated tag filter — only run checks with any of these tags")
     p_health.add_argument("--verify-only",   action="store_true",
                           help="Run checks and print results but write no output files")
     p_health.set_defaults(func=cmd_health)
@@ -806,6 +956,8 @@ def main() -> None:
                         help="Only process snapshots newer than N days ago or a specific date (e.g. 03-May-2026)")
     p_hall.add_argument("--baseline-dir", default=None,
                         help="Directory of previous snapshots for compare_baseline: checks (matched by hostname)")
+    p_hall.add_argument("--tags", default=None,
+                        help="Comma-separated tag filter — only run checks with any of these tags")
     p_hall.add_argument("--verify-only", action="store_true",
                         help="Run checks and print results but write no output files")
     p_hall.set_defaults(func=cmd_health_all)
@@ -831,6 +983,29 @@ def main() -> None:
     p_base.add_argument("--snapshot", required=True, help="Snapshot JSON file")
     p_base.add_argument("--output",   default=None,  help="Output YAML file; default: stdout")
     p_base.set_defaults(func=cmd_baseline)
+
+    # validate
+    p_val = sub.add_parser("validate", help="Validate a checks YAML for syntax errors")
+    p_val.add_argument("--checks", required=True, help="Health checks YAML to validate")
+    p_val.set_defaults(func=cmd_validate)
+
+    # test-template
+    p_tt = sub.add_parser("test-template", help="Test a TextFSM/TTP template against raw CLI output")
+    p_tt.add_argument("--template", default=None, help="Template file (.textfsm or .ttp)")
+    p_tt.add_argument("--raw",      required=True, help="Raw CLI output file (.txt)")
+    p_tt.add_argument("--command",  default=None, help="Command string for auto-discovery mode")
+    p_tt.add_argument("--platform", default=None, help="Platform for auto-discovery mode (e.g. cisco_nxos)")
+    p_tt.set_defaults(func=cmd_test_template)
+
+    # health-trend
+    p_trend = sub.add_parser("health-trend",
+                              help="Time-series trend report across multiple health result JSON files")
+    p_trend.add_argument("--runs-dir", required=True,
+                         help="Directory of health JSON files (output of 'health --format json')")
+    p_trend.add_argument("--checks",   default=None, help="Checks YAML (for context labels; optional)")
+    p_trend.add_argument("--output",   default="health_trend.html",
+                         help="Output HTML file (default: health_trend.html)")
+    p_trend.set_defaults(func=cmd_health_trend)
 
     # collect
     p_col = sub.add_parser("collect", help="Collect snapshots via SSH or process existing .txt dumps")

@@ -135,29 +135,51 @@ def validate_checks(checks: list, source: str = "") -> list[str]:
     return warnings
 
 
-def evaluate_checks(snapshot: dict, checks: list[dict], baseline: dict = None) -> dict:
+def evaluate_checks(snapshot: dict, checks: list[dict],
+                    baseline: dict = None, tags: list = None) -> dict:
     commands          = snapshot.get("commands", {})
     metadata          = snapshot.get("metadata", {})
     baseline_commands = baseline.get("commands", {}) if baseline else {}
+
+    # Filter by tags if provided (OR logic: check passes filter if it has any requested tag)
+    if tags:
+        tag_set = set(tags)
+        checks = [c for c in checks if set(c.get("tags", [])) & tag_set]
+
     results = [_run_check(c, commands, metadata, baseline_commands) for c in checks]
 
     passed  = sum(1 for r in results if r["status"] == "pass")
     failed  = sum(1 for r in results if r["status"] == "fail")
     errored = sum(1 for r in results if r["status"] == "error")
+    skipped = sum(1 for r in results if r["status"] == "skip")
 
     return {
         "metadata": snapshot.get("metadata", {}),
         "summary": {
-            "total":  len(results),
-            "passed": passed,
-            "failed": failed,
-            "error":  errored,
+            "total":   len(results),
+            "passed":  passed,
+            "failed":  failed,
+            "error":   errored,
+            "skipped": skipped,
             "failed_critical": sum(1 for r in results if r["status"] == "fail" and r.get("severity", "critical") == "critical"),
             "failed_warn":     sum(1 for r in results if r["status"] == "fail" and r.get("severity", "critical") == "warn"),
             "failed_info":     sum(1 for r in results if r["status"] == "fail" and r.get("severity", "critical") == "info"),
         },
         "results": results,
     }
+
+
+def _eval_skip_if(skip_spec: dict, metadata: dict) -> bool:
+    """Return True if the check should be skipped (skip condition is satisfied)."""
+    if not isinstance(skip_spec, dict):
+        return False
+    condition = skip_spec.get("condition", "eq")
+    expected  = skip_spec.get("value")
+    if "metadata" in skip_spec:
+        actual = (metadata or {}).get(skip_spec["metadata"])
+        ok, _ = _apply_condition(actual, condition, expected)
+        return ok
+    return False
 
 
 def _run_check(check: dict, commands: dict,
@@ -169,6 +191,11 @@ def _run_check(check: dict, commands: dict,
     expected  = check.get("value")
     severity  = check.get("severity", "critical")
     print_tpl = check.get("print")
+
+    # skip_if: evaluate before everything else
+    if "skip_if" in check and _eval_skip_if(check["skip_if"], metadata or {}):
+        return {"name": name, "status": "skip", "severity": severity, "check": check,
+                "note": "skip_if condition matched"}
 
     if "metadata" in check:
         return _run_metadata_check(check, metadata or {})

@@ -166,6 +166,36 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
 .badge.sev-warn{background:var(--warn-bg);color:var(--warn)}
 .badge.sev-info{background:var(--info-bg);color:var(--info)}
 .badge.display{background:#e8f0fe;color:#1a56db}
+.badge.skip,.badge.SKIP{background:#f0f0f0;color:#666}
+
+/* ---- check card skip ---- */
+.check-card.skip{border-left-color:#ccc;opacity:.75}
+
+/* ---- tag pills ---- */
+.tag-pill{background:#e8f0fe;color:#1a56db;border-radius:10px;padding:.1rem .45rem;font-size:.7rem;margin-right:.25rem;font-weight:500}
+
+/* ---- filter bar ---- */
+.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.fb-btn{font-size:.75rem;font-weight:600;padding:4px 11px;border:1px solid var(--border);border-radius:14px;background:var(--surface);cursor:pointer;color:var(--muted);transition:all .12s}
+.fb-btn:hover{border-color:#94a3b8;color:var(--text)}
+.fb-btn.active{background:var(--text);color:#fff;border-color:var(--text)}
+#check-search{font-size:.8rem;padding:4px 10px;border:1px solid var(--border);border-radius:14px;outline:none;min-width:180px;font-family:inherit}
+#check-search:focus{border-color:#94a3b8}
+
+/* ---- trend report ---- */
+.trend-wrap{overflow-x:auto;margin-bottom:1.5rem}
+.trend-table{width:100%;border-collapse:collapse;font-size:.82rem}
+.trend-table th{background:#1a355e;color:#fff;padding:.4rem .6rem;text-align:center;white-space:nowrap;font-size:.72rem;font-weight:700}
+.trend-table th:first-child{text-align:left;min-width:220px}
+.trend-table td{padding:.35rem .6rem;border-bottom:1px solid #e8eaf0;text-align:center;font-size:.79rem}
+.trend-table td:first-child{text-align:left;color:var(--text)}
+.trend-table td.t-pass{background:#e6f4ea;color:#1a7a40;font-weight:600}
+.trend-table td.t-fail{background:#fdecea;color:#b31b1b;font-weight:600}
+.trend-table td.t-error{background:#fff3e0;color:#b36b00;font-weight:600}
+.trend-table td.t-skip{background:#f5f5f5;color:#888}
+.trend-table td.t-na{color:#aaa;font-size:.72rem}
+.trend-table tr:hover td{filter:brightness(.96)}
+.sparkline{display:inline-block;vertical-align:middle;margin-left:6px}
 
 /* ---- raw output blocks ---- */
 .raw-list{display:flex;flex-direction:column;gap:8px}
@@ -349,6 +379,29 @@ function jtPath(e,el){
     t._tid=setTimeout(function(){t.classList.remove('show');},2200);
   }).catch(function(){});
 }
+function filterChecks(){
+  var active=document.querySelector('.fb-btn.active');
+  var filter=active?active.dataset.fb:'all';
+  var q=(document.getElementById('check-search')||{}).value||'';
+  q=q.toLowerCase();
+  document.querySelectorAll('.check-card').forEach(function(card){
+    var st=card.dataset.status||'';
+    var nm=(card.dataset.name||'').toLowerCase();
+    var show=(filter==='all'||st===filter)&&(!q||nm.includes(q));
+    card.style.display=show?'':'none';
+  });
+}
+document.addEventListener('DOMContentLoaded',function(){
+  document.querySelectorAll('.fb-btn').forEach(function(btn){
+    btn.addEventListener('click',function(){
+      document.querySelectorAll('.fb-btn').forEach(function(b){b.classList.remove('active');});
+      btn.classList.add('active');
+      filterChecks();
+    });
+  });
+  var s=document.getElementById('check-search');
+  if(s) s.addEventListener('input',filterChecks);
+});
 function jtInit(det){
   var src=det.querySelector('.jt-src');
   var tree=det.querySelector('.jt-tree');
@@ -474,6 +527,17 @@ def render_health_all(device_data: list[dict], checks_file: str) -> str:
 def _health_check_list(results: list) -> str:
     if not results:
         return "<p style='color:var(--muted)'>No checks defined.</p>"
+
+    filter_bar = """
+<div class="filter-bar">
+  <button class="fb-btn active" data-fb="all">All</button>
+  <button class="fb-btn" data-fb="pass">Pass</button>
+  <button class="fb-btn" data-fb="fail">Fail</button>
+  <button class="fb-btn" data-fb="error">Error</button>
+  <button class="fb-btn" data-fb="skip">Skip</button>
+  <input type="search" id="check-search" placeholder="Filter by name…">
+</div>"""
+
     items = []
     for r in results:
         status   = r.get("status", "error")
@@ -496,8 +560,23 @@ def _health_check_list(results: list) -> str:
         )
         print_only = r.get("print_only", False)
 
+        # Tag pills
+        tags = check.get("tags", []) or []
+        tags_html = "".join(
+            f'<span class="tag-pill">{_e(str(t))}</span>' for t in tags
+        ) if tags else ""
+
         # Build the Condition row content based on check type
-        if print_only:
+        if status == "skip":
+            skip_note = r.get("note", "")
+            skip_spec = check.get("skip_if", {})
+            skip_cond = f"{_e(skip_spec.get('metadata', skip_spec.get('field', '')))} {_e(skip_spec.get('condition', ''))} {_e(str(skip_spec.get('value', '')))}"
+            detail_rows = f"""
+<div class="dg">
+  <span class="dk">Skip-If</span><code>{skip_cond}</code>
+  <span class="dk">Note</span><span style="font-size:.8rem;color:var(--muted)">{_e(skip_note)}</span>
+</div>"""
+        elif print_only:
             detail_rows = f"""
 <div class="dg">
   <span class="dk">Command</span><code>{_e(cmd)}</code>
@@ -638,19 +717,25 @@ def _health_check_list(results: list) -> str:
             )
             extra += f'<div style="margin-top:6px">{printed_rows}</div>'
 
-        status_badge = _badge("display", "DISPLAY") if print_only else f"{_badge(status)}{sev_badge}"
+        if print_only:
+            status_badge = _badge("display", "DISPLAY")
+        elif status == "skip":
+            status_badge = _badge("skip", "SKIP")
+        else:
+            status_badge = f"{_badge(status)}{sev_badge}"
         card_class = 'pass' if print_only else _e(status)
         items.append(f"""
-<div class="check-card {card_class}">
+<div class="check-card {card_class}" data-status="{_e(status)}" data-name="{_e(name)}">
   <div class="check-hdr">
     {status_badge}
     <span class="check-name">{_e(name)}</span>
+    {tags_html}
     <span class="check-cmd">{_e(cmd)}</span>
   </div>
   <div class="check-body">{detail_rows}{extra}</div>
 </div>""")
 
-    return f'<div class="check-list">{"".join(items)}</div>'
+    return f'{filter_bar}<div class="check-list">{"".join(items)}</div>'
 
 
 # ---------------------------------------------------------------------------
@@ -1257,3 +1342,100 @@ def render_health_diff(
 </div>"""
 
     return _page(f"Health Diff — {bm.get('hostname', '?')}", body)
+
+
+# ---------------------------------------------------------------------------
+# Health trend report
+# ---------------------------------------------------------------------------
+
+def render_health_trend(trend_data: list[dict]) -> str:
+    """Time-series trend HTML from a list of health run dicts."""
+    if not trend_data:
+        return _page("Health Trend", "<p>No data.</p>")
+
+    # Collect unique check names (union across all runs, first-seen order)
+    seen: dict = {}
+    for item in trend_data:
+        for r in item.get("results", []):
+            n = r.get("name", "")
+            if n not in seen:
+                seen[n] = len(seen)
+    check_names = list(seen.keys())
+
+    dates = [item.get("timestamp", item.get("filename", "?")) for item in trend_data]
+
+    # Build header
+    hdrs = "".join(
+        f'<th title="{_e(d)}">{_e(d[:12] + "…" if len(str(d)) > 12 else d)}</th>'
+        for d in dates
+    )
+    header_row = f'<tr><th>Check</th>{hdrs}<th>Trend</th></tr>'
+
+    _STATUS_CLASS = {"pass": "t-pass", "fail": "t-fail", "error": "t-error",
+                     "skip": "t-skip"}
+
+    data_rows = []
+    for check_name in check_names:
+        cells = []
+        statuses = []
+        for item in trend_data:
+            lookup = {r.get("name", ""): r.get("status", "") for r in item.get("results", [])}
+            st = lookup.get(check_name)
+            statuses.append(st)
+            cls = _STATUS_CLASS.get(st, "t-na")
+            label = st.upper()[:4] if st else "—"
+            cells.append(f'<td class="{cls}">{label}</td>')
+
+        # Sparkline: mini SVG bar chart (pass=green, fail=red, missing=grey)
+        bar_w, bar_h = 6, 16
+        bars = ""
+        for i, st in enumerate(statuses):
+            colour = "#16a34a" if st == "pass" else "#dc2626" if st == "fail" else \
+                     "#d97706" if st == "error" else "#ccc"
+            x = i * (bar_w + 2)
+            bars += f'<rect x="{x}" y="0" width="{bar_w}" height="{bar_h}" fill="{colour}" rx="1"/>'
+        total_w = len(statuses) * (bar_w + 2)
+        sparkline = (f'<svg class="sparkline" width="{total_w}" height="{bar_h}" '
+                     f'viewBox="0 0 {total_w} {bar_h}">{bars}</svg>')
+
+        data_rows.append(
+            f'<tr><td>{_e(check_name)}</td>{"".join(cells)}<td>{sparkline}</td></tr>'
+        )
+
+    n_runs    = len(trend_data)
+    hostnames = sorted({item.get("hostname", "?") for item in trend_data})
+    subtitle  = f"{n_runs} run(s) · {', '.join(hostnames[:3])}{'…' if len(hostnames) > 3 else ''}"
+
+    total_pass  = sum(s.get("passed", 0) for item in trend_data for s in [item.get("summary", {})])
+    total_fail  = sum(s.get("failed", 0) for item in trend_data for s in [item.get("summary", {})])
+    total_error = sum(s.get("error",  0) for item in trend_data for s in [item.get("summary", {})])
+
+    cards = _summary_cards([
+        ("total", "Runs",   n_runs),
+        ("pass",  "Passes", total_pass),
+        ("fail",  "Fails",  total_fail),
+        ("error", "Errors", total_error),
+    ])
+
+    table_html = f"""<div class="trend-wrap">
+<table class="trend-table">
+  <thead>{header_row}</thead>
+  <tbody>{"".join(data_rows)}</tbody>
+</table>
+</div>"""
+
+    body = f"""
+<div class="page-header">
+  <div class="header-left">
+    <h1>Health Trend</h1>
+    <div class="sub">{_e(subtitle)}</div>
+  </div>
+  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
+</div>
+<div class="container">
+  {cards}
+  <div class="sec-title">Check Trend Matrix</div>
+  {table_html}
+</div>"""
+
+    return _page("Health Trend", body)

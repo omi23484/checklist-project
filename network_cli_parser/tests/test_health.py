@@ -1018,3 +1018,87 @@ class TestMetadataCheck:
                             [{"name": "c", "metadata": "serial_number",
                               "condition": "eq", "value": "ABC123"}])
         assert r["results"][0]["status"] == "error"
+
+
+# ---------------------------------------------------------------------------
+# Plan 17: skip_if
+# ---------------------------------------------------------------------------
+
+class TestSkipIf:
+    def _snap(self, hostname="WAN-1"):
+        return {"metadata": {"hostname": hostname}, "commands": {
+            "show_version": {"parsed": [{"version": "17.0"}]}
+        }}
+
+    def _check(self, skip_if_spec):
+        return {"name": "c", "command": "show_version", "path": "[0].version",
+                "condition": "eq", "value": "17.0", "skip_if": skip_if_spec}
+
+    def test_skip_when_condition_matches(self):
+        """Check is skipped when skip_if metadata condition is true."""
+        r = evaluate_checks(self._snap("IOS-RTR-1"),
+                            [self._check({"metadata": "hostname",
+                                          "condition": "matches", "value": "^IOS-"})])
+        assert r["results"][0]["status"] == "skip"
+
+    def test_not_skipped_when_condition_does_not_match(self):
+        """Check runs normally when skip_if condition is false."""
+        r = evaluate_checks(self._snap("WAN-1"),
+                            [self._check({"metadata": "hostname",
+                                          "condition": "matches", "value": "^IOS-"})])
+        assert r["results"][0]["status"] == "pass"
+
+    def test_skipped_count_in_summary(self):
+        """Skipped checks are counted in summary.skipped, not failed."""
+        r = evaluate_checks(self._snap("IOS-RTR-1"),
+                            [self._check({"metadata": "hostname",
+                                          "condition": "matches", "value": "^IOS-"})])
+        assert r["summary"]["skipped"] == 1
+        assert r["summary"]["failed"] == 0
+        assert r["summary"]["failed_critical"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Plan 17: tags filter
+# ---------------------------------------------------------------------------
+
+class TestTags:
+    def _snap(self):
+        return {"metadata": {"hostname": "TEST"}, "commands": {
+            "show_bgp": {"parsed": [{"prefixes": 10}]},
+            "show_ospf": {"parsed": [{"state": "FULL"}]},
+        }}
+
+    def test_tags_filter_selects_matching_checks(self):
+        """Only checks with the specified tag are run."""
+        checks = [
+            {"name": "bgp_check", "command": "show_bgp", "path": "[0].prefixes",
+             "condition": "gte", "value": 1, "tags": ["bgp", "routing"]},
+            {"name": "ospf_check", "command": "show_ospf", "path": "[0].state",
+             "condition": "eq", "value": "FULL", "tags": ["ospf", "routing"]},
+        ]
+        r = evaluate_checks(self._snap(), checks, tags=["bgp"])
+        assert r["summary"]["total"] == 1
+        assert r["results"][0]["name"] == "bgp_check"
+
+    def test_tags_or_logic(self):
+        """A check with any matching tag is included (OR logic)."""
+        checks = [
+            {"name": "bgp_check", "command": "show_bgp", "path": "[0].prefixes",
+             "condition": "gte", "value": 1, "tags": ["bgp"]},
+            {"name": "ospf_check", "command": "show_ospf", "path": "[0].state",
+             "condition": "eq", "value": "FULL", "tags": ["ospf"]},
+        ]
+        r = evaluate_checks(self._snap(), checks, tags=["bgp", "ospf"])
+        assert r["summary"]["total"] == 2
+
+    def test_no_tags_runs_all_checks(self):
+        """When tags=None, all checks run regardless of their tags field."""
+        checks = [
+            {"name": "bgp_check", "command": "show_bgp", "path": "[0].prefixes",
+             "condition": "gte", "value": 1, "tags": ["bgp"]},
+            {"name": "ospf_check", "command": "show_ospf", "path": "[0].state",
+             "condition": "eq", "value": "FULL", "tags": ["ospf"]},
+        ]
+        r = evaluate_checks(self._snap(), checks)
+        assert r["summary"]["total"] == 2
