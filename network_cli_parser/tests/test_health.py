@@ -743,3 +743,94 @@ class TestPrintOnly:
         checks = [{"name": "c", "command": "show_version", "path": "[0].version"}]
         r = evaluate_checks(snap, checks)
         assert r["summary"]["failed_critical"] == 0
+
+
+def _two_cmd_snap(intf_rows=None, brief_rows=None):
+    intf_rows  = intf_rows  or [
+        {"interface": "Gi1/1/0",    "description": "PR-link", "status": "up"},
+        {"interface": "Loopback10", "description": "",         "status": "up"},
+    ]
+    brief_rows = brief_rows or [{"intf": "Lo10", "status": "up"}]
+    return {
+        "metadata": {"hostname": "TEST"},
+        "commands": {
+            "show_interfaces":   {"parsed": intf_rows},
+            "show_ip_int_brief": {"parsed": brief_rows},
+        },
+    }
+
+
+class TestCrossCheck:
+    def _check(self, **kwargs):
+        base = {
+            "name": "c",
+            "command": "show_interfaces",
+            "cross_check": {
+                "if": {
+                    "path": "[*]",
+                    "field": "description",
+                    "condition": "contains",
+                    "value": "PR",
+                },
+                "then": {
+                    "path": "[*]",
+                    "filter": {"field": "interface", "condition": "eq", "value": "Loopback10"},
+                    "assert": {"field": "status", "condition": "eq", "value": "up"},
+                },
+            },
+        }
+        base.update(kwargs)
+        return base
+
+    def test_if_matches_then_passes(self):
+        r = evaluate_checks(_two_cmd_snap(), [self._check()])
+        assert r["results"][0]["status"] == "pass"
+
+    def test_if_matches_then_fails(self):
+        snap = _two_cmd_snap(intf_rows=[
+            {"interface": "Gi1/1/0",    "description": "PR-link", "status": "up"},
+            {"interface": "Loopback10", "description": "",         "status": "down"},
+        ])
+        r = evaluate_checks(snap, [self._check()])
+        assert r["results"][0]["status"] == "fail"
+        assert r["results"][0]["failures"][0]["actual"] == "down"
+
+    def test_if_no_match_vacuously_passes(self):
+        snap = _two_cmd_snap(intf_rows=[
+            {"interface": "Gi1/1/0",    "description": "normal-link", "status": "up"},
+            {"interface": "Loopback10", "description": "",             "status": "down"},
+        ])
+        r = evaluate_checks(snap, [self._check()])
+        result = r["results"][0]
+        assert result["status"] == "pass"
+        assert "0 rows" in result.get("note", "")
+
+    def test_then_target_not_found(self):
+        snap = _two_cmd_snap(intf_rows=[
+            {"interface": "Gi1/1/0", "description": "PR-link", "status": "up"},
+        ])
+        r = evaluate_checks(snap, [self._check()])
+        assert r["results"][0]["status"] == "error"
+
+    def test_different_commands(self):
+        snap = _two_cmd_snap()
+        check = {
+            "name": "cross-cmd",
+            "cross_check": {
+                "if": {
+                    "command": "show_interfaces",
+                    "path": "[*]",
+                    "field": "description",
+                    "condition": "contains",
+                    "value": "PR",
+                },
+                "then": {
+                    "command": "show_ip_int_brief",
+                    "path": "[*]",
+                    "filter": {"field": "intf", "condition": "eq", "value": "Lo10"},
+                    "assert": {"field": "status", "condition": "eq", "value": "up"},
+                },
+            },
+        }
+        r = evaluate_checks(snap, [check])
+        assert r["results"][0]["status"] == "pass"

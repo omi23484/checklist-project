@@ -503,6 +503,31 @@ def _health_check_list(results: list) -> str:
   <span class="dk">Command</span><code>{_e(cmd)}</code>
   <span class="dk">Path</span><code>{_e(path)}</code>
 </div>"""
+        elif "cross_check" in check:
+            cc   = check["cross_check"]
+            if_s = cc.get("if", {})
+            th_s = cc.get("then", {})
+            flt  = th_s.get("filter", {})
+            asr  = th_s.get("assert", {})
+            if_cmd_str   = _e(if_s.get("command", check.get("command", "")))
+            then_cmd_str = _e(th_s.get("command", check.get("command", "")))
+            cond_html = (
+                f"IF <code>{if_cmd_str}</code> <code>{_e(if_s.get('path',''))}</code> "
+                f"[{_e(if_s.get('field',''))} {_e(if_s.get('condition',''))} "
+                f"<em>{_e(str(if_s.get('value','')))}</em>]"
+                f" &#x27A1; "
+                f"THEN <code>{then_cmd_str}</code> <code>{_e(th_s.get('path',''))}</code>"
+            )
+            if flt:
+                cond_html += (f" filter [{_e(flt.get('field',''))} = "
+                              f"<em>{_e(str(flt.get('value','')))}</em>]")
+            cond_html += (f" assert [{_e(asr.get('field',''))} "
+                          f"{_e(asr.get('condition',''))} "
+                          f"<em>{_e(str(asr.get('value','')))}</em>]")
+            detail_rows = f"""
+<div class="dg">
+  <span class="dk">Cross-Check</span><span style="font-size:.82rem">{cond_html}</span>
+</div>"""
         elif "branches" in check:
             branch_parts = []
             for b in check["branches"]:

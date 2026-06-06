@@ -155,6 +155,9 @@ def _run_check(check: dict, commands: dict) -> dict:
     severity  = check.get("severity", "critical")
     print_tpl = check.get("print")
 
+    if "cross_check" in check:
+        return _run_cross_check(check, commands)
+
     if cmd not in commands:
         return _result_error(name, check, f"Command '{cmd}' not in snapshot", severity)
 
@@ -264,6 +267,82 @@ def _run_check_multi(check: dict, name: str, severity: str, match_mode: str,
     if printed is not None:
         r["printed"] = printed
     return r
+
+
+def _run_cross_check(check: dict, commands: dict) -> dict:
+    """Cross-row check: IF rows matching one condition exist, THEN assert on different rows."""
+    name        = check.get("name", "(unnamed)")
+    severity    = check.get("severity", "critical")
+    cc          = check["cross_check"]
+    default_cmd = check.get("command", "")
+
+    if_spec   = cc["if"]
+    then_spec = cc["then"]
+
+    # IF side
+    if_cmd   = if_spec.get("command", default_cmd)
+    if_field = if_spec.get("field", "")
+    if_cond  = if_spec.get("condition", "eq")
+    if_value = if_spec.get("value")
+
+    if if_cmd not in commands:
+        return _result_error(name, check, f"Command '{if_cmd}' not in snapshot", severity)
+    if_parsed = commands[if_cmd].get("parsed", {})
+    try:
+        if_rows = _resolve_path(if_parsed, if_spec.get("path", ""))
+    except Exception as exc:
+        return _result_error(name, check, f"IF path resolution failed: {exc}", severity)
+
+    if_matches = []
+    for rp, row in if_rows:
+        actual = row.get(if_field) if isinstance(row, dict) else row
+        ok, _ = _apply_condition(actual, if_cond, if_value)
+        if ok:
+            if_matches.append((rp, row))
+
+    if not if_matches:
+        return {"name": name, "status": "pass", "severity": severity, "check": check,
+                "actual": [], "note": "IF condition matched 0 rows — check not applicable"}
+
+    # THEN side
+    then_cmd    = then_spec.get("command", default_cmd)
+    then_filter = then_spec.get("filter", {})
+    then_assert = then_spec["assert"]
+    then_field  = then_assert.get("field", "")
+    then_cond   = then_assert.get("condition", "eq")
+    then_value  = then_assert.get("value")
+
+    if then_cmd not in commands:
+        return _result_error(name, check, f"Command '{then_cmd}' not in snapshot", severity)
+    then_parsed = commands[then_cmd].get("parsed", {})
+    try:
+        then_rows = _resolve_path(then_parsed, then_spec.get("path", ""))
+    except Exception as exc:
+        return _result_error(name, check, f"THEN path resolution failed: {exc}", severity)
+
+    if then_filter:
+        f_field = then_filter.get("field", "")
+        f_cond  = then_filter.get("condition", "eq")
+        f_value = then_filter.get("value")
+        then_rows = [
+            (rp, row) for rp, row in then_rows
+            if isinstance(row, dict) and _apply_condition(row.get(f_field), f_cond, f_value)[0]
+        ]
+
+    if not then_rows:
+        return _result_error(name, check, "THEN target resolved to 0 rows after filter", severity)
+
+    failures, passes = [], []
+    for rp, row in then_rows:
+        actual    = row.get(then_field) if isinstance(row, dict) else row
+        item_path = f"{rp}.{then_field}" if then_field else rp
+        ok, msg   = _apply_condition(actual, then_cond, then_value)
+        (passes if ok else failures).append({"path": item_path, "actual": actual, "message": msg})
+
+    if failures:
+        return {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
+    return {"name": name, "status": "pass", "severity": severity, "check": check,
+            "actual": [p["actual"] for p in passes]}
 
 
 def _run_check_branches(check: dict, name: str, severity: str, match_mode: str,
