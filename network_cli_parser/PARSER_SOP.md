@@ -1,155 +1,194 @@
 # Network CLI Parser — Standard Operating Procedure
 
-## 1. Overview
-
-The Network CLI Structured Parser reads raw Cisco IOS / NX-OS CLI dump text files, splits them by command, parses each command's output into structured data, and writes a single JSON snapshot per file.
-
-**Parser chain (per command):**
-
-```
-commands.yaml lookup
-    ├── raw_only    → skip parsing, preserve raw text
-    ├── ntc         → NTC Templates (ntc-templates library)
-    ├── custom      → Custom TextFSM template
-    ├── ttp         → TTP template
-    ├── hierarchical→ Python regex parser (multicast commands)
-    └── auto_discover (unknown commands)
-            ├── Step 1: NTC Templates (reconstructed command string)
-            ├── Step 2: Convention TextFSM ({platform}_{cmd}.textfsm)
-            ├── Step 3: Convention TTP     ({platform}_{cmd}.ttp)
-            └── no_template (raw preserved, structured parsing skipped)
-```
-
-Every command found in the log appears in the JSON output, even commands with no registered template.
+> **Audience:** Engineers who collect, parse, and assert against Cisco IOS / NX-OS CLI output.
+> **Scope:** Full reference — every CLI option, every condition, every check type, every permutation.
 
 ---
 
-## 2. Running the Parser
+## Table of Contents
+
+1. [Overview](#1-overview)
+2. [Installation](#2-installation)
+3. [Directory Structure](#3-directory-structure)
+4. [Parser — `main.py`](#4-parser--mainpy)
+5. [Status Codes](#5-status-codes)
+6. [Template Management](#6-template-management)
+7. [Report Generator — `report.py`](#7-report-generator--reportpy)
+8. [Health Check YAML Reference](#8-health-check-yaml-reference)
+9. [HTML Reports](#9-html-reports)
+10. [Exit Codes and CI/CD Integration](#10-exit-codes-and-cicd-integration)
+11. [Playbook Runner — `playbook.py`](#11-playbook-runner--playbookpy)
+12. [SFTP Log Fetcher — `fetch_logs.py`](#12-sftp-log-fetcher--fetch_logspy)
+13. [End-to-End Workflows](#13-end-to-end-workflows)
+
+---
+
+## 1. Overview
+
+The Network CLI Structured Parser reads raw Cisco IOS / NX-OS CLI dump text files, splits them by command, parses each command's output into structured JSON, and writes one snapshot file per device. The `report.py` toolchain then operates on those snapshots to produce health reports, delta comparisons, trend charts, and more.
+
+### Parser chain (per command)
+
+```
+commands.yaml lookup
+    ├── raw_only       → skip parsing, preserve raw text only
+    ├── ntc            → NTC Templates (ntc-templates library)
+    ├── custom         → Custom TextFSM template
+    ├── ttp            → TTP template (supports nested/hierarchical output)
+    ├── hierarchical   → Python regex parser (multicast commands)
+    └── auto_discover  → (unknown commands, no YAML entry)
+            ├── Step 1: NTC Templates (reconstructed command string)
+            ├── Step 2: Convention TextFSM  ({platform}_{cmd}.textfsm anywhere under templates/custom/)
+            ├── Step 3: Convention TTP       ({platform}_{cmd}.ttp anywhere under templates/ttp/)
+            └── no_template  (raw preserved, structured parsing skipped)
+```
+
+Every command found in the dump appears in the JSON output — even commands with no registered template.
+
+---
+
+## 2. Installation
 
 ```bash
+# Clone and enter the parser directory
 cd network_cli_parser
 pip install -r requirements.txt
 
-# Single file
-python main.py --input data/raw/N9K-CAMA-WAN-1_03-May-26.txt
+# Optional: SSH collection support
+pip install netmiko
 
-# Directory (processes all .txt files)
-python main.py --input data/raw/
-
-# Custom output directory
-python main.py --input data/raw/ --output /tmp/parsed/
+# Optional: progress bars for SFTP fetcher
+pip install tqdm
 ```
 
-JSON output is written to `data/json/<date>/` by default (a dated subdirectory is created automatically based on the collection date embedded in the filename), one file per input.
+**Python:** 3.9 or newer required (f-strings with walrus in reports need 3.8+; type hints use 3.9+ syntax).
 
 ---
 
 ## 3. Directory Structure
 
 ```
-checklist-project/                    # Repository root
-├── fetch_logs.py                     # Standalone SFTP log fetcher (paramiko only)
-├── playbook.py                       # Playbook runner — executes CSV-defined job sequences
+checklist-project/                        ← repository root
+├── fetch_logs.py                         ← standalone SFTP log fetcher
+├── playbook.py                           ← CSV-driven playbook runner
 │
 └── network_cli_parser/
-    ├── main.py                       # Parser entry point — orchestrates per-file processing
-    ├── report.py                     # Report generator (health / delta / coverage / diff…)
-    ├── commands.yaml                 # Command registry (platform → command → strategy)
+    ├── main.py                           ← parser entry point
+    ├── report.py                         ← report generator (15 subcommands)
+    ├── commands.yaml                     ← command registry (platform → command → strategy)
     ├── requirements.txt
+    ├── PARSER_SOP.md                     ← this file
     │
     ├── parsers/
-    │   ├── command_mapper.py         # Loads commands.yaml; returns strategy per command
-    │   ├── splitter.py               # Splits CLI dump into {cmd: raw_output} dict
-    │   ├── ntc_engine.py             # Wrapper around ntc-templates library
-    │   ├── custom_engine.py          # TextFSM engine; auto-discovery support
-    │   ├── ttp_engine.py             # TTP engine; auto-discovery support
-    │   └── multicast_parser.py       # Hierarchical Python parsers for mroute commands
+    │   ├── command_mapper.py             ← loads commands.yaml; returns strategy per command
+    │   ├── splitter.py                   ← splits CLI dump into {cmd: raw_output} dict
+    │   ├── ntc_engine.py                 ← wrapper around ntc-templates library
+    │   ├── custom_engine.py              ← TextFSM engine + auto-discovery
+    │   ├── ttp_engine.py                 ← TTP engine + auto-discovery
+    │   └── multicast_parser.py           ← Python parsers for multicast commands
     │
     ├── templates/
-    │   ├── custom/                   # TextFSM templates (.textfsm)
-    │   │   └── routing/              # Subdirectory by category (rglob scans all)
-    │   └── ttp/                      # TTP templates (.ttp)
+    │   ├── custom/                       ← TextFSM templates (.textfsm)
+    │   │   ├── routing/
+    │   │   ├── interfaces/
+    │   │   └── ...                       ← any subdirectory; rglob scans them all
+    │   └── ttp/                          ← TTP templates (.ttp)
     │       └── routing/
     │
     ├── utils/
-    │   ├── normalization.py          # Platform detection, hostname extraction, cmd normalization
-    │   ├── json_builder.py           # Assembles and writes the JSON snapshot
-    │   ├── delta.py                  # Field-level diff engine between two snapshots
-    │   ├── health.py                 # YAML-driven check evaluator + validate_checks()
-    │   └── html_report.py            # Self-contained HTML renderer (health / delta / diff)
+    │   ├── normalization.py              ← platform detection, hostname, cmd normalization
+    │   ├── json_builder.py               ← assembles and writes the JSON snapshot
+    │   ├── delta.py                      ← field-level diff between two snapshots
+    │   ├── health.py                     ← YAML-driven check evaluator
+    │   ├── html_report.py                ← self-contained HTML renderer
+    │   └── collector.py                  ← SSH + offline collection pipeline
     │
     ├── checks/
-    │   ├── example_health_checks.yaml  # Starter health check definitions
-    │   └── devices/                  # Per-device check override files ({hostname}.yaml)
+    │   ├── example_health_checks.yaml    ← starter check definitions
+    │   └── devices/                      ← per-device check overrides ({hostname}.yaml)
     │
     ├── playbooks/
-    │   ├── reference.csv             # Full reference — every step type with all flag variants
-    │   ├── example.csv               # 7-step end-to-end: fetch → parse → health → diff → delta
-    │   └── daily_health.csv          # Minimal offline 3-step: collect → health-all → coverage
+    │   ├── reference.csv                 ← every step type with all flag variants
+    │   ├── example.csv                   ← 7-step end-to-end workflow
+    │   └── daily_health.csv              ← minimal 3-step offline workflow
     │
     └── data/
         ├── raw/
-        │   └── <date>/               # Input CLI dump .txt files (dated subdirectory)
+        │   └── <date>/                   ← input CLI dump .txt files
         └── json/
-            └── <date>/               # Output JSON snapshots (dated subdirectory)
+            └── <date>/                   ← output JSON snapshots
 ```
 
 ---
 
-## 4. Status Codes
+## 4. Parser — `main.py`
+
+```bash
+# Single .txt file
+python main.py --input data/raw/N9K-CAMA-WAN-1_03-May-26.txt
+
+# All .txt files in a directory
+python main.py --input data/raw/
+
+# Custom output directory
+python main.py --input data/raw/ --output /tmp/parsed/
+
+# Override the platform (when filename detection fails)
+python main.py --input data/raw/device.txt --platform cisco_ios
+```
+
+Output is written to `data/json/<date>/` by default. The date is extracted from the filename (`DD-Mon-YY`). Each input file produces one `.json` snapshot.
+
+### JSON Snapshot format
+
+```json
+{
+  "metadata": {
+    "hostname":        "N9K-CAMA-WAN-1",
+    "platform":        "cisco_nxos",
+    "collection_time": "03-May-26",
+    "source_file":     "N9K-CAMA-WAN-1_03-May-26.txt"
+  },
+  "commands": {
+    "show_version": {
+      "status": "parsed",
+      "raw":    "...",
+      "parsed": [{"hostname": "N9K-CAMA-WAN-1", "os": "NX-OS", "version": "9.3(10)"}]
+    },
+    "show_ip_bgp_summary": {
+      "status": "no_template",
+      "raw":    "...",
+      "parsed": {}
+    }
+  }
+}
+```
+
+---
+
+## 5. Status Codes
 
 | Status | Meaning |
 |--------|---------|
-| `parsed` | Parser returned structured data |
-| `partial` | Parser ran but returned no rows (template matched nothing) |
-| `raw_only` | Explicitly registered as skip in commands.yaml |
-| `failed` | Parser threw an exception |
-| `no_template` | Not in registry; auto-discovery found nothing; raw is preserved |
+| `parsed` | Parser returned structured data — usable by health checks |
+| `partial` | Parser ran but returned zero rows — template matched nothing |
+| `raw_only` | Explicitly registered as skip in `commands.yaml`; raw preserved |
+| `failed` | Parser threw an exception; raw preserved |
+| `no_template` | Not in registry; auto-discovery found nothing; raw preserved |
+
+Only `parsed` status produces data that health checks can evaluate against.
 
 ---
 
-## 5. Adding a New Command
+## 6. Template Management
 
-### Option A — Explicit registration (any parser type)
+### 6.1 Writing TextFSM Templates
 
-1. Add an entry to `commands.yaml` under the correct platform:
-
-```yaml
-cisco_nxos:
-  show ip ospf neighbors:
-    parser: ttp
-    template: cisco_nxos_show_ip_ospf_neighbors
-```
-
-2. Create the template file (see sections 6 and 7).
-
-3. Run — the command is now fully registered.
-
-### Option B — Auto-discovery (no YAML edit required)
-
-Drop a template file named `{platform}_{normalized_cmd}.textfsm` or `{platform}_{normalized_cmd}.ttp` anywhere under `templates/custom/` or `templates/ttp/` respectively. The auto-discover chain picks it up automatically on the next run.
-
-**Naming example:**
-- Command: `show ip ospf neighbors` on `cisco_nxos`
-- Normalized key: `show_ip_ospf_neighbors`
-- TextFSM file: `templates/custom/routing/cisco_nxos_show_ip_ospf_neighbors.textfsm`
-- TTP file:     `templates/ttp/routing/cisco_nxos_show_ip_ospf_neighbors.ttp`
-
-### Option C — Unknown command, no template yet
-
-Run the log file anyway. The JSON will contain the command with `status: "no_template"` and the full `raw` output preserved. Build a template for it and re-run.
-
----
-
-## 6. Writing TextFSM Templates
-
-TextFSM uses a state-machine model. Templates live in `templates/custom/` (any subdirectory).
-
-### Syntax
+TextFSM uses a state-machine model. Files live anywhere under `templates/custom/`.
 
 ```
 Value FIELD_NAME (regex)
-Value Filldown CARRY_FORWARD_FIELD (regex)
+Value Filldown CARRY_FORWARD (regex)
 
 Start
   ^header line regex -> Continue
@@ -158,20 +197,24 @@ Start
 EOF
 ```
 
-- `Value` declarations at the top define captured fields.
-- `Filldown` carries a field value forward until a new match overwrites it (useful for VRF headers).
-- `-> Record` emits the current row; `-> Continue` re-processes the same line in another state.
-- `EOF` action at the end emits any buffered row.
+- `Filldown` carries the last matched value forward (useful for VRF headers).
+- `-> Record` emits the current row. `-> Continue` re-processes the line in another state.
+- `EOF` emits any buffered row at end of input.
 
-### Naming convention
-
-```
-{platform}_{normalized_cmd}.textfsm
-```
+**Naming convention:** `{platform}_{normalized_cmd}.textfsm`
 
 Example: `cisco_nxos_show_ip_pim_neigh.textfsm`
 
-### Example — Multi-VRF neighbor table
+**Registering in commands.yaml:**
+
+```yaml
+cisco_nxos:
+  show ip pim neigh:
+    parser: custom
+    template: cisco_nxos_show_ip_pim_neigh
+```
+
+**Multi-VRF example with Filldown:**
 
 ```
 Value Filldown VRF (\S+)
@@ -189,45 +232,31 @@ Neighbors
 EOF
 ```
 
-### Registering in commands.yaml
-
-```yaml
-cisco_nxos:
-  show ip pim neigh:
-    parser: custom
-    template: cisco_nxos_show_ip_pim_neigh
-```
-
 ---
 
-## 7. Writing TTP Templates
+### 6.2 Writing TTP Templates
 
-TTP (Template Text Parser) uses `{{ variable }}` placeholders and native `<group>` tags for hierarchical output.
+TTP uses `{{ variable }}` placeholders and `<group>` tags for nested output.
 
-### Syntax
-
-```
+```xml
 {{ field_name }}
 {{ field_name | re("custom_regex") }}
 ```
 
-Group tags nest output into dicts:
+Use `re()` when a value contains spaces that TTP's default split can't handle.
 
-```xml
-<group name="neighbors">
-{{ neighbor_id }}  {{ state }}  {{ uptime }}
-</group>
+**Naming convention:** `{platform}_{normalized_cmd}.ttp`
+
+**Registering in commands.yaml:**
+
+```yaml
+cisco_nxos:
+  show ip ospf neighbors:
+    parser: ttp
+    template: cisco_nxos_show_ip_ospf_neighbors
 ```
 
-### Naming convention
-
-```
-{platform}_{normalized_cmd}.ttp
-```
-
-Example: `cisco_nxos_show_ip_ospf_neighbors.ttp`
-
-### Example — Flat neighbor table
+**Flat neighbor table:**
 
 ```xml
 <group name="neighbors">
@@ -235,9 +264,7 @@ Example: `cisco_nxos_show_ip_ospf_neighbors.ttp`
 </group>
 ```
 
-Use `re()` when the field value contains spaces (e.g., `FULL/ -`) that TTP's default whitespace split can't handle.
-
-### Example — Hierarchical (VRF → neighbors)
+**Hierarchical (VRF → neighbors):**
 
 ```xml
 <group name="vrfs">
@@ -251,43 +278,49 @@ BGP router identifier {{ router_id }}, local AS number {{ local_as }}
 </group>
 ```
 
-Use an IP-anchored regex on the first field to avoid accidentally matching header lines.
-
-Result JSON structure:
-```json
-{
-  "vrfs": [
-    {
-      "vrf": "default",
-      "afi": "IPv4 Unicast",
-      "router_id": "10.0.0.1",
-      "local_as": "65001",
-      "neighbors": [
-        {"neighbor": "10.0.0.2", "remote_as": "65002", "state_pfx": "100"}
-      ]
-    }
-  ]
-}
-```
-
-### Registering in commands.yaml
-
-```yaml
-cisco_nxos:
-  show ip ospf neighbors:
-    parser: ttp
-    template: cisco_nxos_show_ip_ospf_neighbors
-```
+Result structure: `[{"vrfs": [{"vrf": "default", "neighbors": [{...}]}]}]`
 
 ---
 
-## 8. Handling Pipe-Filtered Commands (`| include`, `| grep`, etc.)
+### 6.3 `commands.yaml` Reference
 
-Commands with a pipe filter produce structurally different output (only matching lines), so they need their own normalized key and their own template.
+All five strategy shapes:
 
-### How normalization works
+```yaml
+cisco_nxos:
 
-The pipe filter **type** is appended as a suffix; the argument is dropped (it changes per run and can't be part of a static template name):
+  # NTC Templates library
+  show ip route:
+    parser: ntc
+    template: cisco_nxos_show_ip_route
+
+  # Custom TextFSM
+  show ip pim neigh:
+    parser: custom
+    template: cisco_nxos_show_ip_pim_neigh
+
+  # TTP (hierarchical output)
+  show ip bgp summary vrf all:
+    parser: ttp
+    template: cisco_nxos_show_ip_bgp_summary_vrf_all
+
+  # Hierarchical Python parser (multicast VRF nesting)
+  show ip mroute:
+    parser: hierarchical
+    func: parse_mroute
+
+  # Skip entirely — preserve raw only
+  show tech-support:
+    parser: raw_only
+```
+
+Keys are raw command strings (spaces, not underscores). The mapper normalizes them at load time. Duplicate normalized keys within a platform emit a warning; the second entry wins.
+
+---
+
+### 6.4 Pipe-Filtered Commands
+
+Commands with a pipe filter produce structurally different output and need their own normalized key.
 
 | Raw command | Normalized key |
 |-------------|----------------|
@@ -298,18 +331,11 @@ The pipe filter **type** is appended as a suffix; the argument is dropped (it ch
 | `show ip route \| grep 10.0.0` | `show_ip_route_grep` |
 | `show ip route \| count` | `show_ip_route_count` |
 
-Supported filter keywords: `include`, `exclude`, `begin`, `grep`, `egrep`, `count`, and any other `\w+` keyword after the pipe.
+**Template naming:** `cisco_nxos_show_ip_bgp_summary_include.textfsm` / `.ttp`
 
-### Template naming for piped variants
+Drop it in any subdirectory — auto-discovery picks it up. No YAML edit needed.
 
-**TextFSM:** `cisco_nxos_show_ip_bgp_summary_include.textfsm`
-**TTP:** `cisco_nxos_show_ip_bgp_summary_include.ttp`
-
-Drop the file in any subdirectory of `templates/custom/` or `templates/ttp/` — auto-discovery picks it up with no YAML edit required.
-
-### Explicit registration in commands.yaml
-
-Use `| include` literally as the YAML key (the mapper normalizes it at load time):
+**Explicit registration:**
 
 ```yaml
 cisco_nxos:
@@ -318,539 +344,722 @@ cisco_nxos:
     template: cisco_nxos_show_ip_bgp_summary_include
 ```
 
-### Template design for piped output
+---
 
-Piped output is just the filtered lines — write the template to match those lines only.
+### 6.5 Auto-Discovery vs Explicit Registration
 
-**Example — `show ip bgp summary | include 65001` output:**
-```
-10.0.0.2        4 65001    1234    1234        1    0    0 2w3d             100
-```
-
-**TextFSM template** (`cisco_nxos_show_ip_bgp_summary_include.textfsm`):
-```
-Value NEIGHBOR (\d+\.\d+\.\d+\.\d+)
-Value AS (\d+)
-Value UPDOWN (\S+)
-Value STATE_PFX (\S+)
-
-Start
-  ^${NEIGHBOR}\s+\d+\s+${AS}\s+\S+\s+\S+\s+\S+\s+\S+\s+\S+\s+${UPDOWN}\s+${STATE_PFX} -> Record
-
-EOF
-```
-
-**TTP template** (`cisco_nxos_show_ip_bgp_summary_include.ttp`):
-```xml
-<group name="neighbors">
-{{ neighbor | re("\\d+\\.\\d+\\.\\d+\\.\\d+") }}  {{ version }}  {{ remote_as }}  {{ msg_rcvd }}  {{ msg_sent }}  {{ tbl_ver }}  {{ inq }}  {{ outq }}  {{ updown }}  {{ state_pfx }}
-</group>
-```
+| Scenario | Approach |
+|----------|----------|
+| Command has an NTC template | `parser: ntc` OR rely on auto-discovery |
+| Custom TextFSM | Drop `.textfsm` file; no YAML edit needed |
+| TTP (hierarchical output) | Drop `.ttp` file; no YAML edit needed |
+| Piped variant | Drop `{platform}_{cmd}_{filter}.textfsm/.ttp` |
+| Should never be parsed | `parser: raw_only` in YAML |
+| Hierarchical multicast | `parser: hierarchical` + function in `multicast_parser.py` |
 
 ---
 
-## 9. commands.yaml Reference
+## 7. Report Generator — `report.py`
 
-All strategy shapes:
+### Quick reference — all 15 subcommands
 
-```yaml
-platform_name:
-  raw command string:
-    parser: ntc
-    template: <ntc template name>         # e.g. "show ip bgp summary"
-
-  raw command string:
-    parser: custom
-    template: <textfsm stem>              # e.g. "cisco_nxos_show_ip_pim_neigh"
-
-  raw command string:
-    parser: ttp
-    template: <ttp stem>                  # e.g. "cisco_nxos_show_ip_ospf_neighbors"
-
-  raw command string:
-    parser: hierarchical
-    func: <function name>                 # function in parsers/multicast_parser.py
-
-  raw command string:
-    parser: raw_only                      # preserve raw, skip all parsing
+```bash
+python report.py COMMAND [OPTIONS]
 ```
-
-Keys are raw command strings (spaces, not underscores). The mapper normalizes them at load time. Duplicate normalized keys within a platform emit a warning and the second entry wins.
-
----
-
-## 10. Auto-Discovery vs Explicit Registration
-
-| Scenario | Recommended approach |
-|----------|---------------------|
-| Command has an NTC template | Register with `parser: ntc` OR rely on auto-discovery |
-| Common command, custom TextFSM | Drop `.textfsm` file; no YAML edit needed |
-| Common command, TTP (hierarchical output) | Drop `.ttp` file; no YAML edit needed |
-| Piped command variant | Drop `{platform}_{cmd}_{filter_type}.textfsm/.ttp`; no YAML edit needed |
-| Command that should never be parsed | Register with `parser: raw_only` in YAML |
-| Hierarchical multicast (VRF nesting) | Register with `parser: hierarchical`, add function to multicast_parser.py |
-
----
-
-## 11. Report Generator (`report.py`)
-
-`report.py` operates on JSON snapshots produced by `main.py`. All subcommands:
 
 | Subcommand | Purpose |
 |------------|---------|
-| `delta`       | Field-level diff between two single snapshots |
-| `delta-all`   | Per-device delta across two directories of snapshots |
-| `health`      | Evaluate a YAML check file against a single snapshot |
-| `health-all`  | Run health checks across a directory — single combined HTML report |
-| `health-diff` | Compare two health report JSON files — show what changed between runs |
-| `coverage`    | Report which parsed commands have health checks and which do not |
-| `baseline`    | Auto-generate a starter check YAML from a snapshot's current values |
-| `collect`     | Collect snapshots via SSH (online) or process existing `.txt` dumps (offline) |
+| `collect`      | Collect snapshots via SSH or process `.txt` dumps offline |
+| `parse`        | Quick-parse a single raw output file, print JSON to stdout |
+| `validate`     | Validate a checks YAML without needing a snapshot |
+| `baseline`     | Auto-generate a starter check YAML from a snapshot |
+| `coverage`     | Report which commands have health checks and which don't |
+| `health`       | Run health checks against a single snapshot |
+| `health-all`   | Run health checks across a directory of snapshots |
+| `health-diff`  | Diff two health report JSON files (regressions / fixes) |
+| `health-trend` | Time-series trend report across multiple health JSON files |
+| `delta`        | Field-level diff between two snapshots |
+| `delta-all`    | Per-device delta across two snapshot directories |
+| `search`       | Full-text search across all snapshot commands (raw + parsed) |
+| `test-template`| Test a TextFSM or TTP template against a raw output file |
 
-Output format is controlled by the `--output` / `--format` argument:
+---
 
-| Value | Output |
-|-------|--------|
-| `.json` / `json` | Machine-readable JSON (also printed to stdout when `--output` is omitted) |
-| `.html` / `html` | Self-contained HTML report with formatted results and expandable raw output |
-| `both` | Write combined `.html` + per-device `.json` files (`health-all`) or both formats per device (`delta-all`) |
+### 7.1 `collect` — Snapshot Collection
+
+#### Offline mode (no SSH required)
+
+Reads existing `.txt` dump files and converts them to JSON snapshots:
 
 ```bash
-cd network_cli_parser
-
-# ── Snapshot collection ─────────────────────────────────────────────────────
-
-# Collect via SSH (requires netmiko)
-python report.py collect \
-  --devices    devices.yaml \
-  --raw-dir    data/raw/ \
-  --output-dir data/json/
-
-# Process existing .txt dumps offline
 python report.py collect \
   --from-dir   data/raw/ \
   --output-dir data/json/
+```
 
-# ── Health checks ────────────────────────────────────────────────────────────
+#### SSH mode (requires `pip install netmiko`)
 
-# Single-device health — print JSON to stdout (validate YAML + check results)
-python report.py health \
-  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
-  --checks   checks/example_health_checks.yaml
+```bash
+python report.py collect \
+  --devices    devices.yaml \
+  --raw-dir    data/raw/       # optional: where to save .txt dumps
+  --output-dir data/json/ \
+  --password   '<pw>'          # optional: override password for all devices
+```
 
-# Single-device health — HTML report
-python report.py health \
-  --snapshot      data/json/N9K-CAMA-WAN-1_03-May-26.json \
-  --checks        checks/example_health_checks.yaml \
-  --device-checks checks/devices/N9K-CAMA-WAN-1.yaml \
-  --output        reports/health.html
+#### `devices.yaml` format
 
-# Verify-only: run all checks, print results, write NO files (CI-safe read-only mode)
-python report.py health \
-  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
-  --checks   checks/example_health_checks.yaml \
-  --verify-only
+```yaml
+defaults:
+  username: admin
+  password: ""        # leave blank and pass --password at runtime
+  timeout: 30
 
-# All devices — single combined HTML report (health_report.html)
-python report.py health-all \
-  --dir               data/json/ \
-  --default-checks    checks/example_health_checks.yaml \
-  --device-checks-dir checks/devices/ \
-  --output-dir        reports/health/
+devices:
+  - hostname: N9K-CAMA-WAN-1
+    host: 192.168.1.1
+    platform: cisco_nxos      # determines command list + template set
 
-# Only process snapshots collected within the last 7 days
-python report.py health-all \
-  --dir            data/json/ \
-  --default-checks checks/example_health_checks.yaml \
-  --since-days     7 \
-  --output-dir     reports/health/
+  - hostname: IOS-RTR-1
+    host: 10.0.0.1
+    platform: cisco_ios
+    username: ops             # device-specific override
 
-# Verify-only multi-device (no files written, exit code still reflects failures)
-python report.py health-all \
-  --dir            data/json/ \
-  --default-checks checks/base.yaml \
-  --verify-only
+  - hostname: N9K-CAMA-WAN-2
+    host: 192.168.1.2
+    platform: cisco_nxos
+    commands:                 # optional: explicit command list overrides registry
+      - show version
+      - show ip bgp summary vrf all
+```
 
-# ── Health diff ──────────────────────────────────────────────────────────────
+**Platform → netmiko device_type:**
 
-# Compare two health report JSON files — show regressions and fixes
-python report.py health-diff \
-  --before reports/health/N9K-WAN-1_health_yesterday.json \
-  --after  reports/health/N9K-WAN-1_health_today.json \
-  --output reports/health/diff.html
+| Platform | device_type |
+|----------|-------------|
+| `cisco_nxos` | `cisco_nxos_ssh` |
+| `cisco_ios` | `cisco_ios` |
 
-# ── Coverage analysis ────────────────────────────────────────────────────────
+When `commands:` is omitted, all non-`raw_only` commands registered for that platform in `commands.yaml` are collected.
 
-# Which parsed commands are covered by checks? Which are not?
-python report.py coverage \
-  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
-  --checks   checks/example_health_checks.yaml
+---
 
-# ── Baseline generation ──────────────────────────────────────────────────────
+### 7.2 `parse` — Quick Parse
 
+Parse a single raw CLI output file and print structured JSON to stdout. No snapshot file is created — useful for template development and testing.
+
+```bash
+# From file
+python report.py parse \
+  --platform cisco_nxos \
+  --command  "show ip bgp summary" \
+  --raw      data/raw/bgp_output.txt
+
+# From stdin (pipe)
+cat data/raw/bgp_output.txt | \
+  python report.py parse --platform cisco_nxos --command "show ip bgp summary"
+```
+
+**Options:**
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--platform` | Yes | Device platform (`cisco_nxos`, `cisco_ios`) |
+| `--command` | Yes | Raw command string (spaces, not underscores) |
+| `--raw` | No | Path to raw text file; reads stdin if omitted |
+
+**Output:**
+
+```
+Status:   parsed
+Command:  show_ip_bgp_summary  (cisco_nxos)
+
+{
+  "neighbors": [
+    {"neighbor": "10.0.0.1", "remote_as": "65001", "updown": "5w2d", ...}
+  ]
+}
+```
+
+**Exit code:** `0` for `parsed`/`partial`; `1` for `no_template`/`failed`/`raw_only`.
+
+---
+
+### 7.3 `validate` — Check YAML Validation
+
+Validates a checks YAML file for syntax errors **without needing a snapshot**. Use as a CI pre-flight check.
+
+```bash
+python report.py validate --checks checks/base.yaml
+
+# Success:
+# OK — 12 check(s) validated: checks/base.yaml
+
+# Failure:
+# [ERROR] 'BGP prefix count': must have 'condition', 'conditions', or 'branches'
+# FAIL — 1 validation error(s) in 'checks/base.yaml' — fix and retry
+```
+
+**Options:**
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--checks` | Yes | Health checks YAML to validate |
+
+**Exit code:** `0` on success; `1` on any validation error.
+
+**What gets checked:**
+
+| Error type | Fatal? | Example |
+|---|---|---|
+| Missing `name` field | Yes | `- command: show_version` (no name) |
+| Missing `command` (non-metadata/cross_check) | Yes | `- name: "test"` (no command) |
+| Missing `path` | Yes | name+command only, no path |
+| No `condition`/`conditions`/`branches` when needed | Yes | check with `value` but no condition |
+| `condition` has no `value` | Yes | `condition: eq` with no `value:` |
+| Unknown condition name | Warning | `condition: equals` (should be `eq`) |
+| Unknown severity | Warning | `severity: blocker` |
+| Unknown match value | Warning | `match: every` |
+| Duplicate check name | Warning | two checks named `"BGP peers up"` |
+
+Fatal errors exit 1. Warnings are printed but do not prevent execution when loaded by `health`/`health-all`.
+
+---
+
+### 7.4 `baseline` — Auto-Generate Starter Checks
+
+Reads a snapshot and writes a YAML check file with every scalar field's current value as an `eq` assertion. Review and delete dynamic fields (counters, uptime, timestamps) before using in CI.
+
+```bash
 python report.py baseline \
   --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
   --output   checks/baseline_N9K-CAMA-WAN-1.yaml
 
-# ── Delta reports ────────────────────────────────────────────────────────────
-
-# Single-device delta — HTML
-python report.py delta \
-  --before data/json/N9K-CAMA-WAN-1_03-May-26.json \
-  --after  data/json/N9K-CAMA-WAN-1_04-May-26.json \
-  --output reports/delta.html
-
-# All devices across two collection folders — one HTML report per device + index.html
-python report.py delta-all \
-  --before-dir snapshots/03-May-26/ \
-  --after-dir  snapshots/04-May-26/ \
-  --output-dir reports/delta/
+# Omit --output to print to stdout instead
+python report.py baseline --snapshot data/json/device.json
 ```
 
-`report.py health` and `report.py health-all` exit with code **1** if any critical check fails or errors — suitable for CI pipelines. `health-diff` exits with code **1** if any regressions (pass→fail changes) are detected.
+**Options:**
 
-### 11.1 Health check YAML validation
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--snapshot` | Yes | JSON snapshot file |
+| `--output` | No | Output YAML path; prints to stdout if omitted |
 
-Every check YAML file is automatically validated when loaded. Validation catches:
+**Output format:**
 
-| Error type | Fatal? | Example |
-|---|---|---|
-| Missing `name` field | Yes — aborts | `- command: show_version` (no name) |
-| Missing `command` field | Yes | `- name: "test"` (no command) |
-| Missing `path` field | Yes | `- name: "test", command: show_version` (no path) |
-| No `condition` / `conditions` / `branches` | Yes | check with only `name`+`command`+`path` and a `value` but no condition |
-| `condition` missing `value` | Yes | `condition: eq` with no `value:` field |
-| Unknown `condition` name | Warning | `condition: equals` (should be `eq`) |
-| Unknown `severity` value | Warning | `severity: blocker` (should be `critical`/`warn`/`info`) |
-| Unknown `match` value | Warning | `match: every` (should be `all`/`any`) |
-| Duplicate check `name` | Warning | two checks named `"BGP peers up"` |
+```yaml
+# AUTO-GENERATED baseline — review before use.
+# Delete or adjust dynamic fields (counters, uptime, timestamps).
+# Generated: 2026-05-03 14:30  Source: N9K-CAMA-WAN-1_03-May-26.json  Host: N9K-CAMA-WAN-1
 
-Fatal errors print `[ERROR]` lines to stderr and exit before any checks run. Warnings print `[WARN]` lines to stdout but do not prevent execution.
+checks:
+  - name: "[show_version] hostname baseline"
+    command: show_version
+    path: "[0].hostname"
+    condition: eq
+    value: "N9K-CAMA-WAN-1"
+    severity: warn
+```
 
-### 11.2 Verify-only mode (`--verify-only`)
+All generated checks default to `severity: warn` so they never block CI until explicitly promoted to `critical`.
 
-Both `health` and `health-all` accept `--verify-only`. When set:
+---
 
-- All checks run and results are printed to the terminal exactly as normal.
-- **No files are written** — `--output` and `--output-dir` are ignored.
-- Exit code is still `0` (all pass) or `1` (critical failures).
+### 7.5 `coverage` — Check Coverage Analysis
 
-Use this in CI pipelines where you want the exit code but don't want to produce report artefacts — or when running from a read-only file system.
+Cross-references a snapshot against a check YAML and reports the gaps.
 
 ```bash
-# CI usage: validate checks + assert no failures, write nothing
+# With checks — full gap analysis
+python report.py coverage \
+  --snapshot data/json/N9K.json \
+  --checks   checks/base.yaml
+
+# Without checks — just list parsed commands
+python report.py coverage --snapshot data/json/N9K.json
+
+# Save result as JSON
+python report.py coverage \
+  --snapshot data/json/N9K.json \
+  --checks   checks/base.yaml \
+  --output   coverage_report.json
+```
+
+**Options:**
+
+| Option | Required | Description |
+|--------|----------|-------------|
+| `--snapshot` | Yes | JSON snapshot file |
+| `--checks` | No | Health checks YAML; shows full gap analysis when provided |
+| `--output` | No | Output JSON file; prints to stdout if omitted |
+
+**Output sections:**
+
+| Section | Meaning |
+|---------|---------|
+| **Parsed but unchecked** | Commands that have parsed output but no health check — prime candidates for new checks |
+| **Checks with no snapshot data** | YAML references a command key not in the snapshot — check will silently produce no results |
+| **Checks on non-parsed commands** | Command exists but has `no_template`/`partial`/`failed` status — check may evaluate against empty data |
+
+---
+
+### 7.6 `health` — Single Device Health Checks
+
+```bash
+# Print JSON results to stdout (no output file)
 python report.py health \
-  --snapshot data/json/device.json \
+  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
+  --checks   checks/base.yaml
+
+# HTML report
+python report.py health \
+  --snapshot data/json/N9K.json \
+  --checks   checks/base.yaml \
+  --output   reports/health.html
+
+# JSON report
+python report.py health \
+  --snapshot data/json/N9K.json \
+  --checks   checks/base.yaml \
+  --output   reports/health.json
+
+# Device-specific checks (merged on top of base)
+python report.py health \
+  --snapshot      data/json/N9K.json \
+  --checks        checks/base.yaml \
+  --device-checks checks/devices/N9K-CAMA-WAN-1.yaml \
+  --output        reports/health.html
+
+# Baseline delta comparison (compare_baseline: checks require this)
+python report.py health \
+  --snapshot data/json/N9K_today.json \
+  --checks   checks/base.yaml \
+  --baseline data/json/N9K_yesterday.json \
+  --output   reports/health.html
+
+# Tag filter — only run checks tagged "bgp" or "ospf"
+python report.py health \
+  --snapshot data/json/N9K.json \
+  --checks   checks/base.yaml \
+  --tags     bgp,ospf
+
+# Verify-only — run checks, print results, write NO files
+python report.py health \
+  --snapshot data/json/N9K.json \
   --checks   checks/base.yaml \
   --verify-only
-echo "Exit: $?"
 ```
 
-### 11.3 `--since-days` filter (`health-all`)
+**All options:**
 
-`--since-days N` filters out snapshots whose `collection_time` date is more than N days before today. Snapshots whose date cannot be parsed are always included (never silently dropped).
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `--snapshot` | Yes | — | JSON snapshot file |
+| `--checks` | Yes | — | Default health checks YAML |
+| `--device-checks` | No | — | Device-specific checks YAML; overrides on name clash |
+| `--baseline` | No | — | Previous snapshot JSON for `compare_baseline:` checks |
+| `--tags` | No | — | Comma-separated tag filter (OR logic) |
+| `--output` | No | stdout | Output file (`.html` or `.json`) |
+| `--verify-only` | No | off | Run and print but write no files |
+
+**Exit code:** `0` if no critical failures; `1` if any critical check fails or errors.
+
+---
+
+### 7.7 `health-all` — Multi-Device Health Checks
+
+Runs health checks across every snapshot in a directory and produces a single combined HTML report.
 
 ```bash
-# Only assert on snapshots from the last 3 days
+# Minimal — all devices, default checks, HTML to health-reports/
+python report.py health-all \
+  --dir            data/json/ \
+  --default-checks checks/base.yaml
+
+# Full options
+python report.py health-all \
+  --dir               data/json/ \
+  --default-checks    checks/base.yaml \
+  --device-checks-dir checks/devices/ \
+  --baseline-dir      data/json-prev/ \
+  --output-dir        reports/health/ \
+  --output-file       health_report.html \
+  --format            html \
+  --since-days        7 \
+  --tags              bgp,ospf \
+  --verify-only
+
+# --since-days also accepts a date string
 python report.py health-all \
   --dir            data/json/ \
   --default-checks checks/base.yaml \
-  --since-days     3 \
-  --output-dir     reports/health/
+  --since-days     "03-May-2026"
+
+# Produce both HTML and per-device JSON
+python report.py health-all \
+  --dir            data/json/ \
+  --default-checks checks/base.yaml \
+  --output-dir     reports/health/ \
+  --format         both
 ```
 
-Snapshots older than N days are skipped with a `[SKIP]` message showing the collection date.
+**All options:**
 
-### 11.4 Health diff (`health-diff`)
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `--dir` | Yes | — | Directory of JSON snapshots |
+| `--default-checks` | Yes | — | Base health checks YAML (all devices) |
+| `--device-checks-dir` | No | — | Directory of `{hostname}.yaml` override files |
+| `--baseline-dir` | No | — | Directory of previous snapshots for `compare_baseline:` checks |
+| `--output-dir` | No | `health-reports/` | Output directory |
+| `--output-file` | No | `health_report.html` | Combined HTML filename inside `--output-dir` |
+| `--format` | No | `html` | `html` / `json` / `both` |
+| `--since-days` | No | — | Skip snapshots older than N days (or a date string like `"03-May-2026"`) |
+| `--tags` | No | — | Comma-separated tag filter (OR logic) |
+| `--verify-only` | No | off | Run and print but write no files |
 
-`health-diff` compares two health report JSON files (output of `health --output report.json`). It does **not** compare snapshots — it compares previously-saved check results.
+**Device-checks merge rule:** Device-specific checks in `--device-checks-dir/{hostname}.yaml` override base checks with the same `name`; all other checks are additive.
+
+**`--format both`:** Writes the combined `health_report.html` (matrix + per-device accordions) **and** per-device `{hostname}_health.json` files.
+
+**`--since-days`:** Accepts either an integer (days before today) or any supported date string (`DD-Mon-YYYY`, `YYYY-MM-DD`, `DD/MM/YYYY`, etc.). Snapshots whose `collection_time` can't be parsed are always included.
+
+**Exit code:** `0` if no critical failures; `1` if any device has critical failures.
+
+---
+
+### 7.8 `health-diff` — Compare Two Health Runs
+
+Compares two health report JSON files (not snapshots — health result files) and shows which checks regressed or were fixed.
 
 ```bash
-# 1. Save health results as JSON on each run
+# Save health results as JSON
 python report.py health \
   --snapshot data/json/device_yesterday.json \
   --checks   checks/base.yaml \
-  --output   reports/health_yesterday.json
+  --output   runs/health_yesterday.json
 
 python report.py health \
   --snapshot data/json/device_today.json \
   --checks   checks/base.yaml \
-  --output   reports/health_today.json
+  --output   runs/health_today.json
 
-# 2. Diff the two runs
+# Diff the two runs
 python report.py health-diff \
-  --before reports/health_yesterday.json \
-  --after  reports/health_today.json \
+  --before runs/health_yesterday.json \
+  --after  runs/health_today.json \
   --output reports/health_diff.html
 ```
 
-Output shows each check with one of five change categories:
+**Options:**
 
-| Terminal tag | Meaning | HTML badge |
-|---|---|---|
-| `[REGRESS]` | pass → fail (new failure) | red ⬇ Regressed |
-| `[FIXED  ]` | fail → pass (resolved) | green ⬆ Fixed |
-| `[ADDED  ]` | check only in after (newly added) | blue ✚ Added |
-| `[REMOVED]` | check only in before (removed from YAML) | muted ✖ Removed |
-| `[--     ]` | same status in both | grey — |
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `--before` | Yes | — | Older health report JSON |
+| `--after` | Yes | — | Newer health report JSON |
+| `--output` | No | stdout | Output file (`.html` or `.json`) |
+
+**Change categories:**
+
+| Tag | Meaning |
+|-----|---------|
+| `[REGRESS]` | pass → fail (new failure introduced) |
+| `[FIXED  ]` | fail → pass (problem resolved) |
+| `[ADDED  ]` | check only in "after" (newly added to YAML) |
+| `[REMOVED]` | check only in "before" (removed from YAML) |
+| `[--     ]` | status unchanged |
 
 **Exit code:** `0` if no regressions; `1` if any check went from pass to fail.
 
-### 11.5 Coverage report (`coverage`)
+---
 
-`coverage` cross-references a snapshot against a check file and reports the gaps.
+### 7.9 `health-trend` — Time-Series Trend Report
+
+Reads multiple health JSON result files from a directory and renders a time-series pass/fail matrix with sparklines.
 
 ```bash
-python report.py coverage \
-  --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
-  --checks   checks/example_health_checks.yaml
+# Save per-run health JSON files during each collection
+python report.py health \
+  --snapshot data/json/N9K_$(date +%d-%b-%y).json \
+  --checks   checks/base.yaml \
+  --output   trend-data/N9K_$(date +%Y%m%d).json
+
+# Build trend report after accumulating several runs
+python report.py health-trend \
+  --runs-dir trend-data/ \
+  --output   reports/trend.html
 ```
 
-Output sections:
+**Options:**
 
-| Section | What it shows |
-|---|---|
-| **Parsed but unchecked** | Commands in the snapshot that have structured parsed output but no check targeting them — prime candidates for new health checks |
-| **Checks with no snapshot data** | Check YAML references a `command` key that doesn't appear in the snapshot at all — the check will silently return no results |
-| **Checks on non-parsed commands** | Command exists in snapshot but has status `no_template`/`partial`/`failed` — check may evaluate against empty data |
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `--runs-dir` | Yes | — | Directory of health JSON result files |
+| `--checks` | No | — | Checks YAML (for context labels; optional) |
+| `--output` | No | `health_trend.html` | Output HTML file |
 
-Without `--checks`, `coverage` lists all parsed commands and counts, useful as a quick summary of what the snapshot contains.
+**Input file naming:** Any `*.json` files in `--runs-dir`. Files are sorted lexicographically — prefix with ISO date (`YYYYMMDD`) for correct chronological order.
 
 ---
 
-## 12. Writing Health Checks
+### 7.10 `delta` — Single-Device Snapshot Diff
 
-Health checks live in a YAML file under `checks/`. The top-level key is `checks`, followed by a list of check definitions.
+Compares two snapshots of the same device and reports field-level differences.
 
-```yaml
-checks:
-  - name: "Human-readable check name"
-    command: show_version          # normalized command key (underscores, no spaces)
-    path: "[0].os"                 # path into parsed data (see Path Syntax below)
-    condition: contains
-    value: "NX-OS"
+```bash
+# Print JSON to stdout
+python report.py delta \
+  --before data/json/N9K_03-May-26.json \
+  --after  data/json/N9K_04-May-26.json
+
+# HTML report
+python report.py delta \
+  --before data/json/N9K_03-May-26.json \
+  --after  data/json/N9K_04-May-26.json \
+  --output reports/delta.html
 ```
 
-### 12.1 Path Syntax
+**Options:**
 
-Paths navigate the parsed JSON structure returned by the parser.
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `--before` | Yes | — | Older snapshot JSON |
+| `--after` | Yes | — | Newer snapshot JSON |
+| `--output` | No | stdout | Output file (`.html` or `.json`) |
+
+**Row matching:** For list-of-dicts tables, the engine looks for a natural key (`interface`, `neighbor`, `neighbor_id`, `network`, `prefix`, `vlan_id`) to match rows across snapshots before diffing — position changes don't appear as diffs.
+
+---
+
+### 7.11 `delta-all` — Multi-Device Snapshot Diff
+
+Matches snapshots by hostname across two directories and runs a delta for each device.
+
+```bash
+python report.py delta-all \
+  --before-dir snapshots/03-May-26/ \
+  --after-dir  snapshots/04-May-26/ \
+  --output-dir reports/delta/ \
+  --output-file index.html \
+  --format      html
+```
+
+**Options:**
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `--before-dir` | Yes | — | Directory of "before" snapshots |
+| `--after-dir` | Yes | — | Directory of "after" snapshots |
+| `--output-dir` | No | `delta-reports/` | Output directory |
+| `--output-file` | No | `index.html` | Index HTML filename inside output dir |
+| `--format` | No | `html` | `html` / `json` / `both` |
+
+Devices in one directory only print `[WARN] unmatched`. An `index.html` is always written to `--output-dir`.
+
+---
+
+### 7.12 `search` — Full-Text Search Across Snapshots
+
+Searches for a string inside every snapshot's raw CLI output and/or parsed JSON values.
+
+```bash
+# Search everything — raw + parsed
+python report.py search --dir data/json/ --query "10.0.0.100"
+
+# Limit to one command
+python report.py search --dir data/json/ --query "10.0.0.100" \
+  --command show_ip_bgp_summary
+
+# Raw output only
+python report.py search --dir data/json/ --query "BGP_ERR" --raw-only
+
+# Parsed JSON only
+python report.py search --dir data/json/ --query "65001" --parsed-only
+
+# Case-sensitive
+python report.py search --dir data/json/ --query "FULL" --case-sensitive
+
+# Show 2 lines of context around each raw match
+python report.py search --dir data/json/ --query "Error" --context 2
+```
+
+**Options:**
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `--dir` | Yes | — | Directory of JSON snapshots |
+| `--query` | Yes | — | Search string |
+| `--command` | No | — | Limit search to this one command key |
+| `--raw-only` | No | off | Search only raw output |
+| `--parsed-only` | No | off | Search only parsed JSON values |
+| `--case-sensitive` | No | off | Case-insensitive by default |
+| `--context` | No | `0` | Lines of surrounding raw context per match |
+
+**Output example:**
+
+```
+[N9K-WAN-1]
+  show_ip_bgp_summary  (raw, line 14)
+    10.0.0.100        4 65001    1234    1234
+  show_ip_route        (parsed, [3].next_hop)
+    10.0.0.100
+
+Found 2 match(es) in 1 device(s)  [query: '10.0.0.100']
+```
+
+**Exit code:** `0` if any match found; `1` if no matches (useful in shell scripts/CI).
+
+---
+
+### 7.13 `test-template` — Template Development
+
+Parses a raw CLI output file with a specific template and shows what rows it produces.
+
+```bash
+# Direct template path
+python report.py test-template \
+  --template templates/custom/routing/cisco_nxos_show_ip_bgp_summary.textfsm \
+  --raw      data/raw/bgp_output.txt
+
+# TTP template
+python report.py test-template \
+  --template templates/ttp/routing/cisco_nxos_show_ip_bgp_summary_vrf_all.ttp \
+  --raw      data/raw/bgp_output.txt
+
+# Auto-discovery mode (finds template by convention)
+python report.py test-template \
+  --platform cisco_nxos \
+  --command  "show ip bgp summary" \
+  --raw      data/raw/bgp_output.txt
+```
+
+**Options:**
+
+| Option | Required | Default | Description |
+|--------|----------|---------|-------------|
+| `--template` | No* | — | Template file path (`.textfsm` or `.ttp`) |
+| `--raw` | Yes | — | Raw CLI output text file |
+| `--platform` | No* | — | Platform for auto-discovery mode |
+| `--command` | No* | — | Command string for auto-discovery mode |
+
+*Either `--template` OR (`--platform` + `--command`) is required.
+
+**Output:**
+
+```
+Template: templates/custom/routing/cisco_nxos_show_ip_bgp_summary.textfsm  [textfsm]
+Rows:     4
+Columns:  NEIGHBOR, VERSION, REMOTE_AS, UPDOWN, STATE_PFX
+
+First 5 rows:
+  {"NEIGHBOR": "10.0.0.1", "REMOTE_AS": "65001", "UPDOWN": "5w2d", "STATE_PFX": "419918"}
+  ...
+```
+
+---
+
+## 8. Health Check YAML Reference
+
+### 8.1 File Structure
+
+```yaml
+# checks/my_checks.yaml
+checks:
+  - name: "Human-readable check name"    # required
+    command: show_version                 # required (unless metadata: or cross_check:)
+    path: "[0].version"                  # required (unless count: or metadata: or cross_check:)
+    condition: matches
+    value: '^\d+'
+    severity: critical                   # optional (default: critical)
+    match: all                           # optional (default: all)
+    tags: [bgp, ci-blocking]             # optional
+    skip_if:                             # optional
+      metadata: hostname
+      condition: not_matches
+      value: "^N9K-"
+    print: "Version: {{value}}"          # optional
+```
+
+Top-level check fields summary:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | Yes | Unique human-readable label |
+| `command` | Mostly | Normalized command key (underscores) |
+| `path` | Mostly | JSON path into parsed output |
+| `condition` | One of these | Single condition (string) |
+| `conditions` | One of these | AND list of conditions |
+| `branches` | One of these | If/elif/else per row |
+| `cross_check` | One of these | Cross-command check |
+| `count` | One of these | Assert item count from path expansion |
+| `compare_baseline` | One of these | Delta vs previous snapshot |
+| `metadata` | One of these | Check snapshot metadata fields |
+| `value` | Depends | Expected value for single condition |
+| `severity` | No | `critical` (default) / `warn` / `info` |
+| `match` | No | `all` (default) / `any` |
+| `tags` | No | List of string tags |
+| `skip_if` | No | Skip condition (metadata-based) |
+| `print` | No | Print template for surfacing resolved values |
+
+---
+
+### 8.2 Path Syntax
+
+Paths navigate the parsed JSON structure.
 
 | Token | Meaning |
 |-------|---------|
 | `[0]` | Index into a list |
-| `[*]` | Expand all items of a list **or** all values of a dict |
+| `[*]` | Expand all items of a list or all values of a dict |
 | `.field` | Access a dict key |
-| `field` (no dot) | Same as `.field` at the start of a path |
+| `field` (no dot) | Same as `.field` at path start |
 
-**Examples:**
+| Path | Accesses |
+|------|---------|
+| `[0].os` | First list element, `os` field |
+| `[*].status` | `status` field from every row |
+| `neighbors[*].state` | `state` from every neighbor |
+| `vrfs[*].summary.total_routes` | Nested VRF → summary → total_routes |
+| `[*][*].address_family[*].pfxrcd` | Three-level wildcard (VRF → neighbor → AF) |
 
-| Path | What it accesses |
-|------|-----------------|
-| `[0].os` | First element of a list, `os` field |
-| `[*].status` | `status` field from every row in a list |
-| `vrfs[*].summary.total_routes` | `total_routes` from the summary of every VRF in a dict |
-| `neighbors[*].state` | `state` from every neighbor in a list |
+**Empty path expansion:** If `[*]` expands to zero items, the check vacuously passes (no items violate the condition).
 
-When `[*]` expands multiple values, `contains`/`not_contains` and `matches` check **all** values. Numeric comparisons (`gt`, `lt`, etc.) check that **all** values satisfy the condition.
+**Mixed-dict expansion:** When `[*]` hits a dict with both scalar values and nested dicts, scalar entries are automatically skipped — only nested dicts/lists are expanded.
 
-#### Mixed-dict expansion
+---
 
-When `[*]` is used on a dict that has both flat key:value pairs AND nested dicts, the flat scalar values are automatically skipped — only nested dicts/lists are expanded. This means you never need to filter out scalar siblings manually; the path resolver only descends into items that can actually yield the next path token.
+### 8.3 All Conditions
 
-**Example — GETVPN-P2P parsed output:**
-
-```json
-{
-  "group_id": "12345",
-  "total_group_number": "3",
-  "10.1.1.1": {
-    "state": "Active",
-    "uptime": "2d03h"
-  },
-  "10.1.1.2": {
-    "state": "Active",
-    "uptime": "5d11h"
-  },
-  "10.1.1.3": {
-    "state": "Passive",
-    "uptime": "1d00h"
-  }
-}
-```
-
-This dict has `group_id` and `total_group_number` as flat string values alongside IP-keyed nested dicts. Using `[*].state` expands only the three IP-keyed nested dicts — `group_id` and `total_group_number` are automatically skipped because they are scalar strings, not dicts that carry a `.state` field.
-
-```yaml
-- name: "All GETVPN peers active"
-  command: show_crypto_gkm_ks_coop_detail
-  path: "[*].state"
-  condition: eq
-  value: "Active"
-```
-
-This check expands to `10.1.1.1.state`, `10.1.1.2.state`, and `10.1.1.3.state` — the flat `group_id` and `total_group_number` strings are silently bypassed.
-
-### 12.2 Conditions
+#### Basic comparison
 
 | Condition | Passes when |
 |-----------|-------------|
-| `eq` | value equals expected |
-| `ne` | value does not equal expected |
-| `gt` | value > expected (numeric) |
-| `gte` | value ≥ expected (numeric) |
-| `lt` | value < expected (numeric) |
-| `lte` | value ≤ expected (numeric) |
-| `contains` | string value contains expected substring |
-| `not_contains` | no value contains expected substring |
-| `matches` | value matches expected regex (full `re.search`) |
-| `duration_gt` | parsed duration > expected duration |
-| `duration_gte` | parsed duration ≥ expected duration |
-| `duration_lt` | parsed duration < expected duration |
-| `duration_lte` | parsed duration ≤ expected duration |
+| `eq` | actual == expected |
+| `ne` | actual != expected |
+| `gt` | actual > expected (numeric) |
+| `gte` | actual ≥ expected (numeric) |
+| `lt` | actual < expected (numeric) |
+| `lte` | actual ≤ expected (numeric) |
 
-**Duration conditions** convert both the actual value and the `value` field to seconds before comparing. Use them for uptime, timer, or any field that contains a human-readable duration string.
-
-```yaml
-- name: "BGP session up at least 2 days"
-  command: show_ip_bgp_summary_vrf_all
-  path: "vrfs[*].neighbors[*].updown"
-  condition: duration_gte
-  value: "2d"
-```
-
-**Supported input formats** (both actual values and the `value` threshold accept any of these):
-
-| Example | Meaning |
-|---------|---------|
-| `"5w2d"` | 5 weeks + 2 days |
-| `"2d03h"` | 2 days + 3 hours |
-| `"1y3w2d4h5m6s"` | full decomposition |
-| `"00:03:42"` | HH:MM:SS |
-| `"15:30"` | MM:SS |
-| `"5week2day"` | spelled-out units |
-| `"2day03hour"` | spelled-out variant |
-| `"never"` / `"n/a"` | treated as 0 s |
-| `"42"` | bare integer = 42 seconds |
-
-Recognised unit abbreviations: `y`/`year`, `w`/`week`, `d`/`day`, `h`/`hour`, `m`/`min`/`minute`, `s`/`sec`/`second` — singular or plural, with or without spaces.
-
-### `match` field — any vs all
-
-When a path uses `[*]` and expands to multiple values, the optional `match` field controls how many must satisfy the condition.
-
-| `match` value | Default? | Passes when |
-|---------------|----------|-------------|
-| `all` | Yes | **Every** expanded value satisfies the condition |
-| `any` | No | **At least one** expanded value satisfies the condition |
-
-Use `match: any` when you want a check that passes as long as at least one instance is healthy (e.g. at least one IKE peer is `Established`).
-
-```yaml
-- name: "At least one IKE peer is Established"
-  command: show_crypto_gkm_ks_coop_detail
-  path: "goid[*].peer[*].ike_status"
-  condition: matches
-  value: "Established"
-  match: any
-```
-
-Omitting `match` (or setting it to `all`) preserves the original behaviour — all values must pass.
-
----
-
-### 12.2a AND conditions — `conditions:` list
-
-When you need a value to satisfy **multiple constraints simultaneously**, use the `conditions:` list instead of a single `condition`/`value` pair. Every entry in the list must pass for the item to be considered passing (logical AND).
-
-```yaml
-# BGP prefix count must be in a valid range — not zero, not absurdly high
-- name: "BGP prefix count in range"
-  command: show_ip_bgp_summary_vrf_all
-  path: "vrfs[*].neighbors[*].prefixes_received"
-  conditions:
-    - condition: gte
-      value: 1          # at least one prefix — neighbor is exchanging routes
-    - condition: lte
-      value: 900000     # sanity cap — more than this is almost certainly a leak
-  print: "VRF {{[*][0]}} neighbor {{[*][1]}} → {{value}} prefixes"
-```
-
-```yaml
-# Interface speed must be exactly 100G and MTU must be jumbo
-- name: "Uplink interfaces are 100G jumbo"
-  command: show_interfaces
-  path: "[*].speed"
-  conditions:
-    - condition: eq
-      value: "100G"
-  # Note: combine with a separate check for MTU — conditions: applies to the same field
-```
-
-```yaml
-# CPU utilisation: warn if over 70%, critical only if over 95%
-- name: "CPU 5-min utilisation (warn)"
-  command: show_processes_cpu
-  path: "[0].cpu_5min"
-  conditions:
-    - condition: gte
-      value: 0
-    - condition: lte
-      value: 70
-  severity: warn
-  print: "CPU 5-min: {{value}}%"
-```
-
-**Rules:**
-- `conditions:` and `condition:` are mutually exclusive — use one or the other.
-- `match: any/all` still works with `conditions:` (controls whether all *rows* must pass or just one).
-- Each item in `conditions:` has its own `condition` and `value` key.
-
----
-
-### 12.2b OR values — `one_of` and `not_one_of`
-
-Use these conditions when the acceptable values are a finite set rather than a range.
-
-```yaml
-# Interface line protocol may be "up" or "connected" (both are healthy on NX-OS)
-- name: "Uplink line protocol is healthy"
-  command: show_interfaces
-  path: "[*].line_protocol"
-  condition: one_of
-  value: ["up", "connected"]
-```
-
-```yaml
-# No interface description should contain decommission markers
-- name: "No decom interfaces active"
-  command: show_interface_description
-  path: "[*].description"
-  condition: not_one_of
-  value: ["DECOM", "DECOMMISSIONED", "SHUTDOWN", "TBD"]
-```
-
-```yaml
-# OSPF state must be FULL or 2WAY — LOADING/INIT/DOWN are failures
-- name: "OSPF neighbor is converged"
-  command: show_ip_ospf_neighbors
-  path: "neighbors[*].state"
-  condition: one_of
-  value: ["FULL/DR", "FULL/BDR", "FULL/  -", "2WAY/DROTHER"]
-  print: "Neighbor {{[*]}} state: {{value}}"
-```
+#### String matching
 
 | Condition | Passes when |
 |-----------|-------------|
-| `one_of` | actual value is present in the list |
-| `not_one_of` | actual value is absent from the list |
+| `contains` | actual contains expected as substring |
+| `not_contains` | actual does NOT contain expected |
+| `matches` | `re.search(expected, str(actual))` succeeds |
 
-Both require `value:` to be a YAML list (`[...]` or block sequence).
+#### Set membership
 
----
+| Condition | Passes when | `value` must be |
+|-----------|-------------|-----------------|
+| `one_of` | actual is in the list | YAML list `[...]` |
+| `not_one_of` | actual is NOT in the list | YAML list `[...]` |
 
-### 12.2c Duration conditions
+#### Duration comparison
 
-Uptime and timer fields from Cisco devices come as strings like `"5w2d"`, `"2d03h"`, `"00:03:42"`. The `duration_*` conditions parse both the actual value and the expected threshold through the same parser before comparing.
+Both `actual` (from snapshot) and `value` (threshold) are parsed through the same duration parser.
 
 | Condition | Passes when actual duration is |
 |-----------|-------------------------------|
@@ -859,90 +1068,180 @@ Uptime and timer fields from Cisco devices come as strings like `"5w2d"`, `"2d03
 | `duration_lte` | ≤ expected |
 | `duration_lt` | < expected |
 
-**Supported input formats** (for both `value:` and the snapshot field):
+**Supported duration input formats:**
 
-| Format | Example | Parsed as |
-|--------|---------|-----------|
-| `HH:MM:SS` | `"00:03:42"` | 222 s |
-| `HH:MM` | `"10:30"` | 630 s |
-| `Xw` weeks | `"3w"` | 1 814 400 s |
-| `Xd` days | `"2d"` | 172 800 s |
-| `Xh` hours | `"4h"` | 14 400 s |
-| `Xm` minutes | `"30m"` | 1 800 s |
-| `Xs` seconds | `"90s"` | 90 s |
-| Combined | `"5w2d3h"` | full decomposition |
-| Keywords | `"never"`, `"n/a"`, `"-"` | 0 s |
-| Bare integer | `"42"` | 42 s |
+| Example | Meaning |
+|---------|---------|
+| `"5w2d"` | 5 weeks + 2 days |
+| `"2d03h"` | 2 days + 3 hours |
+| `"1y3w2d4h5m6s"` | full decomposition |
+| `"00:03:42"` | HH:MM:SS |
+| `"15:30"` | MM:SS |
+| `"30m"` | 30 minutes |
+| `"5week2day"` | spelled-out units |
+| `"never"` / `"n/a"` / `"-"` | 0 seconds |
+| `"42"` | bare integer = 42 seconds |
+
+#### Length comparison
+
+Apply `len()` to actual value before comparing. Works on strings, lists, and dicts.
+
+| Condition | Passes when `len(actual)` is |
+|-----------|------------------------------|
+| `len_eq` | == expected |
+| `len_ne` | != expected |
+| `len_gt` | > expected |
+| `len_gte` | ≥ expected |
+| `len_lt` | < expected |
+| `len_lte` | ≤ expected |
+
+#### Date comparison
+
+Actual field value is parsed as a date/datetime. Supports all common formats (see §8.3.1).
+
+| Condition | Passes when |
+|-----------|-------------|
+| `date_before` | actual date is before expected date |
+| `date_after` | actual date is after expected date |
+| `date_within_days` | actual date is at most N days ago |
+| `date_older_than_days` | actual date is more than N days ago |
+
+#### Delta (baseline diff) conditions
+
+Used inside `compare_baseline:` checks only (see §8.9).
+
+| Condition | Passes when |
+|-----------|-------------|
+| `diff_eq` / `diff_ne` | `abs(current − baseline)` == / != value |
+| `diff_gt` / `diff_gte` | `abs(current − baseline)` > / ≥ value |
+| `diff_lt` / `diff_lte` | `abs(current − baseline)` < / ≤ value |
+| `diff_pct_gt` / `diff_pct_gte` | percentage change > / ≥ value |
+| `diff_pct_lt` / `diff_pct_lte` | percentage change < / ≤ value |
+
+---
+
+#### 8.3.1 Supported Date Formats
+
+Used by `date_before`/`date_after`/`date_within_days`/`date_older_than_days` and by `--since-days` when a date string is passed:
+
+| Format | Example |
+|--------|---------|
+| `DD-Mon-YYYY` | `03-May-2026` |
+| `DD-Mon-YY` | `03-May-26` |
+| `DD-MM-YYYY` | `03-05-2026` |
+| `DD/MM/YYYY` | `03/05/2026` |
+| `YYYY-MM-DD` | `2026-05-03` |
+| `YYYY/MM/DD` | `2026/05/03` |
+| `Mon DD YYYY` | `May 3 2026` |
+| `DD Mon YYYY` | `03 May 2026` |
+| `YYYY-MM-DDTHH:MM:SS` | ISO with time |
+
+---
+
+### 8.4 Check Types
+
+#### 8.4.1 Simple — single condition
 
 ```yaml
-# BGP session must have been established for at least 2 days
-- name: "BGP session stability"
+- name: "OS version format"
+  command: show_version
+  path: "[0].os"
+  condition: contains
+  value: "NX-OS"
+
+- name: "All OSPF neighbors FULL"
+  command: show_ip_ospf_neighbors
+  path: "neighbors[*].state"
+  condition: matches
+  value: '^FULL'
+  match: all
+
+- name: "Interface line protocol healthy"
+  command: show_interfaces
+  path: "[*].line_protocol"
+  condition: one_of
+  value: ["up", "connected"]
+
+- name: "No DECOM interface active"
+  command: show_interface_description
+  path: "[*].description"
+  condition: not_one_of
+  value: ["DECOM", "DECOMMISSIONED", "SHUTDOWN"]
+
+- name: "BGP session up at least 2 days"
   command: show_ip_bgp_summary_vrf_all
   path: "vrfs[*].neighbors[*].updown"
   condition: duration_gte
   value: "2d"
   severity: warn
-  print: "VRF {{[*][0]}} neighbor {{[*][1]}} up for {{value}}"
 
-# OSPF neighbor uptime > 1 week (high stability check)
-- name: "OSPF neighbor long uptime"
-  command: show_ip_ospf_neighbors
-  path: "neighbors[*].uptime"
-  condition: duration_gt
-  value: "1w"
+- name: "At least one KS peer REDUNDANT"
+  command: show_crypto_gkm_ks_coop_detail
+  path: "GETVPN-P2P[*].state"
+  condition: eq
+  value: "REDUNDANT"
+  match: any
 
-# PIM neighbor recently came up — flag if uptime < 1 hour (possible reset)
-- name: "PIM neighbor recently reset"
-  command: show_ip_pim_neighbor
-  path: "[*].UPTIME"
-  condition: duration_lt
-  value: "1h"
-  severity: warn
-  match: any   # alert if ANY neighbor has short uptime
-  print: "PIM neighbor {{[*]}} uptime: {{value}} (recently reset?)"
+- name: "Hostname at least 5 characters"
+  command: show_version
+  path: "[0].hostname"
+  condition: len_gte
+  value: 5
 
-# BFD session hold-timer sanity
-- name: "BFD hold timer not exceeded"
-  command: show_bfd_neighbors
-  path: "[*].holddown"
-  condition: duration_lte
-  value: "00:00:10"   # HH:MM:SS format works too
+- name: "Snapshot collected recently"
+  metadata: collection_time
+  condition: date_within_days
+  value: 7
 ```
 
 ---
 
-### 12.2d Conditional branches — `branches:`
+#### 8.4.2 AND conditions — `conditions:` list
 
-Use `branches:` when the **correct expected value depends on some other field in the same row**. Each branch specifies a `when:` guard and a `then:` assertion; an optional `default:` fires if no `when:` matches.
-
-**Basic structure:**
+All conditions in the list must pass for each resolved item.
 
 ```yaml
-branches:
-  - when:
-      field: <field_in_the_row>
-      condition: <any supported condition>
-      value: <expected>
-    then:
-      field: <field_to_assert>
-      condition: <condition>
-      value: <expected>
-  - when: ...
-    then: ...
-  - default:
-      field: <field>
-      condition: <condition>
-      value: <expected>
+- name: "BGP prefix count in valid range"
+  command: show_ip_bgp_summary_vrf_all
+  path: "vrfs[*].neighbors[*].prefixes_received"
+  conditions:
+    - condition: gte
+      value: 1
+    - condition: lte
+      value: 900000
+  print: "VRF={{[*][0]}} neighbor={{[*][1]}} → {{value}} prefixes"
+
+- name: "Interface speed and MTU correct"
+  command: show_interfaces
+  path: "[*].bandwidth"
+  conditions:
+    - condition: gte
+      value: 1000
+    - condition: lte
+      value: 100000
+
+- name: "CPU utilisation acceptable"
+  command: show_processes_cpu
+  path: "[0].cpu_5min"
+  conditions:
+    - condition: gte
+      value: 0
+    - condition: lte
+      value: 80
+  severity: warn
+  print: "CPU 5-min: {{value}}%"
 ```
 
 **Rules:**
-- `path:` must resolve to **dicts** (use `[*]` to expand a list of interface dicts, etc.).
-- Branches are evaluated **in order** — first matching `when:` wins.
-- If no `when:` matches and no `default:` is defined, the row is skipped (vacuously passes).
-- `when:` supports every standard condition (`eq`, `matches`, `one_of`, etc.).
-- `print:` works with branches — one line is emitted per row using `{{value}}` (the asserted field's value).
+- `conditions:` and `condition:` are mutually exclusive.
+- `match: any/all` works with `conditions:` — controls whether all *rows* must pass or any one row.
+- Each item needs `condition` and `value` keys.
 
-**Example 1 — MTU by interface type:**
+---
+
+#### 8.4.3 Conditional branches — `branches:`
+
+Use when the expected value depends on another field in the same row. Evaluates IF/ELIF/ELSE per dict row.
 
 ```yaml
 - name: "MTU matches interface type"
@@ -968,11 +1267,10 @@ branches:
     - default:
         field: mtu
         condition: gte
-        value: 1500   # anything else must at least be a standard frame
-  print: "Interface {{path}} MTU={{value}}"
+        value: 1500
+  severity: warn
+  print: "{{path}} MTU={{value}}"
 ```
-
-**Example 2 — BGP peer type determines acceptable prefix count:**
 
 ```yaml
 - name: "BGP prefix count by peer type"
@@ -986,7 +1284,7 @@ branches:
       then:
         field: prefixes_received
         condition: gte
-        value: 500     # iBGP peers carry full table
+        value: 500
     - when:
         field: peer_type
         condition: eq
@@ -997,18 +1295,15 @@ branches:
           - condition: gte
             value: 1
           - condition: lte
-            value: 10  # eBGP stub peers send a handful of prefixes
+            value: 10
     - default:
         field: prefixes_received
         condition: gte
         value: 0
-  severity: warn
 ```
 
-**Example 3 — VPC role determines which checks apply:**
-
 ```yaml
-- name: "VPC consistency check"
+- name: "VPC role-specific check"
   command: show_vpc_brief
   path: "[*]"
   branches:
@@ -1028,59 +1323,334 @@ branches:
         field: consistency_status
         condition: eq
         value: "SUCCESS"
-    # No default — non-VPC devices have neither field and are skipped
+    # No default — non-VPC devices have neither field; rows without a match are skipped
 ```
+
+**Rules:**
+- `path:` must resolve to dicts (`[*]` to expand a list of dicts).
+- Branches are evaluated in order — first matching `when:` wins.
+- If no `when:` matches and no `default:` is defined, the row is skipped (vacuously passes).
+- `when:` supports every standard condition.
+- `then:` can contain either `condition`/`value` OR a nested `conditions:` list.
+- `print:` emits one line per row using the asserted field's value.
 
 ---
 
-### 12.2e Print-only checks — surfacing values without assertions
+#### 8.4.4 Cross-check — `cross_check:`
 
-Sometimes you just want to **see** what a field currently holds — no pass/fail, no condition. Omit `condition`, `value`, `conditions`, and `branches` entirely. The check always passes and the values are surfaced in the report with a blue **DISPLAY** badge.
+Assert a condition on one set of rows **only when** another condition is true. The IF side and THEN side can reference the same command or different commands.
 
 ```yaml
-# Minimal — no print: field; auto-formats as "{path} -> {value!r}"
-- name: "Current NX-OS version"
-  command: show_version
-  path: "[0].version"
-
-# Explicit template — compose a readable sentence
-- name: "BGP peer uptime"
-  command: show_ip_bgp_summary_vrf_all
-  path: "vrfs[*].neighbors[*].updown"
-  print: "VRF {{[*][0]}} neighbor {{[*][1]}} up for {{value}}"
-
-# Display all interface descriptions for a quick inventory
-- name: "Interface descriptions"
-  command: show_interface_description
-  path: "[*].description"
-  print: "{{[*]}} — {{value}}"
-
-# Show GETVPN peer states without failing on any value
-- name: "GETVPN peer states (informational)"
-  command: show_crypto_gkm_ks_coop_detail
-  path: "GETVPN-P2P[*].state"
-  print: "Peer {{[*]}} → {{value}}"
+# Same-command: if Gi1/1/0 has "PR" in description → Loopback10 must be up
+- name: "PR site loopback check"
+  command: show_interfaces
+  cross_check:
+    if:
+      path: "[*]"
+      field: description
+      condition: contains
+      value: "PR"
+    then:
+      path: "[*]"
+      filter:
+        field: interface
+        condition: eq
+        value: "Loopback10"
+      assert:
+        field: status
+        condition: eq
+        value: "up"
+  severity: warn
 ```
 
-**Behaviour:**
-- Always returns `status: pass` — never contributes to `failed` or exit code 1.
-- HTML report shows a blue `DISPLAY` badge instead of green `PASS`.
-- The Condition row is omitted from the detail section.
-- Values are rendered in blue monospace, one line per resolved item.
-- If `print:` is omitted, each value is auto-formatted as `{path} -> {value!r}`.
-- Mix freely with regular condition checks in the same YAML file.
+```yaml
+# Different commands: BGP must have sessions when OSPF neighbor is FULL
+- name: "BGP up when OSPF present"
+  cross_check:
+    if:
+      command: show_ip_ospf_neighbors
+      path: "[*]"
+      field: state
+      condition: eq
+      value: "FULL"
+    then:
+      command: show_ip_bgp_summary
+      path: "neighbors[*]"
+      filter:
+        field: up_down
+        condition: ne
+        value: "never"
+      assert:
+        field: prefixes_received
+        condition: gte
+        value: 1
+```
+
+```yaml
+# Metadata-gated: only check NX-OS devices
+- name: "Loopback check (NX-OS only)"
+  cross_check:
+    if:
+      metadata: platform
+      condition: eq
+      value: "cisco_nxos"
+    then:
+      command: show_interfaces
+      path: "[*]"
+      filter:
+        field: interface
+        condition: matches
+        value: "^Loopback"
+      assert:
+        field: status
+        condition: eq
+        value: "up"
+```
+
+**Semantics:**
+1. Resolve `if.path` — keep rows where `if.field if.condition if.value` is true.
+2. Zero IF matches → **vacuously pass** (condition not applicable on this device).
+3. One or more IF matches → resolve `then.path`, apply `then.filter`.
+4. Zero THEN rows after filter → **error** ("target not found").
+5. Assert `then.assert` on every remaining THEN row.
+
+**Fields:**
+- `if.command` / `then.command` — optional when top-level `command:` is present (defaults both sides).
+- `if.metadata` — use a metadata field (`hostname`, `platform`, `collection_time`) instead of a data path.
+- `then.filter` — narrow which THEN rows to assert; optional.
+- `then.assert` — the actual assertion; required.
 
 ---
 
-### 12.3 Severity levels
+#### 8.4.5 Count check — `count:`
 
-The optional `severity` field controls whether a check failure causes `report.py health` / `health-all` to exit with code 1:
+Assert how many items the path expansion produces.
 
-| severity | Default? | Exit code on failure |
-|----------|----------|---------------------|
-| `critical` | Yes | exit 1 — blocks CI |
-| `warn` | No | no exit 1 — visible in report only |
-| `info` | No | no exit 1 — informational |
+```yaml
+# Must have at least 4 BGP neighbors
+- name: "BGP neighbor count"
+  command: show_ip_bgp_summary
+  path: "neighbors[*]"
+  count:
+    condition: gte
+    value: 4
+
+# Exactly 2 VPC peers
+- name: "VPC peer count"
+  command: show_vpc_brief
+  path: "[*]"
+  count:
+    condition: eq
+    value: 2
+
+# No more than 500 routes (sanity check)
+- name: "Route table not overflowing"
+  command: show_ip_route
+  path: "[*]"
+  count:
+    condition: lte
+    value: 500
+  severity: warn
+
+# OSPF neighbor count within range
+- name: "OSPF neighbor count 2-8"
+  command: show_ip_ospf_neighbors
+  path: "neighbors[*]"
+  count:
+    condition: gte
+    value: 2
+  # Add a second count check or use conditions: if you need both gte AND lte
+```
+
+`count.condition` accepts all standard numeric conditions: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`.
+
+---
+
+#### 8.4.6 Baseline comparison — `compare_baseline:`
+
+Compare current values against the same path in a previous snapshot. Requires `--baseline <old.json>` (for `health`) or `--baseline-dir <dir>` (for `health-all`).
+
+```yaml
+# Absolute difference: prefix count must not change by more than 100
+- name: "BGP prefix count stable"
+  command: show_ip_bgp_summary
+  path: "neighbors[*].prefixes_received"
+  compare_baseline:
+    condition: diff_lte
+    value: 100
+
+# Percentage difference: must stay within 20% of yesterday
+- name: "BGP prefix count within 20% of baseline"
+  command: show_ip_bgp_summary_vrf_all
+  path: "vrfs[*].neighbors[*].prefixes_received"
+  compare_baseline:
+    condition: diff_pct_lte
+    value: 20
+  severity: warn
+
+# Standard condition: current must be >= baseline (no drop allowed)
+- name: "Route count not lower than baseline"
+  command: show_ip_route
+  path: "[*]"
+  compare_baseline:
+    condition: gte   # current count >= baseline count
+  # note: no 'value' needed — baseline_value is the reference
+
+# Exact match: hostname must not change
+- name: "Hostname unchanged"
+  command: show_version
+  path: "[0].hostname"
+  compare_baseline:
+    condition: eq
+```
+
+**Delta conditions:**
+
+| Condition | Formula | Passes when |
+|-----------|---------|-------------|
+| `diff_lte` | `abs(current − baseline)` | ≤ value |
+| `diff_gte` | `abs(current − baseline)` | ≥ value |
+| `diff_lt` | `abs(current − baseline)` | < value |
+| `diff_gt` | `abs(current − baseline)` | > value |
+| `diff_pct_lte` | `abs(current − baseline) / baseline × 100` | ≤ value % |
+| `diff_pct_gte` | `abs(current − baseline) / baseline × 100` | ≥ value % |
+| `diff_pct_lt` | `abs(current − baseline) / baseline × 100` | < value % |
+| `diff_pct_gt` | `abs(current − baseline) / baseline × 100` | > value % |
+
+Standard conditions (`eq`, `gte`, etc.) inside `compare_baseline:` use the baseline value as the expected, so no `value` field is needed.
+
+**Using with `health`:**
+
+```bash
+python report.py health \
+  --snapshot  data/json/N9K_today.json \
+  --checks    checks/base.yaml \
+  --baseline  data/json/N9K_yesterday.json
+```
+
+**Using with `health-all`:**
+
+```bash
+python report.py health-all \
+  --dir            data/json/ \
+  --default-checks checks/base.yaml \
+  --baseline-dir   data/json-prev/
+```
+
+The newest `{hostname}*.json` file in `--baseline-dir` is used for each device.
+
+---
+
+#### 8.4.7 Metadata check — `metadata:`
+
+Check fields from the snapshot's `metadata` block directly, without needing a path into `commands`.
+
+```yaml
+# Hostname starts with expected prefix
+- name: "Hostname starts with N9K"
+  metadata: hostname
+  condition: matches
+  value: "^N9K-"
+
+# Platform is NX-OS
+- name: "Platform is cisco_nxos"
+  metadata: platform
+  condition: eq
+  value: "cisco_nxos"
+
+# Snapshot was collected within the last 7 days
+- name: "Snapshot is current"
+  metadata: collection_time
+  condition: date_within_days
+  value: 7
+  severity: warn
+
+# Collection time is after a specific date
+- name: "Snapshot collected after cutover"
+  metadata: collection_time
+  condition: date_after
+  value: "01-Jan-2026"
+```
+
+Available metadata fields from `snapshot["metadata"]`:
+- `hostname` — device hostname extracted from filename/output
+- `platform` — `cisco_nxos` or `cisco_ios`
+- `collection_time` — date string from filename (format: `DD-Mon-YY`)
+- `source_file` — original filename
+
+---
+
+#### 8.4.8 Metadata in `branches:` `when:` clause
+
+Branches can route on metadata fields instead of row fields:
+
+```yaml
+- name: "MTU rule by device type"
+  command: show_interfaces
+  path: "[*]"
+  branches:
+    - when:
+        metadata: platform           # ← metadata instead of field
+        condition: eq
+        value: "cisco_nxos"
+      then:
+        field: mtu
+        condition: eq
+        value: 9216
+    - default:
+        field: mtu
+        condition: gte
+        value: 1500
+```
+
+---
+
+### 8.5 `match` — Any vs All
+
+When a path uses `[*]` and expands to multiple values, `match` controls the passing threshold.
+
+| Value | Default? | Passes when |
+|-------|----------|-------------|
+| `all` | Yes | Every expanded value satisfies the condition |
+| `any` | No | At least one expanded value satisfies the condition |
+
+```yaml
+# PASS if every OSPF neighbor is FULL (default all)
+- name: "All OSPF neighbors FULL"
+  command: show_ip_ospf_neighbors
+  path: "neighbors[*].state"
+  condition: matches
+  value: '^FULL'
+
+# PASS if at least one GETVPN peer is REDUNDANT
+- name: "At least one KS peer REDUNDANT"
+  command: show_crypto_gkm_ks_coop_detail
+  path: "GETVPN-P2P[*].state"
+  condition: eq
+  value: "REDUNDANT"
+  match: any
+  print: "KS peer {{[*]}} is {{value}}"
+
+# PASS if any PIM neighbor recently reset (warning)
+- name: "PIM neighbor recently reset"
+  command: show_ip_pim_neighbor
+  path: "[*].UPTIME"
+  condition: duration_lt
+  value: "1h"
+  match: any
+  severity: warn
+  print: "PIM neighbor {{[*]}} uptime={{value}} (recently reset?)"
+```
+
+---
+
+### 8.6 `severity` — Check Impact on Exit Code
+
+| Value | Default? | Failure behaviour |
+|-------|----------|-------------------|
+| `critical` | Yes | Exit 1 — blocks CI |
+| `warn` | No | No exit 1 — visible in report only |
+| `info` | No | No exit 1 — purely informational |
 
 ```yaml
 - name: "MTU is jumbo"
@@ -1088,64 +1658,302 @@ The optional `severity` field controls whether a check failure causes `report.py
   path: "[*].mtu"
   condition: eq
   value: 9216
-  severity: warn    # MTU mismatch is a warning, not a blocker
+  severity: warn    # MTU mismatch is visible but never blocks CI
+
+- name: "CPU utilisation"
+  command: show_processes_cpu
+  path: "[0].cpu_5min"
+  condition: lte
+  value: 80
+  severity: info    # surface the value, never fail
+
+- name: "OSPF neighbors all FULL"
+  command: show_ip_ospf_neighbors
+  path: "neighbors[*].state"
+  condition: matches
+  value: '^FULL'
+                    # severity: critical is the default — blocks CI
 ```
 
-Auto-generated baseline checks (`report.py baseline`) default to `severity: warn` so they never block CI until the user explicitly promotes them to `critical`.
+HTML report shows colour-coded severity badges: `WARN` (amber), `INFO` (blue), no badge for `critical`.
 
-### 12.4 Full Example (checks)
+---
 
-The example below covers every check type in a single realistic file so you can see them side by side.
+### 8.7 `skip_if` — Conditional Skip
+
+Skip a check based on a metadata condition. Useful to gate platform-specific or site-specific checks.
+
+```yaml
+# Only run BGP check on WAN-prefixed devices
+- name: "BGP neighbor count"
+  command: show_ip_bgp_summary
+  path: "neighbors[*]"
+  count:
+    condition: gte
+    value: 2
+  skip_if:
+    metadata: hostname
+    condition: not_matches
+    value: "^WAN-"
+
+# Skip VPC check on non-NX-OS devices
+- name: "VPC peer link"
+  command: show_vpc_brief
+  path: "[*].peer_status"
+  condition: eq
+  value: "peer-link ok"
+  skip_if:
+    metadata: platform
+    condition: ne
+    value: "cisco_nxos"
+
+# Skip if snapshot is too old (separate from date_within_days check)
+- name: "OSPF neighbors FULL"
+  command: show_ip_ospf_neighbors
+  path: "neighbors[*].state"
+  condition: matches
+  value: '^FULL'
+  skip_if:
+    metadata: collection_time
+    condition: date_older_than_days
+    value: 30
+```
+
+**Behaviour:**
+- If `skip_if` condition is **true** → check returns `status: skip` — not pass, not fail.
+- Skipped checks are counted in `summary.skipped` and shown with a grey `SKIP` badge in HTML.
+- `skip_if` currently supports `metadata:` fields only.
+- Skipped checks never contribute to the failure count or exit code.
+
+---
+
+### 8.8 `tags` — Check Filtering
+
+Tags let you run subsets of checks without maintaining separate YAML files.
+
+```yaml
+- name: "BGP prefix count"
+  command: show_ip_bgp_summary
+  path: "neighbors[*].prefixes_received"
+  condition: gte
+  value: 1
+  tags: [bgp, routing, ci-blocking]
+
+- name: "OSPF neighbors FULL"
+  command: show_ip_ospf_neighbors
+  path: "neighbors[*].state"
+  condition: matches
+  value: '^FULL'
+  tags: [ospf, routing]
+
+- name: "Interface MTU"
+  command: show_interfaces
+  path: "[*].mtu"
+  condition: eq
+  value: 9216
+  tags: [interfaces, warn-only]
+  severity: warn
+```
+
+**CLI usage:**
+
+```bash
+# Run only BGP checks
+python report.py health \
+  --snapshot data/json/N9K.json \
+  --checks   checks/base.yaml \
+  --tags     bgp
+
+# Run routing + interfaces (OR logic — any matching tag)
+python report.py health-all \
+  --dir            data/json/ \
+  --default-checks checks/base.yaml \
+  --tags           routing,interfaces
+
+# No --tags → all checks run regardless of tags
+```
+
+**Filter logic:** OR — a check is included if it has **any** of the requested tags. Checks with no `tags:` field run normally when `--tags` is not specified, but are excluded when `--tags` is given.
+
+---
+
+### 8.9 Print Templates
+
+The optional `print` field renders a human-readable line per resolved value in terminal output and HTML reports.
+
+```yaml
+# print: true — auto-format as "path -> value"
+- name: "BGP uptime"
+  command: show_ip_bgp_summary_vrf_all
+  path: "vrfs[*].neighbors[*].updown"
+  condition: duration_gte
+  value: "2d"
+  print: true
+  # output: vrfs[0].neighbors[0].updown -> '5w2d'
+
+# print: "template"
+- name: "BGP prefix counts"
+  command: show_ip_bgp_summary_vrf_all
+  path: "vrfs[*].neighbors[*].prefixes_received"
+  condition: gte
+  value: 1
+  print: "VRF={{[*][0]}} neighbor={{[*][1]}} → {{value}} prefixes"
+  # output: VRF=default neighbor=10.0.0.1 → 419918 prefixes
+```
+
+#### All template variables
+
+| Variable | Expands to |
+|----------|-----------|
+| `{value}` | Actual resolved value (original single-brace syntax) |
+| `{path}` | Full resolved path string (original single-brace) |
+| `{{value}}` | Same as `{value}` (double-brace synonym) |
+| `{{path}}` | Same as `{path}` (double-brace synonym) |
+| `{{[*]}}` | First wildcard key — shorthand for `{{[*][0]}}` |
+| `{{[*][N]}}` | Nth wildcard key (0-indexed, counting only `[*]` hops) |
+| `{{.field}}` | Value of a sibling field in the same dict row |
+
+#### `{{[*][N]}}` indexing
+
+Only `[*]` wildcard expansions add a bracket to the resolved path. Named key accesses (`.field`) are invisible to the index counter.
+
+**Path:** `vrfs[*].neighbors[*].updown`
+
+| Resolved path | `{{[*][0]}}` | `{{[*][1]}}` | `{{value}}` |
+|---|---|---|---|
+| `vrfs[default].neighbors[10.0.0.1].updown` | `default` | `10.0.0.1` | `5w2d` |
+| `vrfs[MGMT].neighbors[10.0.0.2].updown` | `MGMT` | `10.0.0.2` | `2d03h` |
+
+**Mental model:** Count `[*]` tokens left-to-right in your path. Each `[*]` = one index slot.
+
+```
+vrfs[*]          .neighbors[*]          .updown
+  ↑                    ↑                   ← named key, not counted
+index 0              index 1
+```
+
+#### Sibling field lookup (`{{.field}}`)
+
+Fetches another field from the same parent dict as the resolved value.
+
+```yaml
+path:  "[*].pfxrcd"
+print: "Neighbor={{[*]}} uptime={{.updown}} prefixes={{value}}"
+# → "Neighbor=10.0.0.1 uptime=5w2d prefixes=419918"
+```
+
+#### Print-only checks (no condition)
+
+Omit `condition`, `value`, `conditions`, and `branches` entirely. Check always passes. Displays a blue `DISPLAY` badge in HTML reports.
+
+```yaml
+# Auto-format
+- name: "Current NX-OS version"
+  command: show_version
+  path: "[0].version"
+
+# Custom template
+- name: "BGP peer uptime"
+  command: show_ip_bgp_summary_vrf_all
+  path: "vrfs[*].neighbors[*].updown"
+  print: "VRF={{[*][0]}} neighbor={{[*][1]}} up for {{value}}"
+
+# GETVPN peer states
+- name: "GETVPN peer states (informational)"
+  command: show_crypto_gkm_ks_coop_detail
+  path: "GETVPN-P2P[*].state"
+  print: "Peer {{[*]}} → {{value}}"
+
+# All interface descriptions
+- name: "Interface descriptions"
+  command: show_interface_description
+  path: "[*].description"
+  print: "{{[*]}} — {{value}}"
+```
+
+---
+
+### 8.10 Per-Device Check Overrides
+
+Split checks into two tiers for multi-device deployments:
+
+- **Default checks** (`--checks` / `--default-checks`) — baseline for all devices
+- **Device-specific checks** (`--device-checks` / `--device-checks-dir`) — per-device additions or overrides
+
+**Merge rule:** All checks from both files are included. When the same `name` exists in both, the device-specific check **replaces** the default. All other checks are additive.
+
+```yaml
+# checks/devices/N9K-CAMA-WAN-1.yaml
+
+checks:
+  # OVERRIDE: replaces the same-named default check
+  - name: "VPC peer link status"
+    command: show_vpc_brief
+    path: "[*].status"
+    condition: not_contains
+    value: "peer-link down"   # more permissive wording than default
+
+  # ADDITION: only evaluated for this device
+  - name: "Hostname matches expected"
+    command: show_version
+    path: "[0].hostname"
+    condition: eq
+    value: "N9K-CAMA-WAN-1"
+    severity: critical
+```
+
+**File naming convention for `--device-checks-dir`:** `{hostname}.yaml`
+
+`checks/devices/N9K-CAMA-WAN-1.yaml` is loaded automatically when the snapshot's `metadata.hostname` is `N9K-CAMA-WAN-1`.
+
+---
+
+### 8.11 Complete Example Check File
 
 ```yaml
 checks:
-  # ── Basic scalar ─────────────────────────────────────────────────────────────
+  # ── Print-only (DISPLAY badge, no assertion) ────────────────────────────────
+  - name: "Current NX-OS version (info)"
+    command: show_version
+    path: "[0].version"
+    tags: [info]
 
-  # Regex on a single string field
-  - name: "OS version format is valid"
+  # ── Metadata check ───────────────────────────────────────────────────────────
+  - name: "Snapshot is current"
+    metadata: collection_time
+    condition: date_within_days
+    value: 7
+    severity: warn
+    tags: [metadata, warn-only]
+
+  # ── Basic scalar ─────────────────────────────────────────────────────────────
+  - name: "OS version format"
     command: show_version
     path: "[0].os"
     condition: matches
-    value: '^\d+'        # single-quotes protect regex metacharacters in YAML
+    value: '^\d+'
+    tags: [baseline, ci-blocking]
 
-  # ── Wildcard expansion (all rows) ────────────────────────────────────────────
-
-  # Every interface description must not contain a decom marker
-  - name: "No DECOM interface is active"
+  # ── Wildcard expansion (all rows must pass) ──────────────────────────────────
+  - name: "No DECOM interface active"
     command: show_interface_description
     path: "[*].description"
-    condition: not_contains
-    value: "DECOM"
+    condition: not_one_of
+    value: ["DECOM", "DECOMMISSIONED", "SHUTDOWN"]
+    tags: [interfaces, ci-blocking]
 
-  # Every OSPF neighbor must be in a FULL state (match: all is the default)
-  - name: "All OSPF neighbors FULL"
-    command: show_ip_ospf_neighbors
-    path: "neighbors[*].state"
-    condition: matches
-    value: '^FULL'
-    print: "Neighbor {{[*]}} → {{value}}"
-
-  # Dict VRF expansion — every VRF must have at least one multicast route
-  - name: "Multicast routes present in all VRFs"
-    command: show_ip_mroute_summary
-    path: "vrfs[*].summary.total_routes"
-    condition: gt
-    value: 0
-
-  # ── match: any (at least one must pass) ──────────────────────────────────────
-
-  - name: "At least one GETVPN key server is REDUNDANT"
+  # ── Wildcard expansion (any one must pass) ───────────────────────────────────
+  - name: "At least one GETVPN KS REDUNDANT"
     command: show_crypto_gkm_ks_coop_detail
     path: "GETVPN-P2P[*].state"
     condition: eq
     value: "REDUNDANT"
     match: any
-    print: "KS peer {{[*]}} is {{value}}"
+    print: "KS peer {{[*]}} state: {{value}}"
+    tags: [getvpn]
 
-  # ── AND conditions (conditions: list) ────────────────────────────────────────
-
-  # BGP prefix count must be within a healthy range
-  - name: "BGP prefix count in range"
+  # ── AND conditions ────────────────────────────────────────────────────────────
+  - name: "BGP prefix count in valid range"
     command: show_ip_bgp_summary_vrf_all
     path: "vrfs[*].neighbors[*].prefixes_received"
     conditions:
@@ -1153,29 +1961,45 @@ checks:
         value: 1
       - condition: lte
         value: 900000
-    print: "VRF {{[*][0]}} neighbor {{[*][1]}} → {{value}} prefixes"
+    print: "VRF={{[*][0]}} neighbor={{[*][1]}} → {{value}} prefixes"
+    tags: [bgp, routing]
 
-  # ── OR values (one_of / not_one_of) ──────────────────────────────────────────
-
-  - name: "Interface line protocol is healthy"
+  # ── one_of / not_one_of ───────────────────────────────────────────────────────
+  - name: "Interface line protocol healthy"
     command: show_interfaces
     path: "[*].line_protocol"
     condition: one_of
     value: ["up", "connected"]
+    tags: [interfaces]
 
   # ── Duration conditions ───────────────────────────────────────────────────────
-
   - name: "BGP sessions established for at least 2 days"
     command: show_ip_bgp_summary_vrf_all
     path: "vrfs[*].neighbors[*].updown"
     condition: duration_gte
     value: "2d"
     severity: warn
-    print: "VRF {{[*][0]}} neighbor {{[*][1]}} up for {{value}}"
+    print: "VRF={{[*][0]}} neighbor={{[*][1]}} up for {{value}}"
+    tags: [bgp, stability]
+
+  # ── Length condition ──────────────────────────────────────────────────────────
+  - name: "Hostname length sanity"
+    command: show_version
+    path: "[0].hostname"
+    condition: len_gte
+    value: 5
+    tags: [baseline]
+
+  # ── Count check ───────────────────────────────────────────────────────────────
+  - name: "BGP neighbor count at least 2"
+    command: show_ip_bgp_summary
+    path: "neighbors[*]"
+    count:
+      condition: gte
+      value: 2
+    tags: [bgp, count]
 
   # ── Conditional branches ──────────────────────────────────────────────────────
-
-  # MTU expectation depends on interface type
   - name: "MTU matches interface type"
     command: show_interfaces
     path: "[*]"
@@ -1201,771 +2025,172 @@ checks:
           condition: gte
           value: 1500
     severity: warn
-    print: "{{path}} MTU={{value}}"
+    tags: [interfaces, warn-only]
 
-  # ── Print-only (no assertion — just display the value) ────────────────────────
+  # ── Cross-check ───────────────────────────────────────────────────────────────
+  - name: "PR site loopback up"
+    command: show_interfaces
+    cross_check:
+      if:
+        path: "[*]"
+        field: description
+        condition: contains
+        value: "PR"
+      then:
+        path: "[*]"
+        filter:
+          field: interface
+          condition: matches
+          value: "Loopback"
+        assert:
+          field: status
+          condition: eq
+          value: "up"
+    severity: warn
+    tags: [cross-check]
 
-  - name: "Current NX-OS version (informational)"
-    command: show_version
-    path: "[0].version"
+  # ── Baseline comparison ───────────────────────────────────────────────────────
+  - name: "BGP prefix count stable (diff ≤ 100)"
+    command: show_ip_bgp_summary
+    path: "neighbors[*].prefixes_received"
+    compare_baseline:
+      condition: diff_lte
+      value: 100
+    severity: warn
+    tags: [bgp, baseline]
 
-  - name: "All BGP neighbor uptimes"
-    command: show_ip_bgp_summary_vrf_all
-    path: "vrfs[*].neighbors[*].updown"
-    print: "VRF {{[*][0]}} neighbor {{[*][1]}} up for {{value}}"
+  # ── skip_if: skip WAN-only checks on non-WAN devices ─────────────────────────
+  - name: "WAN site BGP neighbors"
+    command: show_ip_bgp_summary
+    path: "neighbors[*]"
+    count:
+      condition: gte
+      value: 2
+    skip_if:
+      metadata: hostname
+      condition: not_matches
+      value: "^WAN-"
+    tags: [bgp, wan]
 
-  # ── Severity: warn — visible in report, never blocks CI ──────────────────────
-
+  # ── Severity: info ────────────────────────────────────────────────────────────
   - name: "CPU 5-min utilisation"
     command: show_processes_cpu
     path: "[0].cpu_5min"
     condition: lte
-    value: 70
-    severity: warn
+    value: 90
+    severity: info
     print: "CPU 5-min: {{value}}%"
-```
-
-> **YAML quoting:** Always use single quotes (`'...'`) for `value` strings that contain regex metacharacters (`\d`, `\S`, `^`, etc.) to avoid YAML escape interpretation.
-
-### 12.5 Check File Structure
-
-```yaml
-# checks/my_device_checks.yaml
-checks:
-  - name: ...
-  - name: ...
-```
-
-Pass any check file with `--checks`. There is no limit on the number of checks per file.
-
-### 12.6 Per-Device Check Overrides
-
-In multi-device deployments, checks are split into two tiers:
-
-- **Default checks** (`--checks` / `--default-checks`) — baseline assertions valid for all devices
-- **Device-specific checks** (`--device-checks` / `--device-checks-dir`) — per-device additions or overrides
-
-**Merge rule:** All checks from both files are included. When the same `name` appears in both, the device-specific check replaces the default. All other checks are unchanged.
-
-```yaml
-# checks/devices/N9K-CAMA-WAN-1.yaml
-
-checks:
-  # OVERRIDE: replaces the default check with the same name
-  - name: "VPC peer link status is up"
-    command: show_vpc_brief
-    path: "[*].status"
-    condition: not_contains
-    value: "peer-link down"   # more permissive than default "down"
-
-  # ADDITION: only evaluated for this device
-  - name: "Hostname matches expected value"
-    command: show_version
-    path: "[0].hostname"
-    condition: eq
-    value: "N9K-CAMA-WAN-1"
-```
-
-**File naming convention for `--device-checks-dir`:** `{hostname}.yaml`
-
-Example: `checks/devices/N9K-CAMA-WAN-1.yaml` is automatically loaded when processing a snapshot whose `metadata.hostname` is `N9K-CAMA-WAN-1`. Devices with no matching file use only the default checks.
-
-### 12.7 Print Templates
-
-The optional `print` field on any check renders a human-readable line per resolved value. It appears in both terminal output and HTML reports alongside the pass/fail result.
-
-#### Basic usage
-
-```yaml
-# print: true — auto-format as "path -> value"
-- name: "BGP uptime"
-  command: show_ip_bgp_summary_vrf_all
-  path: "[*].updown"
-  condition: duration_gte
-  value: "2d"
-  print: true
-  # output: [0].updown -> '42w0d'
-
-# print: "template" — compose a sentence
-- name: "BGP uptime"
-  ...
-  print: "Peer {path} has been up for {value}"
-  # output: Peer [0].updown has been up for 42w0d
-```
-
-#### All template variables
-
-| Variable | Expands to | Notes |
-|---|---|---|
-| `{value}` | The actual resolved value | Original single-brace syntax |
-| `{path}` | Full resolved path string | Original single-brace syntax |
-| `{{value}}` | Same as `{value}` | Double-brace synonym |
-| `{{path}}` | Same as `{path}` | Double-brace synonym |
-| `{{[*]}}` | First wildcard key in the resolved path | Shorthand for `{{[*][0]}}` |
-| `{{[*][N]}}` | Nth wildcard key (0-indexed) | N counts `[*]` hops only |
-| `{{.field}}` | Value of a sibling field in the same dict row | Fetched from the same parent dict |
-
-#### How `{{[*][N]}}` indexing works
-
-Only `[*]` wildcard expansions add a bracket to the resolved path. Named key accesses (`.field`) never add a bracket — they are invisible to the index counter.
-
-**Path:** `[*][*].address_family[*].pfxrcd`
-
-As `_resolve()` walks the data, it builds the path string step by step:
-
-```
-""
-→ [default]                                        ← [*] on VRF dict       → bracket added
-→ [default][11.11.226.26]                          ← [*] on neighbor dict   → bracket added
-→ [default][11.11.226.26].address_family           ← .address_family        → dot, NO bracket
-→ [default][11.11.226.26].address_family[ipv4]     ← [*] on AF dict        → bracket added
-→ [default][11.11.226.26].address_family[ipv4].pfxrcd  ← .pfxrcd           → dot, NO bracket
-```
-
-Brackets extracted by `re.findall(r'\[([^\]]+)\]', path)`:
-
-```
-[default][11.11.226.26].address_family[ipv4].pfxrcd
-    ↑           ↑                       ↑
-index 0      index 1                index 2
-```
-
-Result: `['default', '11.11.226.26', 'ipv4']`
-
-`.address_family` and `.pfxrcd` contribute zero to the index because they were named explicitly in the path — `_resolve()` uses dot notation for them, not brackets.
-
-**Mental model:** Count `[*]` tokens left-to-right in your path string. Each `[*]` = one index slot. Each `.field` = nothing.
-
-```
-  [*]         [*]    .address_family    [*]    .pfxrcd
-   ↑           ↑                        ↑
-index 0     index 1                  index 2
-```
-
-#### Full nested JSON example
-
-**Data:**
-```json
-{
-  "default": {
-    "11.11.226.26": {
-      "address_family": {
-        "ipv4": {"updown": "42w0d", "pfxrcd": "419918"},
-        "ipv6": {"updown": "42w0d", "pfxrcd": "1500"}
-      }
-    },
-    "20.20.20.85": {
-      "address_family": {
-        "ipv4": {"updown": "2d15h", "pfxrcd": "418890"}
-      }
-    }
-  },
-  "MGMT": {
-    "10.10.10.1": {
-      "address_family": {
-        "ipv4": {"updown": "5d12h", "pfxrcd": "1234"}
-      }
-    }
-  }
-}
-```
-
-**Path:** `[*][*].address_family[*].pfxrcd`
-
-**All resolved rows and what each index captures:**
-
-| Resolved path | `{{[*][0]}}` | `{{[*][1]}}` | `{{[*][2]}}` | `{{value}}` |
-|---|---|---|---|---|
-| `[default][11.11.226.26].address_family[ipv4].pfxrcd` | `default` | `11.11.226.26` | `ipv4` | `419918` |
-| `[default][11.11.226.26].address_family[ipv6].pfxrcd` | `default` | `11.11.226.26` | `ipv6` | `1500` |
-| `[default][20.20.20.85].address_family[ipv4].pfxrcd` | `default` | `20.20.20.85` | `ipv4` | `418890` |
-| `[MGMT][10.10.10.1].address_family[ipv4].pfxrcd` | `MGMT` | `10.10.10.1` | `ipv4` | `1234` |
-
-**Check YAML:**
-```yaml
-- name: "BGP prefix counts"
-  command: show_ip_bgp_summary_vrf_all
-  path: "[*][*].address_family[*].pfxrcd"
-  condition: gte
-  value: "1"
-  print: "VRF={{[*][0]}} Neighbor={{[*][1]}} AF={{[*][2]}} uptime={{.updown}} prefixes={{value}}"
-```
-
-**Output:**
-```
-VRF=default Neighbor=11.11.226.26 AF=ipv4 uptime=42w0d prefixes=419918
-VRF=default Neighbor=11.11.226.26 AF=ipv6 uptime=42w0d prefixes=1500
-VRF=default Neighbor=20.20.20.85  AF=ipv4 uptime=2d15h prefixes=418890
-VRF=MGMT    Neighbor=10.10.10.1   AF=ipv4 uptime=5d12h prefixes=1234
-```
-
-Note: `{{.updown}}` works here because `updown` is a sibling field inside the same dict as `pfxrcd` — see Sibling Field Lookup below.
-
-#### When neighbour IP is the dict key
-
-If the parser produces a dict-of-dicts where the neighbour IP IS the key (not a field inside the dict), use `{{[*]}}` to capture it:
-
-```json
-{
-  "11.11.226.26": {"updown": "42w0d", "pfxrcd": "419918"},
-  "20.20.20.85":  {"updown": "2d15h", "pfxrcd": "418890"}
-}
-```
-
-```yaml
-path:  "[*].pfxrcd"
-print: "Neighbor {{[*]}} uptime={{.updown}} prefixes={{value}}"
-# → "Neighbor 11.11.226.26 uptime=42w0d prefixes=419918"
-```
-
-Even if there are named key levels between the neighbour key and the target field, `{{[*]}}` still captures the neighbour IP because named keys don't add brackets:
-
-```json
-{"11.11.226.26": {"address_family": {"pfxrcd": "419918", "updown": "42w0d"}}}
-```
-
-```yaml
-path:  "[*].address_family.pfxrcd"
-# Resolved: [11.11.226.26].address_family.pfxrcd
-# Brackets: ['11.11.226.26']  ← .address_family is invisible
-print: "Neighbor {{[*]}} uptime={{.updown}} prefixes={{value}}"
-```
-
-#### Sibling field lookup (`{{.field}}`)
-
-`{{.field}}` fetches another field from the same dict as the resolved value. It strips the last segment from the resolved path to get the parent, then looks up `.field` from the original data.
-
-```yaml
-# Data: [{prefix: "10.0.0.0/8", bgp_neig: "10.2.240.1", state: "up"}, ...]
-path:  "[*].prefix"
-print: "neig={{.bgp_neig}} prefix={{value}}"
-# → "neig=10.2.240.1 prefix=10.0.0.0/8"
-```
-
-Combine with wildcard key capture for full context:
-
-```yaml
-path:  "[*][*].address_family[*].pfxrcd"
-print: "VRF={{[*][0]}} Neighbor={{[*][1]}} AF={{[*][2]}} uptime={{.updown}} prefixes={{value}}"
-```
-
-#### NTC vs TTP for `show ip bgp summary vrf all`
-
-NTC templates parse this command into a **flat list** — one dict per neighbor row. VRF information may be lost depending on the template version. All values are strings.
-
-```json
-[
-  {"bgp_neighbor": "11.11.226.26", "bgp_as": "1000", "bgp_updown": "42w0d", "bgp_state_pfxrcd": "419918"},
-  {"bgp_neighbor": "20.20.20.85",  "bgp_as": "300",  "bgp_updown": "2d15h", "bgp_state_pfxrcd": "418890"}
-]
-```
-
-Path: `[*].bgp_state_pfxrcd` — no VRF separation possible.
-
-TTP templates preserve the hierarchy (VRF → neighbors) and are preferred for `vrf all` commands:
-
-```json
-[{"vrfs": [
-  {"vrf": "default", "neighbors": [
-    {"neighbor": "11.11.226.26", "updown": "42w0d", "state_pfx": "419918"}
-  ]},
-  {"vrf": "MGMT", "neighbors": [
-    {"neighbor": "10.10.10.1", "updown": "5d12h", "state_pfx": "1234"}
-  ]}
-]}]
-```
-
-Path: `[0].vrfs[*].neighbors[*].state_pfx`
-Print: `"VRF={{[*][0]}} Neighbor={{.neighbor}} uptime={{.updown}} prefixes={{value}}"`
-
----
-
-## 13. Delta Report
-
-The delta report compares every command present in either snapshot and reports field-level differences.
-
-### How row matching works
-
-When a command's parsed output is a **list of dicts**, the engine looks for a natural key to match rows across snapshots before diffing:
-
-| Natural key tried (in order) | Example |
-|------------------------------|---------|
-| `INTERFACE` / `interface` / `port` | Interface tables |
-| `NEIGHBOR` / `neighbor` / `neighbor_id` | BGP / OSPF neighbor tables |
-| `NETWORK` / `PREFIX` / `network` | Route tables |
-| `VLAN` / `vlan_id` | VLAN tables |
-| Index (fallback) | Any other list |
-
-This means a row moving position in the list is **not** reported as a change — only genuine field value changes are.
-
-### Output structure (JSON)
-
-```json
-{
-  "metadata": {
-    "before": {"hostname": "...", "collection_time": "..."},
-    "after":  {"hostname": "...", "collection_time": "..."}
-  },
-  "summary": {
-    "commands_added":    ["cmd_a"],
-    "commands_removed":  [],
-    "commands_changed":  ["show_vpc_brief"],
-    "commands_unchanged": ["show_version", "..."]
-  },
-  "changes": {
-    "show_vpc_brief": {
-      "diffs": [
-        {
-          "path":   "parsed[port=Po10].status",
-          "before": "up",
-          "after":  "down"
-        }
-      ]
-    }
-  }
-}
+    tags: [performance, info]
 ```
 
 ---
 
-## 14. HTML Reports
+## 9. HTML Reports
 
-All `health`, `health-all`, and `delta` subcommands produce self-contained HTML files — all CSS and JavaScript are embedded, no internet connection required.
+All HTML reports are self-contained — CSS and JavaScript are embedded, no internet required.
 
-### Single-device health report (`report.py health --output health.html`)
+### Single-device health report (`health --output health.html`)
 
 | Section | Description |
 |---------|-------------|
 | Summary cards | Total / Passed / Failed / Errors at a glance |
-| Check results | Color-coded card per check (green = pass, red = fail, amber = error); failures show the offending path, actual value, and reason |
-| Raw command outputs | Every command's raw CLI text; **Expand All / Collapse All** buttons |
-| Parsed JSON outputs | Every command's structured parsed data as formatted JSON; independent **Expand All / Collapse All** |
+| **Filter bar** | `[All] [Pass] [Fail] [Error] [Skip]` buttons + search box — filters cards in-page without reload |
+| Check result cards | Green = pass, red = fail, amber = error, grey = skip, blue = display |
+| Tag pills | Small coloured pills on each card showing the check's tags |
+| Failure details | Offending path, actual value, failure reason |
+| Severity badge | `WARN` or `INFO` badge on fail cards (no badge = critical) |
+| Raw command outputs | Every command's raw CLI text; **Expand All / Collapse All** toolbar |
+| Parsed JSON outputs | Every command's structured JSON; independent **Expand All / Collapse All** |
 
 ### Combined health-all report (`health_report.html`)
 
-`report.py health-all` writes a **single** `health_report.html` file to `--output-dir`. No per-device HTML files are created.
+`health-all` writes a single `health_report.html`. No per-device HTML files.
 
 | Section | Description |
 |---------|-------------|
 | Summary cards | Devices / Check Evals / Total Passed / Total Failed / Errors |
-| Check Results Matrix | Check × device table — every check as a row, every device as a column; cells colour-coded **PASS** (green) / **FAIL** (red) / **ERR** (amber) / **—** (grey = absent for that device); each cell links to that device's section |
-| Per-Device Detail | Collapsible accordion per device — click to expand and see check results, raw CLI output, and parsed JSON output for that device |
+| Check Results Matrix | Check × device table. Cells: **PASS** (green) / **FAIL** (red) / **ERR** (amber) / **—** (absent). Click a cell to scroll to that device's section. |
+| Per-Device Detail | Collapsible accordion per device — check results + raw CLI + parsed JSON |
 
-To also save per-device JSON alongside the combined HTML, use `--format both`.
+Use `--format both` to also write per-device `{hostname}_health.json` alongside the matrix HTML.
 
-### Delta report layout
+### Health diff report (`health-diff`)
 
-| Section | Description |
-|---------|-------------|
-| Metadata comparison | Before → After hostname and timestamp side by side |
-| Summary cards | Added / Removed / Changed / Unchanged |
-| Added & removed pills | Command names that appeared or disappeared |
-| Changed commands | Diff table per command: path / before (red) / after (green) |
-| Raw command outputs | Changed commands show **before and after raw side by side**; unchanged commands show the current snapshot |
+| Badge | Meaning |
+|-------|---------|
+| ⬇ Regressed | pass → fail |
+| ⬆ Fixed | fail → pass |
+| ✚ Added | new check in "after" |
+| ✖ Removed | check removed from YAML |
+| — | unchanged |
 
-### `delta-all` index page
+### Delta report (`delta`, `delta-all`)
 
-`delta-all` writes per-device delta HTML files **and** an `index.html` summary to the output directory.
+Changed commands show before/after raw side by side. `delta-all` also writes an `index.html` summary table.
 
-| Columns | Row style |
-|---------|-----------|
-| Hostname / Status / Added / Removed / Changed / Unchanged / Report | Muted if zero changes; normal if changes; faded if unmatched |
+### Interactive HTML filtering
 
-Devices appearing in only one directory are listed as **UNMATCHED** with no report link.
-
-### Toggling raw and JSON output
-
-Both raw CLI blocks and parsed JSON blocks are collapsible via `<details>` elements. Each section has its own independent toolbar:
+Every health report has a filter bar above the check list:
 
 ```
-Raw output:    [ Expand all ]  [ Collapse all ]
-Parsed JSON:   [ Expand all ]  [ Collapse all ]
+[All] [Pass] [Fail] [Error] [Skip]   🔍 Filter by name...
 ```
 
-Individual blocks can also be clicked to toggle. Raw blocks start **open**; JSON blocks start **collapsed** by default.
+Clicking a status button shows only cards with that status. The search box filters by check name (substring, case-insensitive). Both filters work together.
 
 ---
 
-## 15. Snapshot Collector (`report.py collect`)
+## 10. Exit Codes and CI/CD Integration
 
-The `collect` subcommand handles the full data-collection pipeline — from live device to JSON snapshot — without requiring `main.py` to be called separately.
+| Subcommand | Exit 1 when |
+|------------|-------------|
+| `health` | Any critical check fails or errors |
+| `health-all` | Any device has a critical failure or error |
+| `health-diff` | Any check regressed (pass → fail) |
+| `validate` | Any fatal validation error |
+| `search` | No matches found (query not present in any snapshot) |
+| `parse` | Template returned `no_template`, `failed`, or `raw_only` |
+| `collect` (SSH) | Any device failed to connect or collect |
+| All others | Always 0 (errors printed to stderr) |
 
-### Offline mode (no SSH required)
-
-Reads existing `.txt` CLI dump files and converts them to JSON snapshots using the same parsing pipeline as `main.py`:
-
-```bash
-python report.py collect \
-  --from-dir data/raw/ \
-  --output-dir data/json/
-```
-
-This is useful when you already have raw dump files (collected manually or via another tool) and just want to produce JSON snapshots for `delta` or `health` reports.
-
-### SSH mode (requires netmiko)
-
-Install the optional SSH dependency first:
+### CI/CD pipeline examples
 
 ```bash
-pip install netmiko
-```
+# GitHub Actions / GitLab CI — assert health, no files written
+python report.py health \
+  --snapshot data/json/device.json \
+  --checks   checks/base.yaml \
+  --verify-only
+echo "Health exit: $?"
 
-Then run:
+# Pre-commit hook — validate check files
+python report.py validate --checks checks/base.yaml
+python report.py validate --checks checks/devices/N9K-WAN-1.yaml
 
-```bash
-python report.py collect \
-  --devices    devices.yaml \
-  --raw-dir    data/raw/        # .txt dumps saved here (optional)
-  --output-dir data/json/       # JSON snapshots written here
-  --password   <pw>             # optional: override password for all devices
-```
-
-`--raw-dir` is optional. If omitted, `.txt` dumps are still produced alongside the JSON output.
-
-### `devices.yaml` format
-
-```yaml
-defaults:
-  username: admin
-  password: ""       # leave blank and use --password at runtime
-  timeout: 30
-
-devices:
-  - hostname: N9K-CAMA-WAN-1
-    host: 192.168.1.1
-    platform: cisco_nxos     # determines which commands to run + which template set
-
-  - hostname: IOS-RTR-1
-    host: 10.0.0.1
-    platform: cisco_ios
-    username: ops             # overrides defaults.username
-
-  - hostname: N9K-CAMA-WAN-2
-    host: 192.168.1.2
-    platform: cisco_nxos
-    commands:                 # optional: explicit command list (overrides registry)
-      - show version
-      - show ip bgp summary vrf all
-```
-
-**Platform values:** `cisco_nxos`, `cisco_ios`
-
-**Default commands:** when `commands` is not specified for a device, all non-`raw_only` commands registered in `commands.yaml` for that platform are collected.
-
-**Device-type mapping:**
-| Platform | Netmiko device_type |
-|----------|---------------------|
-| `cisco_nxos` | `cisco_nxos_ssh` |
-| `cisco_ios` | `cisco_ios` |
-
-### End-to-end workflow
-
-```bash
-# 1. Collect snapshots
-python report.py collect --devices devices.yaml --output-dir data/json/
-
-# 2. Compare to previous collection
-python report.py delta-all \
-  --before-dir data/json-prev/ \
-  --after-dir  data/json/ \
-  --output-dir reports/delta/
-
-# 3. Run health checks — single combined report (health_report.html)
+# Daily cron — full pipeline
+python report.py collect --from-dir data/raw/ --output-dir data/json/ && \
 python report.py health-all \
-  --dir data/json/ \
-  --default-checks checks/example_health_checks.yaml \
-  --output-dir reports/health/
+  --dir            data/json/ \
+  --default-checks checks/base.yaml \
+  --output-dir     /var/www/reports/health/
+
+# Alert on regression between runs
+python report.py health \
+  --snapshot data/json/device_today.json \
+  --checks   checks/base.yaml \
+  --output   runs/today.json
+
+python report.py health-diff \
+  --before runs/yesterday.json \
+  --after  runs/today.json
+# exits 1 if any regression → triggers alert
 ```
 
 ---
 
-## 16. SFTP Log Fetcher (`fetch_logs.py`)
+## 11. Playbook Runner — `playbook.py`
 
-`fetch_logs.py` is a standalone script located at the **project root** (one level above `network_cli_parser/`). It downloads device CLI log files from a remote SFTP server and saves them into the dated `data/raw/<date>/` directory structure that the parser expects.
-
-### Purpose
-
-Network devices or jump hosts often write CLI log files to a central SFTP server after each collection run. `fetch_logs.py` automates retrieval of those files without requiring any other project dependencies — it is completely independent of `requirements.txt`.
-
-### Location
-
-```
-checklist-project/          ← project root
-├── fetch_logs.py           ← this script
-└── network_cli_parser/
-    ├── main.py
-    └── ...
-```
-
-Run from the project root:
-
-```bash
-cd /path/to/checklist-project
-python fetch_logs.py --host 10.0.0.5 --username collector
-```
-
-### Dependency
-
-`fetch_logs.py` requires only `paramiko` — install it independently:
-
-```bash
-pip install paramiko
-```
-
-This dependency is intentionally **not** listed in `network_cli_parser/requirements.txt` because the fetcher is a standalone utility. If you use a virtual environment for the parser, activate the same one before installing:
-
-```bash
-source venv/bin/activate
-pip install paramiko
-```
-
-### Files saved to `data/raw/<date>/`
-
-The script extracts a date string from each remote filename (expected format: `{hostname}_{DD-Mon-YY}.txt`, e.g. `N9K-CAMA-WAN-1_03-May-26.txt`). It places downloaded files into `network_cli_parser/data/raw/<date>/` where `<date>` is the date extracted from the filename. If the date cannot be parsed, files fall back to a `data/raw/unknown/` subdirectory.
-
-This matches the dated directory convention used by `main.py` and `report.py collect` so that the pipeline works end-to-end without manual file moves.
-
-### Quick start
-
-```bash
-# Download all .txt files from the default remote path
-python fetch_logs.py \
-  --host 10.0.0.5 \
-  --username collector \
-  --password 's3cr3t'
-
-# Download only files whose names contain "WAN"
-python fetch_logs.py \
-  --host 10.0.0.5 \
-  --username collector \
-  --name-contains WAN
-
-# Use a private key, skip host-key verification (lab only)
-python fetch_logs.py \
-  --host 10.0.0.5 \
-  --username collector \
-  --key ~/.ssh/id_rsa \
-  --no-verify-host
-
-# Legacy gear: force older algorithms
-python fetch_logs.py \
-  --host 10.0.0.5 \
-  --username collector \
-  --legacy
-```
-
-### CLI option reference
-
-All options are passed on the command line. There is no config file — use shell aliases or wrapper scripts for frequently used combinations.
-
-#### Connection
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--host` | *(required)* | SFTP server hostname or IP address |
-| `--port` | `22` | SSH/SFTP port |
-| `--timeout` | `30` | TCP connect + banner timeout in seconds |
-
-#### Authentication
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--username` | *(required)* | SSH username |
-| `--password` | *(none)* | Password (used if key auth fails or `--password` is explicitly given) |
-| `--key` | *(none)* | Path to a specific private key file (e.g. `~/.ssh/id_rsa`) |
-
-**Authentication order:** The script tries authentication methods in the following priority:
-
-1. **Explicit key** — if `--key` is provided, tries that key file first (with and without passphrase).
-2. **SSH agent** — if an SSH agent is running (e.g. `ssh-agent`), offers agent keys.
-3. **Default key files** — tries `~/.ssh/id_rsa`, `~/.ssh/id_ecdsa`, `~/.ssh/id_ed25519` in that order.
-4. **Password** — if `--password` is provided, falls back to password authentication.
-5. **Keyboard-interactive** — as a final fallback, attempts keyboard-interactive (responds with `--password` value if available).
-
-If no authentication method succeeds, the script exits with an error and lists what was attempted.
-
-#### Host key verification
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--known-hosts` | `~/.ssh/known_hosts` | Path to a known_hosts file |
-| `--no-verify-host` | off | Disable host key checking entirely (lab/test use only — MITM risk) |
-| `--add-host-key` | off | Auto-accept and save an unknown host key to `--known-hosts` on first connect |
-
-By default the script enforces strict host key verification. If the server's key is not in `~/.ssh/known_hosts` the connection fails with a clear error message. Use `--add-host-key` to trust-on-first-use (TOFU), or `--no-verify-host` only in isolated lab environments.
-
-#### Algorithm overrides (legacy)
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--legacy` | off | Enable a bundled set of legacy KEX, cipher, and host-key algorithms for old network gear |
-| `--kex` | *(paramiko default)* | Comma-separated list of KEX algorithms to allow (e.g. `diffie-hellman-group1-sha1`) |
-| `--ciphers` | *(paramiko default)* | Comma-separated list of encryption ciphers to allow (e.g. `aes128-cbc,3des-cbc`) |
-| `--host-key-algs` | *(paramiko default)* | Comma-separated list of host key algorithms to accept |
-
-The `--legacy` flag is a shortcut that enables all of the following without specifying each individually:
-
-- KEX: `diffie-hellman-group14-sha1`, `diffie-hellman-group1-sha1`, `diffie-hellman-group-exchange-sha1`
-- Ciphers: `aes128-cbc`, `aes192-cbc`, `aes256-cbc`, `3des-cbc`
-- Host key algorithms: `ssh-rsa`, `ssh-dss`
-
-Use `--legacy` when connecting to older Cisco IOS or NX-OS devices that do not support modern algorithms. Combine with `--no-verify-host` only when the device cannot present a key that matches `known_hosts`.
-
-#### Paths
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--remote-dir` | `/logs` | Remote SFTP directory to list and download from |
-| `--remote-recursive` | off | Recurse into subdirectories of `--remote-dir` |
-| `--local-dir` | `network_cli_parser/data/raw` | Local base directory; files land in `<local-dir>/<date>/` |
-| `--filename-pattern` | `*.txt` | Glob pattern to match remote filenames (applied before `--name-contains`) |
-
-#### Transfer behaviour
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `--name-contains` | *(none)* | Only download files whose name contains this substring (case-insensitive). Useful for pulling logs for a specific device or site (e.g. `--name-contains WAN` or `--name-contains N9K-CAMA`). |
-| `--if-exists` | `skip` | What to do when the local file already exists: `overwrite` replaces it unconditionally; `skip` leaves the existing file untouched; `resume` appends bytes from the remote offset (useful for large partially-downloaded files). |
-| `--dry-run` | off | List files that would be downloaded without actually transferring anything |
-| `--workers` | `4` | Number of parallel SFTP download threads |
-| `--progress` | off | Show a per-file progress bar (requires `tqdm`: `pip install tqdm`) |
-
-### Example commands for common scenarios
-
-```bash
-# --- Basic: password auth, download everything ---
-python fetch_logs.py \
-  --host 10.0.0.5 \
-  --username collector \
-  --password 's3cr3t'
-
-# --- Key auth with a non-default key path ---
-python fetch_logs.py \
-  --host 10.0.0.5 \
-  --username collector \
-  --key ~/.ssh/collector_rsa
-
-# --- Filter by device name substring ---
-python fetch_logs.py \
-  --host 10.0.0.5 \
-  --username collector \
-  --name-contains N9K-CAMA-WAN
-
-# --- Overwrite existing files instead of skipping ---
-python fetch_logs.py \
-  --host 10.0.0.5 \
-  --username collector \
-  --if-exists overwrite
-
-# --- Resume a partial download ---
-python fetch_logs.py \
-  --host 10.0.0.5 \
-  --username collector \
-  --if-exists resume
-
-# --- Dry run: see what would be downloaded ---
-python fetch_logs.py \
-  --host 10.0.0.5 \
-  --username collector \
-  --dry-run
-
-# --- Legacy network gear (old algorithms, no host-key check) ---
-python fetch_logs.py \
-  --host 192.168.1.254 \
-  --username admin \
-  --password 'cisco' \
-  --legacy \
-  --no-verify-host
-
-# --- Custom remote path and local destination ---
-python fetch_logs.py \
-  --host 10.0.0.5 \
-  --username collector \
-  --remote-dir /var/log/network/daily \
-  --local-dir /mnt/nas/network_cli_parser/data/raw
-
-# --- Recursive remote directory with progress bar ---
-pip install tqdm
-python fetch_logs.py \
-  --host 10.0.0.5 \
-  --username collector \
-  --remote-recursive \
-  --progress \
-  --workers 8
-
-# --- Integrate into full pipeline ---
-python fetch_logs.py --host 10.0.0.5 --username collector && \
-python network_cli_parser/main.py --input network_cli_parser/data/raw/ && \
-python network_cli_parser/report.py health-all \
-  --dir network_cli_parser/data/json/ \
-  --default-checks network_cli_parser/checks/example_health_checks.yaml \
-  --output-dir reports/health/
-```
-
----
-
-## 17. Playbook Runner (`playbook.py`)
-
-The playbook runner executes a sequence of toolchain jobs defined in a CSV file. A single `python playbook.py --playbook <file>` call can fetch logs, parse them, run health checks, do a coverage analysis, and generate a diff report — in the right order, with per-step failure control.
-
-### Location
-
-`playbook.py` lives at the **repository root** alongside `fetch_logs.py`. Playbook CSV files live in `network_cli_parser/playbooks/`.
-
-### CSV format
-
-The CSV must have a header row. All columns below are required; `description` is optional but recommended.
-
-| Column | Type | Purpose |
-|---|---|---|
-| `step` | integer | Execution order — lower numbers run first |
-| `name` | string | Human-readable label shown in the job log |
-| `enabled` | `yes` / `no` | Set `no` to skip a step without deleting its row |
-| `type` | string | Which script/subcommand to invoke (see table below) |
-| `args` | string | CLI arguments passed verbatim to the script |
-| `continue_on_error` | `yes` / `no` | If `no` (default), a non-zero exit aborts the whole playbook |
-| `description` | string | Notes — ignored by the runner |
-
-### Step types
-
-| `type` | Calls |
-|---|---|
-| `fetch` | `python fetch_logs.py <args>` |
-| `parse` | `python network_cli_parser/main.py <args>` |
-| `health` | `python network_cli_parser/report.py health <args>` |
-| `health-all` | `python network_cli_parser/report.py health-all <args>` |
-| `health-diff` | `python network_cli_parser/report.py health-diff <args>` |
-| `coverage` | `python network_cli_parser/report.py coverage <args>` |
-| `delta` | `python network_cli_parser/report.py delta <args>` |
-| `delta-all` | `python network_cli_parser/report.py delta-all <args>` |
-| `baseline` | `python network_cli_parser/report.py baseline <args>` |
-| `collect` | `python network_cli_parser/report.py collect <args>` |
-
-### Variable substitution
-
-Variables in the `args` column are replaced at runtime before the command is built. They are computed once when the playbook starts, so all steps in a single run use the same timestamp.
-
-| Variable | Expands to | Example |
-|---|---|---|
-| `{date}` | Today in filename format | `30-May-26` |
-| `{today}` | Today in ISO format | `2026-05-30` |
-| `{yesterday}` | Yesterday in ISO format | `2026-05-29` |
-| `{timestamp}` | Current datetime | `20260530_143000` |
-
-Use `{date}` in paths that match snapshot filenames (which use the `DD-Mon-YY` convention). Use `{today}` / `{yesterday}` for ISO-format directory names or report paths.
-
-### Example CSV
-
-```csv
-step,name,enabled,type,args,continue_on_error,description
-1,Fetch NXOS logs,yes,fetch,--host 10.0.0.100 --user admin --remote /backups/nxos --local-dir network_cli_parser/data/raw/ --legacy --name-contains N9K --skip-existing,no,Pull today's NX-OS CLI dumps via SFTP
-2,Parse all raw dumps,yes,parse,--input network_cli_parser/data/raw/{date}/,no,Convert .txt files to JSON snapshots
-3,Health checks on all devices,yes,health-all,--dir network_cli_parser/data/json/{date}/ --default-checks network_cli_parser/checks/base.yaml --device-checks-dir network_cli_parser/checks/devices/ --output-dir reports/{date}/health/ --since-days 1,no,Assert health checks; exit 1 on critical failures
-4,Coverage analysis,yes,coverage,--snapshot network_cli_parser/data/json/{date}/N9K-WAN-1_{date}.json --checks network_cli_parser/checks/base.yaml,yes,Show which commands lack health checks
-5,Health diff vs yesterday,no,health-diff,--before reports/{yesterday}/health/device_health.json --after reports/{today}/health/device_health.json --output reports/{today}/diff.html,yes,Highlight regressions (disabled until second day of data)
-```
-
-### Runner CLI
+Executes a sequence of toolchain jobs defined in a CSV file from the repository root.
 
 ```bash
 # Run all enabled steps
@@ -1980,23 +2205,351 @@ python playbook.py --playbook network_cli_parser/playbooks/daily.csv --dry-run
 # Run only step 3
 python playbook.py --playbook network_cli_parser/playbooks/daily.csv --step 3
 
-# Start from step 2 (skip steps before it)
+# Start from step 2
 python playbook.py --playbook network_cli_parser/playbooks/daily.csv --from-step 2
 
-# Run only fetch and parse steps (skip health checks etc.)
+# Only fetch and parse steps
 python playbook.py --playbook network_cli_parser/playbooks/daily.csv --only-type fetch,parse
 ```
 
-### Exit code
+### CSV format
 
-The runner exits `0` if all executed steps succeeded. It exits with the exit code of the first failed step that has `continue_on_error=no`. If all failed steps have `continue_on_error=yes`, it exits `1` after all steps complete.
+| Column | Type | Purpose |
+|--------|------|---------|
+| `step` | integer | Execution order |
+| `name` | string | Human-readable label |
+| `enabled` | `yes` / `no` | Skip without deleting the row |
+| `type` | string | Which script/subcommand to call |
+| `args` | string | CLI arguments passed verbatim |
+| `continue_on_error` | `yes` / `no` | `no` = abort playbook on non-zero exit |
+| `description` | string | Notes — ignored by runner |
 
-Steps with `enabled=no` and steps filtered out by `--step` / `--from-step` / `--only-type` do not contribute to the failure count.
+### Step types
+
+| `type` | Calls |
+|--------|-------|
+| `fetch` | `python fetch_logs.py <args>` |
+| `parse` | `python network_cli_parser/main.py <args>` |
+| `health` | `python network_cli_parser/report.py health <args>` |
+| `health-all` | `python network_cli_parser/report.py health-all <args>` |
+| `health-diff` | `python network_cli_parser/report.py health-diff <args>` |
+| `coverage` | `python network_cli_parser/report.py coverage <args>` |
+| `delta` | `python network_cli_parser/report.py delta <args>` |
+| `delta-all` | `python network_cli_parser/report.py delta-all <args>` |
+| `baseline` | `python network_cli_parser/report.py baseline <args>` |
+| `collect` | `python network_cli_parser/report.py collect <args>` |
+
+### Variable substitution
+
+| Variable | Expands to | Example |
+|----------|-----------|---------|
+| `{date}` | Today in DD-Mon-YY | `03-May-26` |
+| `{today}` | Today in YYYY-MM-DD | `2026-05-03` |
+| `{yesterday}` | Yesterday in YYYY-MM-DD | `2026-05-02` |
+| `{timestamp}` | Current datetime | `20260503_143000` |
+
+### Example CSV
+
+```csv
+step,name,enabled,type,args,continue_on_error,description
+1,Fetch logs,yes,fetch,--host 10.0.0.5 --username collector --legacy --name-contains N9K,no,Pull today's NX-OS CLI dumps
+2,Parse dumps,yes,parse,--input network_cli_parser/data/raw/{date}/,no,Convert .txt to JSON
+3,Health checks,yes,health-all,--dir network_cli_parser/data/json/{date}/ --default-checks network_cli_parser/checks/base.yaml --device-checks-dir network_cli_parser/checks/devices/ --output-dir reports/{date}/health/ --since-days 1,no,Assert health; exit 1 on critical failures
+4,Coverage,yes,coverage,--snapshot network_cli_parser/data/json/{date}/N9K-WAN-1_{date}.json --checks network_cli_parser/checks/base.yaml,yes,Show unchecked commands
+5,Health diff,no,health-diff,--before reports/{yesterday}/health/device_health.json --after reports/{today}/health/device_health.json,yes,Highlight regressions (disabled until day 2)
+```
 
 ### Shipped playbooks
 
 | File | Purpose |
-|---|---|
-| `network_cli_parser/playbooks/reference.csv` | 30-row cheat-sheet — every step type with every meaningful flag variant (all `enabled=no`; copy rows to build your own) |
-| `network_cli_parser/playbooks/example.csv` | 7-step end-to-end: SFTP fetch → parse → health-all → coverage → health-diff → delta-all |
-| `network_cli_parser/playbooks/daily_health.csv` | Minimal 3-step offline workflow: collect → health-all → coverage |
+|------|---------|
+| `playbooks/reference.csv` | 30-row cheat-sheet — every step type, all flag variants (`enabled=no`; copy rows to build your own) |
+| `playbooks/example.csv` | 7-step end-to-end: fetch → parse → health-all → coverage → health-diff → delta-all |
+| `playbooks/daily_health.csv` | Minimal 3-step offline: collect → health-all → coverage |
+
+---
+
+## 12. SFTP Log Fetcher — `fetch_logs.py`
+
+Standalone script at the repository root. Downloads device CLI log files from an SFTP server into the dated `data/raw/<date>/` directory structure.
+
+**Dependency:** `pip install paramiko` (intentionally not in `requirements.txt`).
+
+### Quick start
+
+```bash
+# Password auth — download everything
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --password 's3cr3t'
+
+# Key auth
+python fetch_logs.py --host 10.0.0.5 --username collector --key ~/.ssh/id_rsa
+
+# Filter by device name
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --name-contains N9K-CAMA-WAN
+
+# Legacy gear (old algorithms)
+python fetch_logs.py \
+  --host 192.168.1.254 \
+  --username admin \
+  --password cisco \
+  --legacy \
+  --no-verify-host
+
+# Dry-run (no downloads)
+python fetch_logs.py --host 10.0.0.5 --username collector --dry-run
+
+# Resume partial download
+python fetch_logs.py --host 10.0.0.5 --username collector --if-exists resume
+
+# Recursive + progress bar
+python fetch_logs.py \
+  --host 10.0.0.5 \
+  --username collector \
+  --remote-recursive \
+  --progress \
+  --workers 8
+```
+
+### All options
+
+#### Connection
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--host` | required | SFTP server hostname or IP |
+| `--port` | `22` | SSH port |
+| `--timeout` | `30` | TCP connect + banner timeout (seconds) |
+
+#### Authentication
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--username` | required | SSH username |
+| `--password` | — | Password (fallback if key auth fails) |
+| `--key` | — | Path to private key file |
+
+**Auth order:** explicit key → SSH agent → default key files (`~/.ssh/id_rsa`, `id_ecdsa`, `id_ed25519`) → password → keyboard-interactive.
+
+#### Host key
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--known-hosts` | `~/.ssh/known_hosts` | Known hosts file |
+| `--no-verify-host` | off | Disable host key checking (lab only) |
+| `--add-host-key` | off | Trust-on-first-use (save unknown key) |
+
+#### Legacy algorithm overrides
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--legacy` | off | Enable old KEX + cipher + host-key algorithms |
+| `--kex` | — | Comma-separated KEX algorithms |
+| `--ciphers` | — | Comma-separated cipher algorithms |
+| `--host-key-algs` | — | Comma-separated host key algorithms |
+
+`--legacy` enables: `diffie-hellman-group14-sha1`, `diffie-hellman-group1-sha1`, `diffie-hellman-group-exchange-sha1` + ciphers `aes128-cbc`, `aes192-cbc`, `aes256-cbc`, `3des-cbc` + host keys `ssh-rsa`, `ssh-dss`.
+
+#### Paths
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--remote-dir` | `/logs` | Remote SFTP directory |
+| `--remote-recursive` | off | Recurse into subdirectories |
+| `--local-dir` | `network_cli_parser/data/raw` | Local base; files land in `<local-dir>/<date>/` |
+| `--filename-pattern` | `*.txt` | Glob pattern for remote filenames |
+
+#### Transfer
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--name-contains` | — | Only download files whose name contains this substring (case-insensitive) |
+| `--if-exists` | `skip` | `skip` / `overwrite` / `resume` |
+| `--dry-run` | off | List without downloading |
+| `--workers` | `4` | Parallel download threads |
+| `--progress` | off | Per-file progress bar (requires `tqdm`) |
+
+---
+
+## 13. End-to-End Workflows
+
+### Workflow A — Daily offline collection + health check
+
+```bash
+# 1. Collect fresh snapshots from .txt dumps
+python report.py collect \
+  --from-dir   data/raw/ \
+  --output-dir data/json/
+
+# 2. Run health checks on all devices
+python report.py health-all \
+  --dir            data/json/ \
+  --default-checks checks/base.yaml \
+  --device-checks-dir checks/devices/ \
+  --output-dir     reports/health/
+
+# Open: reports/health/health_report.html
+```
+
+### Workflow B — Daily SSH collection + baseline delta
+
+```bash
+# 1. Collect
+python report.py collect \
+  --devices    devices.yaml \
+  --output-dir data/json/
+
+# 2. Health checks with baseline comparison
+python report.py health-all \
+  --dir            data/json/ \
+  --default-checks checks/base.yaml \
+  --baseline-dir   data/json-prev/ \
+  --output-dir     reports/health/
+
+# 3. Snapshot diff
+python report.py delta-all \
+  --before-dir data/json-prev/ \
+  --after-dir  data/json/ \
+  --output-dir reports/delta/
+```
+
+### Workflow C — Building checks from scratch for a new device
+
+```bash
+# 1. Parse the dump
+python main.py --input data/raw/N9K-WAN-1_03-May-26.txt
+
+# 2. See what commands parsed
+python report.py coverage \
+  --snapshot data/json/N9K-WAN-1_03-May-26.json
+
+# 3. Generate a baseline check file
+python report.py baseline \
+  --snapshot data/json/N9K-WAN-1_03-May-26.json \
+  --output   checks/baseline_N9K-WAN-1.yaml
+  # Edit: delete uptime/counter fields, promote good checks to severity: critical
+
+# 4. Validate the new file
+python report.py validate --checks checks/baseline_N9K-WAN-1.yaml
+
+# 5. Test it
+python report.py health \
+  --snapshot data/json/N9K-WAN-1_03-May-26.json \
+  --checks   checks/baseline_N9K-WAN-1.yaml \
+  --output   reports/health.html
+```
+
+### Workflow D — Template development
+
+```bash
+# 1. See what the parser produces with current template
+python report.py parse \
+  --platform cisco_nxos \
+  --command  "show ip bgp summary" \
+  --raw      data/raw/bgp_output.txt
+
+# 2. Test a specific template file
+python report.py test-template \
+  --template templates/custom/routing/cisco_nxos_show_ip_bgp_summary.textfsm \
+  --raw      data/raw/bgp_output.txt
+
+# 3. Auto-discover mode
+python report.py test-template \
+  --platform cisco_nxos \
+  --command  "show ip bgp summary" \
+  --raw      data/raw/bgp_output.txt
+
+# 4. Drop new template (no YAML edit needed)
+cp my_new_template.textfsm templates/custom/routing/cisco_nxos_show_ip_bgp_summary.textfsm
+
+# 5. Re-parse to confirm
+python report.py parse \
+  --platform cisco_nxos \
+  --command  "show ip bgp summary" \
+  --raw      data/raw/bgp_output.txt
+```
+
+### Workflow E — Searching across all snapshots
+
+```bash
+# Find any snapshot that has this peer IP anywhere
+python report.py search --dir data/json/ --query "10.0.0.100"
+
+# Find "BGP_ERR" in raw show ip bgp summary output only
+python report.py search \
+  --dir        data/json/ \
+  --query      "BGP_ERR" \
+  --command    show_ip_bgp_summary \
+  --raw-only
+
+# Find all snapshots where a specific AS number appears (parsed JSON)
+python report.py search \
+  --dir         data/json/ \
+  --query       "65001" \
+  --parsed-only
+
+# Case-sensitive search with 3 lines of context
+python report.py search \
+  --dir            data/json/ \
+  --query          "Error" \
+  --case-sensitive \
+  --context        3
+```
+
+### Workflow F — CI/CD integration (verify only, no artefacts)
+
+```bash
+# In CI: validate YAML, then assert health — no files written
+set -e
+python report.py validate --checks checks/base.yaml
+python report.py health \
+  --snapshot data/json/device.json \
+  --checks   checks/base.yaml \
+  --verify-only
+echo "All checks passed"
+```
+
+### Workflow G — Trend monitoring
+
+```bash
+# After each daily run, save the health result JSON
+python report.py health \
+  --snapshot data/json/N9K_$(date +%d-%b-%y).json \
+  --checks   checks/base.yaml \
+  --output   trend-data/N9K_$(date +%Y%m%d).json
+
+# After accumulating a week of data, render the trend
+python report.py health-trend \
+  --runs-dir trend-data/ \
+  --output   reports/trend.html
+```
+
+### Workflow H — Tag-based partial runs
+
+```bash
+# Quick BGP-only check (fast CI gate)
+python report.py health \
+  --snapshot data/json/N9K.json \
+  --checks   checks/base.yaml \
+  --tags     bgp,ci-blocking \
+  --verify-only
+
+# Full check run for the weekly report
+python report.py health-all \
+  --dir            data/json/ \
+  --default-checks checks/base.yaml \
+  --output-dir     reports/weekly/
+```
+
+---
+
+> **YAML quoting tip:** Always use single quotes (`'...'`) for `value` strings that contain regex metacharacters (`\d`, `\S`, `^`, `.`, `*`, etc.) to prevent YAML escape interpretation.
+>
+> **Normalized command keys:** Health checks reference commands using underscore-separated normalized keys (e.g. `show_ip_bgp_summary`), not raw command strings with spaces. The same key is used as the filename stem for templates.
+>
+> **Snapshot independence:** Every `report.py` subcommand reads from JSON snapshot files already on disk — `main.py` (or `report.py collect`) must run first to produce those files.
