@@ -22,7 +22,7 @@ pip install -r network_cli_parser/requirements.txt
 
 # 1. Fetch raw logs from SFTP server
 pip install paramiko
-python fetch_logs.py --host 10.0.0.100 --user admin --remote /logs
+python fetch_logs.py --host 10.0.0.100 --username admin --remote-dir /logs
 
 # 2. Parse CLI dumps → JSON
 python network_cli_parser/main.py --input network_cli_parser/data/raw/03-May-26/
@@ -38,6 +38,15 @@ python network_cli_parser/report.py health \
   --snapshot network_cli_parser/data/json/03-May-26/N9K-WAN-1_03-May-26.json \
   --checks   network_cli_parser/checks/example_health_checks.yaml \
   --verify-only
+
+# 4. Validate a checks YAML before using it
+python network_cli_parser/report.py validate \
+  --checks network_cli_parser/checks/example_health_checks.yaml
+
+# 5. Search for an IP across all snapshots
+python network_cli_parser/report.py search \
+  --dir   network_cli_parser/data/json/03-May-26/ \
+  --query "10.0.0.1"
 ```
 
 ---
@@ -51,9 +60,11 @@ checklist-project/
 │
 └── network_cli_parser/
     ├── main.py                      # Parser entry point
-    ├── report.py                    # health / delta / coverage / diff / baseline / collect
+    ├── report.py                    # 15 subcommands: health / delta / search / parse / …
     ├── commands.yaml                # Command → parser strategy registry
     ├── requirements.txt
+    ├── PARSER_SOP.md                # Full operating procedure (all subcommands + check syntax)
+    ├── PARSER_SOP.docx              # Word version of the SOP
     │
     ├── parsers/                     # NTC / TextFSM / TTP / hierarchical engines
     ├── templates/
@@ -85,10 +96,10 @@ checklist-project/
 SFTP server
     ↓  fetch_logs.py
 data/raw/<date>/*.txt
-    ↓  main.py
+    ↓  main.py  (or  report.py collect)
 data/json/<date>/*.json
-    ↓  report.py health / delta
-health.html  delta.html
+    ↓  report.py
+health.html    delta.html    trend.html    search output
 ```
 
 ---
@@ -103,24 +114,69 @@ Both raw `.txt` files and JSON snapshots are stored in date-named subdirectories
 
 | Subcommand | Key flags | Purpose |
 |---|---|---|
-| `health` | `--snapshot` `--checks` `--output` `--verify-only` | Single-device health check |
-| `health-all` | `--dir` `--default-checks` `--since-days` `--verify-only` | All devices — combined HTML matrix |
-| `health-diff` | `--before` `--after` `--output` | Diff two health report JSONs — show regressions |
-| `coverage` | `--snapshot` `--checks` | Gap analysis — which commands have no checks |
+| `health` | `--snapshot` `--checks` `--device-checks` `--baseline` `--tags` `--output` `--verify-only` | Single-device health check |
+| `health-all` | `--dir` `--default-checks` `--device-checks-dir` `--baseline-dir` `--tags` `--since-days` `--verify-only` | All devices — combined HTML matrix report |
+| `health-diff` | `--before` `--after` `--output` | Diff two health report JSONs — show regressions/fixes |
+| `health-trend` | `--runs-dir` `--output` | Time-series pass/fail trend HTML across multiple health runs |
+| `validate` | `--checks` | Validate a checks YAML for syntax errors (no snapshot needed) |
+| `coverage` | `--snapshot` `--checks` | Gap analysis — which commands have no health checks |
+| `baseline` | `--snapshot` `--output` | Auto-generate starter check YAML from current values |
 | `delta` | `--before` `--after` `--output` | Field-level diff between two snapshots |
-| `delta-all` | `--before-dir` `--after-dir` `--output-dir` | Per-device delta across two directories |
-| `baseline` | `--snapshot` `--output` | Auto-generate starter check YAML |
+| `delta-all` | `--before-dir` `--after-dir` `--output-dir` `--format` | Per-device delta across two snapshot directories |
+| `search` | `--dir` `--query` `--command` `--raw-only` `--parsed-only` `--case-sensitive` `--context` | Full-text search across all snapshots (raw + parsed JSON) |
+| `parse` | `--platform` `--command` `--raw` | Quick-parse a raw output file and print JSON to stdout |
+| `test-template` | `--template` `--raw` / `--platform` `--command` `--raw` | Test a TextFSM or TTP template against raw output |
 | `collect` | `--devices` or `--from-dir` `--output-dir` | SSH collection or offline .txt → JSON |
+
+---
 
 ## Health checks quick reference
 
-| What you want | path | print template |
+### Path syntax
+
+| What you want | `path` | `print` template |
 |---|---|---|
-| Check a scalar field | `[0].hostname` | `{{value}}` |
-| All neighbors, value is a field | `[*].state_pfx` | `Neighbor {{.neighbor}} → {{value}}` |
+| Scalar field | `[0].hostname` | `{{value}}` |
+| All rows, field is inside each dict | `[*].state` | `Neighbor {{.neighbor}} → {{value}}` |
 | Neighbor IP is the dict key | `[*].pfxrcd` | `Neighbor {{[*]}} → {{value}}` |
 | VRF + neighbor both wildcard | `[*][*].pfxrcd` | `VRF={{[*][0]}} Neighbor={{[*][1]}} → {{value}}` |
 | Three-level wildcard | `[*][*].address_family[*].pfxrcd` | `VRF={{[*][0]}} Neigh={{[*][1]}} AF={{[*][2]}} → {{value}}` |
+
+### Check types
+
+| Feature | YAML key | What it does |
+|---|---|---|
+| Single condition | `condition:` + `value:` | One assertion per resolved value |
+| AND conditions | `conditions:` | All listed conditions must pass per value |
+| Conditional branch | `branches:` | If/elif/else per row based on another field's value |
+| Cross-command check | `cross_check:` | Assert THEN rows only when IF rows match |
+| Item count | `count:` | Assert how many items a path expansion produces |
+| Baseline delta | `compare_baseline:` | Assert change vs a previous snapshot (diff/diff_pct) |
+| Metadata check | `metadata:` | Check `hostname`, `platform`, or `collection_time` directly |
+| Print-only display | *(omit condition)* | Surface values with a blue DISPLAY badge — never fails |
+
+### Conditions (all 30)
+
+| Category | Conditions |
+|---|---|
+| Equality | `eq` `ne` |
+| Numeric | `gt` `gte` `lt` `lte` |
+| String | `contains` `not_contains` `matches` |
+| Set | `one_of` `not_one_of` |
+| Duration | `duration_gt` `duration_gte` `duration_lt` `duration_lte` |
+| Length | `len_eq` `len_ne` `len_gt` `len_gte` `len_lt` `len_lte` |
+| Date | `date_before` `date_after` `date_within_days` `date_older_than_days` |
+| Delta | `diff_gt` `diff_gte` `diff_lt` `diff_lte` `diff_pct_gt` `diff_pct_gte` `diff_pct_lt` `diff_pct_lte` |
+
+### Optional check fields
+
+| Field | Values | Effect |
+|---|---|---|
+| `severity` | `critical` (default) / `warn` / `info` | Controls whether failure causes exit 1 |
+| `match` | `all` (default) / `any` | Whether all or any expanded values must pass |
+| `tags` | list of strings | Filter checks with `--tags bgp,ospf` at CLI |
+| `skip_if` | `metadata:` + condition | Skip check when metadata condition is true |
+| `print` | `true` or template string | Show resolved values in terminal and HTML |
 
 ---
 
@@ -128,21 +184,24 @@ Both raw `.txt` files and JSON snapshots are stored in date-named subdirectories
 
 ```bash
 # Password auth
-python fetch_logs.py --host 10.0.0.100 --user admin --remote /logs
+python fetch_logs.py --host 10.0.0.100 --username admin --password 's3cr3t'
 
 # Key auth
-python fetch_logs.py --host 10.0.0.100 --user admin --remote /logs --key ~/.ssh/id_rsa
+python fetch_logs.py --host 10.0.0.100 --username admin --key ~/.ssh/id_rsa
 
-# Legacy devices (old Cisco gear)
-python fetch_logs.py --host 10.0.0.100 --user admin --remote /logs --legacy
+# Legacy devices (old Cisco gear — enables old KEX/cipher algorithms)
+python fetch_logs.py --host 10.0.0.100 --username admin --legacy --no-verify-host
 
 # Filter by filename substring + dry run
-python fetch_logs.py --host 10.0.0.100 --user admin --remote /logs \
+python fetch_logs.py --host 10.0.0.100 --username admin \
     --name-contains CAMA --dry-run
 
-# Multiple remote paths, skip existing
-python fetch_logs.py --host 10.0.0.100 --user admin \
-    --remote /logs/nxos /logs/ios --if-exists skip
+# Resume partial download
+python fetch_logs.py --host 10.0.0.100 --username admin --if-exists resume
+
+# Parallel download with progress bar (requires tqdm)
+pip install tqdm
+python fetch_logs.py --host 10.0.0.100 --username admin --workers 8 --progress
 ```
 
 ---
@@ -174,7 +233,10 @@ python playbook.py --playbook network_cli_parser/playbooks/example.csv --from-st
 
 ## Documentation
 
-Full operating procedure — parser chain, template authoring, commands.yaml reference, health check syntax, report subcommands, playbook runner, and the snapshot collector — is in [`network_cli_parser/PARSER_SOP.md`](network_cli_parser/PARSER_SOP.md).
+Full operating procedure — all 15 subcommands, all 30 conditions, every check type, 8 end-to-end workflows, template authoring, playbook runner, and SFTP fetcher — is in:
+
+- [`network_cli_parser/PARSER_SOP.md`](network_cli_parser/PARSER_SOP.md) — Markdown
+- [`network_cli_parser/PARSER_SOP.docx`](network_cli_parser/PARSER_SOP.docx) — Word document
 
 ---
 
