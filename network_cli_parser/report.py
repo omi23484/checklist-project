@@ -10,6 +10,8 @@ Usage:
     python report.py health-trend  --runs-dir <dir> --checks <checks.yaml> [--output trend.html]
     python report.py validate      --checks <checks.yaml>
     python report.py test-template --template <file.textfsm|ttp> --raw <output.txt>
+    python report.py search        --dir <dir> --query <string> [--command cmd] [--raw-only] [--parsed-only] [--context N]
+    python report.py parse         --platform <platform> --command <cmd> [--raw <file>]  (stdin if --raw omitted)
     python report.py coverage      --snapshot <snap.json> [--checks <checks.yaml>] [--output cov.json]
     python report.py baseline      --snapshot <snap.json> [--output checks/baseline.yaml]
     python report.py collect       --devices <devices.yaml> [--raw-dir data/raw/] [--output-dir data/json/] [--password <pw>]
@@ -885,6 +887,155 @@ def cmd_health_trend(args: argparse.Namespace) -> None:
         _write_output({"runs": trend_data}, output)
 
 
+# ---------------------------------------------------------------------------
+# search subcommand
+# ---------------------------------------------------------------------------
+
+def _search_raw(raw_text: str, query: str, case_sensitive: bool) -> list:
+    """Return [{line_no, line}] for lines in raw_text matching query."""
+    matches = []
+    q = query if case_sensitive else query.lower()
+    for i, line in enumerate(raw_text.splitlines(), 1):
+        hay = line if case_sensitive else line.lower()
+        if q in hay:
+            matches.append({"line_no": i, "line": line})
+    return matches
+
+
+def _search_parsed(data, query: str, case_sensitive: bool, path: str = "") -> list:
+    """Recursively walk parsed JSON; return [{path, value}] where str(value) matches."""
+    q = query if case_sensitive else query.lower()
+    results = []
+    if isinstance(data, dict):
+        for k, v in data.items():
+            child_path = f"{path}.{k}" if path else k
+            results.extend(_search_parsed(v, query, case_sensitive, child_path))
+    elif isinstance(data, list):
+        for i, v in enumerate(data):
+            results.extend(_search_parsed(v, query, case_sensitive, f"{path}[{i}]"))
+    else:
+        hay = str(data) if case_sensitive else str(data).lower()
+        if q in hay:
+            results.append({"path": path, "value": data})
+    return results
+
+
+def cmd_search(args: argparse.Namespace) -> None:
+    snap_dir       = Path(args.dir)
+    query          = args.query
+    case_sensitive = getattr(args, "case_sensitive", False)
+    cmd_filter     = getattr(args, "command", None)
+    raw_only       = getattr(args, "raw_only",    False)
+    parsed_only    = getattr(args, "parsed_only", False)
+    context_lines  = getattr(args, "context", 0)
+
+    snap_map = _load_dir_snapshots(snap_dir)
+    if not snap_map:
+        print(f"No snapshots found in {snap_dir}", file=sys.stderr)
+        sys.exit(1)
+
+    total_matches = 0
+    matched_devices = 0
+
+    for hostname in sorted(snap_map):
+        _, snap = snap_map[hostname]
+        commands = snap.get("commands", {})
+        device_matches = []
+
+        cmd_keys = [cmd_filter] if cmd_filter else sorted(commands.keys())
+        for cmd_key in cmd_keys:
+            if cmd_key not in commands:
+                continue
+            cmd_data = commands[cmd_key]
+            cmd_hits = []
+
+            if not parsed_only:
+                raw = cmd_data.get("raw", "")
+                raw_hits = _search_raw(raw, query, case_sensitive)
+                if raw_hits:
+                    all_lines = raw.splitlines()
+                    for h in raw_hits:
+                        ln = h["line_no"] - 1
+                        if context_lines > 0:
+                            start = max(0, ln - context_lines)
+                            end   = min(len(all_lines), ln + context_lines + 1)
+                            ctx   = all_lines[start:end]
+                            cmd_hits.append({
+                                "source": "raw",
+                                "line_no": h["line_no"],
+                                "text": "\n".join(f"    {l}" for l in ctx),
+                            })
+                        else:
+                            cmd_hits.append({
+                                "source": "raw",
+                                "line_no": h["line_no"],
+                                "text": h["line"].strip(),
+                            })
+
+            if not raw_only:
+                parsed = cmd_data.get("parsed")
+                if parsed:
+                    parsed_hits = _search_parsed(parsed, query, case_sensitive)
+                    for h in parsed_hits:
+                        cmd_hits.append({
+                            "source": "parsed",
+                            "path": h["path"],
+                            "text": str(h["value"]),
+                        })
+
+            if cmd_hits:
+                device_matches.append((cmd_key, cmd_hits))
+                total_matches += len(cmd_hits)
+
+        if device_matches:
+            matched_devices += 1
+            print(f"\n[{hostname}]")
+            for cmd_key, hits in device_matches:
+                for h in hits:
+                    if h["source"] == "raw":
+                        print(f"  {cmd_key}  (raw, line {h['line_no']})")
+                        print(f"    {h['text']}")
+                    else:
+                        print(f"  {cmd_key}  (parsed, {h['path']})")
+                        print(f"    {h['text']}")
+
+    print(f"\nFound {total_matches} match(es) in {matched_devices} device(s)  "
+          f"[query: {query!r}]\n")
+    if total_matches == 0:
+        sys.exit(1)
+
+
+# ---------------------------------------------------------------------------
+# parse subcommand
+# ---------------------------------------------------------------------------
+
+def cmd_parse(args: argparse.Namespace) -> None:
+    """Quick-parse a raw CLI output and print the result as JSON to stdout."""
+    raw_path = getattr(args, "raw", None)
+    if raw_path:
+        raw_text = Path(raw_path).read_text(encoding="utf-8")
+    else:
+        if sys.stdin.isatty():
+            print("ERROR: provide --raw <file> or pipe raw output via stdin", file=sys.stderr)
+            sys.exit(1)
+        raw_text = sys.stdin.read()
+
+    from utils.normalization import normalize_command
+    import main as _main
+
+    norm = normalize_command(args.command)
+    parsed, status = _main._parse_command(args.platform, norm, raw_text)
+
+    print(f"\nStatus:   {status}")
+    print(f"Command:  {norm}  ({args.platform})")
+    print()
+    print(json.dumps(parsed, indent=2))
+    print()
+
+    if status in ("no_template", "failed", "raw_only"):
+        sys.exit(1)
+
+
 def _print_health_all_summary(results: list) -> None:
     header = f"  {'Device':<32} {'Timestamp':<14} {'Total':>6} {'Pass':>6} {'Fail':>6} {'Error':>6}"
     print(header)
@@ -1006,6 +1157,25 @@ def main() -> None:
     p_trend.add_argument("--output",   default="health_trend.html",
                          help="Output HTML file (default: health_trend.html)")
     p_trend.set_defaults(func=cmd_health_trend)
+
+    # search
+    p_search = sub.add_parser("search", help="Search for a string across all snapshot commands")
+    p_search.add_argument("--dir",            required=True, help="Directory of JSON snapshots")
+    p_search.add_argument("--query",          required=True, help="Search string")
+    p_search.add_argument("--command",        default=None,  help="Limit search to one command key")
+    p_search.add_argument("--raw-only",       action="store_true", help="Search only raw output")
+    p_search.add_argument("--parsed-only",    action="store_true", help="Search only parsed JSON values")
+    p_search.add_argument("--case-sensitive", action="store_true", help="Case-sensitive match (default: insensitive)")
+    p_search.add_argument("--context",        type=int, default=0, metavar="N",
+                          help="Show N lines of surrounding raw context (default: 0)")
+    p_search.set_defaults(func=cmd_search)
+
+    # parse
+    p_parse = sub.add_parser("parse", help="Quick-parse a raw CLI output file and print JSON to stdout")
+    p_parse.add_argument("--platform", required=True, help="Device platform (e.g. cisco_nxos)")
+    p_parse.add_argument("--command",  required=True, help="Command string (e.g. 'show ip bgp summary')")
+    p_parse.add_argument("--raw",      default=None,  help="Path to raw output file; reads stdin if omitted")
+    p_parse.set_defaults(func=cmd_parse)
 
     # collect
     p_col = sub.add_parser("collect", help="Collect snapshots via SSH or process existing .txt dumps")
