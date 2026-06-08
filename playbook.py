@@ -32,6 +32,8 @@ checks, compare snapshots, or generate any report.py subcommand output.
   delta-all   →  python network_cli_parser/report.py delta-all <args>
   baseline    →  python network_cli_parser/report.py baseline <args>
   collect     →  python network_cli_parser/report.py collect <args>
+  shell       →  run args as a raw shell command (mkdir, cp, rm, etc.)
+                 Variable substitution applies: mkdir -p data/raw/{date}/wan
 
 ━━━ Variable substitution in 'args' ─────────────────────────────────────────
 
@@ -142,15 +144,22 @@ def _load_playbook(path: str) -> list[dict]:
 def _run_step(row: dict, vars_: dict[str, str], dry_run: bool = False) -> int:
     """Execute one playbook step.  Returns the process exit code."""
     step_type = row["type"].strip().lower()
+    raw_args = _resolve(row.get("args", ""), vars_)
+
+    if step_type == "shell":
+        print(f"  $ {raw_args}")
+        if dry_run:
+            return 0
+        result = subprocess.run(raw_args, shell=True, cwd=str(SCRIPT_DIR))
+        return result.returncode
 
     if step_type not in _TYPE_TO_CMD:
         print(
             f"  [ERROR] unknown type {step_type!r}\n"
-            f"          valid types: {', '.join(sorted(_TYPE_TO_CMD))}"
+            f"          valid types: {', '.join(sorted(_TYPE_TO_CMD) + ['shell'])}"
         )
         return 1
 
-    raw_args = _resolve(row.get("args", ""), vars_)
     try:
         extra = shlex.split(raw_args)
     except ValueError as exc:
