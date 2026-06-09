@@ -293,6 +293,7 @@ pre.json-output{background:var(--code-bg);color:var(--code-fg);padding:14px 18px
 .check-matrix td.m-pass{background:#e6f4ea;color:#1a7a40;font-weight:700}
 .check-matrix td.m-fail{background:#fdecea;color:#b31b1b;font-weight:700}
 .check-matrix td.m-error{background:#fff3e0;color:#b36b00;font-weight:700}
+.check-matrix td.m-skip{background:#f0f0f0;color:#666;font-weight:600}
 .check-matrix td.m-na{color:#94a3b8;font-size:.75rem}
 .check-matrix tr:hover td{filter:brightness(.96)}
 
@@ -966,7 +967,7 @@ def _json_outputs_section(commands: dict) -> str:
 <div class="raw-list">{"".join(blocks)}</div>"""
 
 
-def _check_matrix(device_data: list[dict]) -> str:
+def _check_matrix(device_data: list[dict], link: bool = True) -> str:
     # Collect unique check names preserving first-seen order
     seen: dict[str, int] = {}
     for item in device_data:
@@ -1003,12 +1004,16 @@ def _check_matrix(device_data: list[dict]) -> str:
             status = lookup.get(check_name)
             if status is None:
                 cells += '<td class="m-na">—</td>'
-            elif status == "pass":
-                cells += f'<td class="m-pass"><a href="#device-{anchor}">PASS</a></td>'
-            elif status == "fail":
-                cells += f'<td class="m-fail"><a href="#device-{anchor}">FAIL</a></td>'
+                continue
+            cls, label = {
+                "pass": ("m-pass", "PASS"),
+                "fail": ("m-fail", "FAIL"),
+                "skip": ("m-skip", "SKIP"),
+            }.get(status, ("m-error", "ERR"))
+            if link:
+                cells += f'<td class="{cls}"><a href="#device-{anchor}">{label}</a></td>'
             else:
-                cells += f'<td class="m-error"><a href="#device-{anchor}">ERR</a></td>'
+                cells += f'<td class="{cls}">{label}</td>'
         data_rows.append(f'<tr><td>{_e(check_name)}</td>{cells}</tr>')
 
     return f"""<div class="matrix-wrap">
@@ -1460,21 +1465,15 @@ def render_health_simple(report: dict) -> str:
     hostname = meta.get("hostname", "Unknown")
     ts       = meta.get("collection_time", "")
 
-    cards = _summary_cards([
+    card_items = [
         ("total", "Total",   s.get("total",  0)),
         ("pass",  "Passed",  s.get("passed", 0)),
         ("fail",  "Failed",  s.get("failed", 0)),
         ("error", "Errors",  s.get("error",  0)),
-    ])
-    skipped = s.get("skipped", 0)
-    if skipped:
-        cards = _summary_cards([
-            ("total", "Total",   s.get("total",  0)),
-            ("pass",  "Passed",  s.get("passed", 0)),
-            ("fail",  "Failed",  s.get("failed", 0)),
-            ("error", "Errors",  s.get("error",  0)),
-            ("total", "Skipped", skipped),
-        ])
+    ]
+    if s.get("skipped", 0):
+        card_items.append(("total", "Skipped", s["skipped"]))
+    cards = _summary_cards(card_items)
 
     rows = []
     for r in report.get("results", []):
@@ -1497,9 +1496,6 @@ def render_health_simple(report: dict) -> str:
         elif status == "fail":
             badge = _badge("fail", "FAIL")
             n_fail = len(r.get("failures", []))
-            # for multi-condition failures the count may be in a nested list
-            if n_fail == 0 and r.get("failures"):
-                n_fail = sum(len(f) if isinstance(f, list) else 1 for f in r.get("failures", []))
             detail = f'<span class="fail-count">{n_fail} value(s) failed</span>' if n_fail else ""
         elif status == "skip":
             badge = _badge("skip", "SKIP")
@@ -1559,7 +1555,7 @@ def render_health_all_simple(device_data: list[dict]) -> str:
         ("error", "Errors",  total_errors),
     ])
 
-    matrix = _check_matrix(device_data)
+    matrix = _check_matrix(device_data, link=False)
 
     dev_rows = []
     for item in device_data:

@@ -1102,3 +1102,110 @@ class TestTags:
         ]
         r = evaluate_checks(self._snap(), checks)
         assert r["summary"]["total"] == 2
+
+
+# ---------------------------------------------------------------------------
+# Simple dashboard renderer + skip_if validation
+# ---------------------------------------------------------------------------
+
+class TestSkipIfValidation:
+    def _base(self, skip_if):
+        return [{"name": "x", "command": "c", "path": "p",
+                 "condition": "eq", "value": 1, "skip_if": skip_if}]
+
+    def test_unknown_skip_condition_warns(self):
+        from utils.health import validate_checks
+        warns = validate_checks(self._base(
+            {"metadata": "hostname", "condition": "not_matches", "value": "^WAN-"}))
+        assert any("skip_if" in w and "not_matches" in w for w in warns)
+
+    def test_missing_metadata_field_warns(self):
+        from utils.health import validate_checks
+        warns = validate_checks(self._base({"condition": "eq", "value": "z"}))
+        assert any("no 'metadata'" in w for w in warns)
+
+    def test_valid_skip_if_no_warning(self):
+        from utils.health import validate_checks
+        warns = validate_checks(self._base(
+            {"metadata": "hostname", "condition": "contains", "value": "WAN"}))
+        assert not any("skip_if" in w for w in warns)
+
+
+class TestSimpleDashboard:
+    def _snapshot(self):
+        return {
+            "metadata": {"hostname": "EDGE-RTR-1", "collection_time": "09-Jun-26"},
+            "commands": {
+                "show_ip_bgp_summary": {
+                    "status": "parsed",
+                    "raw": "SECRET-RAW neighbor 10.99.88.77",
+                    "parsed": {"neighbors": [
+                        {"ip": "10.99.88.77", "prefixes_received": 0},
+                        {"ip": "10.99.88.78", "prefixes_received": 500},
+                    ]},
+                },
+                "show_version": {
+                    "status": "parsed",
+                    "raw": "serial FDO12345XYZ",
+                    "parsed": [{"version": "9.3(8)", "serial": "FDO12345XYZ"}],
+                },
+            },
+        }
+
+    def _checks(self):
+        return [
+            {"name": "BGP prefixes > 0", "command": "show_ip_bgp_summary",
+             "path": "neighbors[*].prefixes_received", "condition": "gt", "value": 0},
+            {"name": "OSPF check", "command": "show_ip_ospf_neighbors",
+             "path": "[*].state", "condition": "eq", "value": "FULL"},
+            {"name": "Skipped check", "command": "show_version", "path": "[0].version",
+             "condition": "eq", "value": "9.3(8)",
+             "skip_if": {"metadata": "hostname", "condition": "contains", "value": "EDGE"}},
+            {"name": "Display serial", "command": "show_version",
+             "path": "[0].serial", "print": True},
+        ]
+
+    def test_no_sensitive_data_in_simple_html(self):
+        from utils import html_report
+        report = evaluate_checks(self._snapshot(), self._checks())
+        html = html_report.render_health_simple(report)
+        for secret in ("10.99.88.77", "10.99.88.78", "SECRET-RAW", "FDO12345XYZ", "9.3(8)"):
+            assert secret not in html
+
+    def test_all_status_badges_render(self):
+        from utils import html_report
+        report = evaluate_checks(self._snapshot(), self._checks())
+        html = html_report.render_health_simple(report)
+        for token in (">FAIL<", ">ERROR<", ">SKIP<", ">DISPLAY<"):
+            assert token in html
+
+    def test_fail_count_without_values(self):
+        from utils import html_report
+        report = evaluate_checks(self._snapshot(), self._checks())
+        html = html_report.render_health_simple(report)
+        assert "1 value(s) failed" in html
+
+    def test_multi_device_simple_no_links_no_leaks(self):
+        from utils import html_report
+        snap = self._snapshot()
+        report = evaluate_checks(snap, self._checks())
+        html = html_report.render_health_all_simple(
+            [{"hostname": "EDGE-RTR-1", "report": report, "snapshot": snap}])
+        assert 'href="#device-' not in html
+        assert ">SKIP<" in html
+        assert "10.99.88.77" not in html
+
+    def test_detailed_matrix_shows_skip_not_err(self):
+        from utils import html_report
+        snap = self._snapshot()
+        report = evaluate_checks(snap, self._checks())
+        html = html_report.render_health_all(
+            [{"hostname": "EDGE-RTR-1", "report": report, "snapshot": snap}], "base.yaml")
+        assert ">SKIP</a>" in html
+
+    def test_empty_report(self):
+        from utils import html_report
+        empty = {"metadata": {}, "summary": {"total": 0, "passed": 0,
+                                             "failed": 0, "error": 0}, "results": []}
+        assert "No checks defined" in html_report.render_health_simple(empty)
+        assert "No checks found" in html_report.render_health_all_simple([])

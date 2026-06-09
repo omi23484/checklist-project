@@ -112,6 +112,23 @@ def validate_checks(checks: list, source: str = "") -> list[str]:
                     if "value" not in spec:
                         errors.append(f"{pos}: conditions[{j}]: missing 'value'")
 
+        skip_spec = check.get("skip_if")
+        if skip_spec is not None:
+            if not isinstance(skip_spec, dict):
+                errors.append(f"{pos}: skip_if must be a dict")
+            else:
+                if "metadata" not in skip_spec:
+                    warnings.append(
+                        f"[WARN] {pos}: skip_if has no 'metadata' field — "
+                        f"the check will never be skipped"
+                    )
+                sc = skip_spec.get("condition", "eq")
+                if sc not in _VALID_CONDITIONS:
+                    warnings.append(
+                        f"[WARN] {pos}: skip_if: unknown condition {sc!r} — "
+                        f"the check will never be skipped"
+                    )
+
         sev = check.get("severity")
         if sev and sev not in _VALID_SEVERITIES:
             warnings.append(
