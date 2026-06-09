@@ -114,8 +114,8 @@ Both raw `.txt` files and JSON snapshots are stored in date-named subdirectories
 
 | Subcommand | Key flags | Purpose |
 |---|---|---|
-| `health` | `--snapshot` `--checks` `--device-checks` `--baseline` `--tags` `--output` `--verify-only` | Single-device health check |
-| `health-all` | `--dir` `--default-checks` `--device-checks-dir` `--baseline-dir` `--tags` `--since-days` `--verify-only` | All devices — combined HTML matrix report |
+| `health` | `--snapshot` `--checks` `--device-checks` `--baseline` `--tags` `--output` `--report-mode` `--verify-only` | Single-device health check — generates detailed + simple HTML by default |
+| `health-all` | `--dir` `--default-checks` `--device-checks-dir` `--baseline-dir` `--tags` `--since-days` `--report-mode` `--verify-only` | All devices — combined HTML matrix report + simple dashboard |
 | `health-diff` | `--before` `--after` `--output` | Diff two health report JSONs — show regressions/fixes |
 | `health-trend` | `--runs-dir` `--output` | Time-series pass/fail trend HTML across multiple health runs |
 | `validate` | `--checks` | Validate a checks YAML for syntax errors (no snapshot needed) |
@@ -177,6 +177,17 @@ Both raw `.txt` files and JSON snapshots are stored in date-named subdirectories
 | `tags` | list of strings | Filter checks with `--tags bgp,ospf` at CLI |
 | `skip_if` | `metadata:` + condition | Skip check when metadata condition is true |
 | `print` | `true` or template string | Show resolved values in terminal and HTML |
+
+### HTML report modes (`--report-mode`)
+
+By default both `health` and `health-all` generate **two** HTML files:
+
+| File | Contents | Use case |
+|---|---|---|
+| `health.html` | Full detail — raw CLI output, parsed JSON panels, check conditions, actual values | Engineering review |
+| `health_simple.html` | Pass/fail per check only — no raw output, no config values | Safe to forward to management |
+
+Control with `--report-mode both` (default) / `detailed` / `simple`.
 
 ---
 

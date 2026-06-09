@@ -374,8 +374,8 @@ python report.py COMMAND [OPTIONS]
 | `validate`     | Validate a checks YAML without needing a snapshot |
 | `baseline`     | Auto-generate a starter check YAML from a snapshot |
 | `coverage`     | Report which commands have health checks and which don't |
-| `health`       | Run health checks against a single snapshot |
-| `health-all`   | Run health checks across a directory of snapshots |
+| `health`       | Run health checks against a single snapshot; generates detailed + simple HTML by default |
+| `health-all`   | Run health checks across a directory of snapshots; generates detailed + simple HTML by default |
 | `health-diff`  | Diff two health report JSON files (regressions / fixes) |
 | `health-trend` | Time-series trend report across multiple health JSON files |
 | `delta`        | Field-level diff between two snapshots |
@@ -612,13 +612,30 @@ python report.py health \
   --snapshot data/json/N9K-CAMA-WAN-1_03-May-26.json \
   --checks   checks/base.yaml
 
-# HTML report
+# HTML report — generates BOTH detailed and simple dashboard by default
 python report.py health \
   --snapshot data/json/N9K.json \
   --checks   checks/base.yaml \
   --output   reports/health.html
+# → reports/health.html         (full detailed report)
+# → reports/health_simple.html  (executive dashboard — safe to forward)
 
-# JSON report
+# Detailed report only (no simple dashboard)
+python report.py health \
+  --snapshot data/json/N9K.json \
+  --checks   checks/base.yaml \
+  --output   reports/health.html \
+  --report-mode detailed
+
+# Simple executive dashboard only
+python report.py health \
+  --snapshot data/json/N9K.json \
+  --checks   checks/base.yaml \
+  --output   reports/health.html \
+  --report-mode simple
+# → reports/health_simple.html only
+
+# JSON report (--report-mode has no effect on JSON output)
 python report.py health \
   --snapshot data/json/N9K.json \
   --checks   checks/base.yaml \
@@ -661,7 +678,18 @@ python report.py health \
 | `--baseline` | No | — | Previous snapshot JSON for `compare_baseline:` checks |
 | `--tags` | No | — | Comma-separated tag filter (OR logic) |
 | `--output` | No | stdout | Output file (`.html` or `.json`) |
+| `--report-mode` | No | `both` | `both` / `detailed` / `simple` — see below |
 | `--verify-only` | No | off | Run and print but write no files |
+
+**`--report-mode`:**
+
+| Value | Files written | Use case |
+|-------|--------------|----------|
+| `both` (default) | `health.html` + `health_simple.html` | Default — full detail for engineers, clean summary for management |
+| `detailed` | `health.html` only | Original behaviour — full report only |
+| `simple` | `health_simple.html` only | Management-safe forwarding — no raw CLI or config values |
+
+**Simple dashboard (`health_simple.html`)** shows only: check name, pass/fail badge, failure count (`"3 of 5 values failed"`), severity, and tags. It contains **no raw CLI output, no parsed JSON, no actual values** (IPs, prefix counts, config data) — safe to forward without data exposure risk.
 
 **Exit code:** `0` if no critical failures; `1` if any critical check fails or errors.
 
@@ -673,9 +701,24 @@ Runs health checks across every snapshot in a directory and produces a single co
 
 ```bash
 # Minimal — all devices, default checks, HTML to health-reports/
+# Generates BOTH detailed and simple dashboard by default
 python report.py health-all \
   --dir            data/json/ \
   --default-checks checks/base.yaml
+# → health-reports/health_report.html         (full matrix + per-device detail)
+# → health-reports/health_report_simple.html  (executive dashboard)
+
+# Detailed report only
+python report.py health-all \
+  --dir            data/json/ \
+  --default-checks checks/base.yaml \
+  --report-mode    detailed
+
+# Simple executive dashboard only
+python report.py health-all \
+  --dir            data/json/ \
+  --default-checks checks/base.yaml \
+  --report-mode    simple
 
 # Full options
 python report.py health-all \
@@ -715,9 +758,12 @@ python report.py health-all \
 | `--output-dir` | No | `health-reports/` | Output directory |
 | `--output-file` | No | `health_report.html` | Combined HTML filename inside `--output-dir` |
 | `--format` | No | `html` | `html` / `json` / `both` |
+| `--report-mode` | No | `both` | `both` / `detailed` / `simple` — see below |
 | `--since-days` | No | — | Skip snapshots older than N days (or a date string like `"03-May-2026"`) |
 | `--tags` | No | — | Comma-separated tag filter (OR logic) |
 | `--verify-only` | No | off | Run and print but write no files |
+
+**`--report-mode`:** Same as `health` — `both` (default) generates the full report and the simple dashboard; `detailed` generates only the full report; `simple` generates only the executive dashboard. The simple file is always named `{output-file-stem}_simple.html`.
 
 **Device-checks merge rule:** Device-specific checks in `--device-checks-dir/{hostname}.yaml` override base checks with the same `name`; all other checks are additive.
 
