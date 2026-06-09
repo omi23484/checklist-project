@@ -76,6 +76,12 @@ def _is_html(path=None) -> bool:
     return bool(path and path.lower().endswith(".html"))
 
 
+def _simple_html_path(html_path: str) -> str:
+    """Derive the simple-dashboard path: health.html → health_simple.html."""
+    p = Path(html_path)
+    return str(p.parent / (p.stem + "_simple" + p.suffix))
+
+
 def _write_report(report: dict, snap: dict, output=None, before_snap=None, after_snap=None) -> None:
     if _is_html(output):
         out = Path(output)
@@ -257,10 +263,17 @@ def cmd_health(args: argparse.Namespace) -> None:
 
     if not getattr(args, "verify_only", False):
         if _is_html(args.output):
-            out = Path(args.output)
+            mode = getattr(args, "report_mode", "both")
+            out  = Path(args.output)
             out.parent.mkdir(parents=True, exist_ok=True)
-            out.write_text(html_report.render_health(report, snapshot), encoding="utf-8")
-            print(f"  -> {args.output}")
+            if mode in ("both", "detailed"):
+                out.write_text(html_report.render_health(report, snapshot), encoding="utf-8")
+                print(f"  -> {args.output}")
+            if mode in ("both", "simple"):
+                sp = Path(_simple_html_path(args.output))
+                sp.parent.mkdir(parents=True, exist_ok=True)
+                sp.write_text(html_report.render_health_simple(report), encoding="utf-8")
+                print(f"  -> {sp}")
         else:
             _write_output(report, args.output)
 
@@ -413,11 +426,20 @@ def cmd_health_all(args: argparse.Namespace) -> None:
 
     if not verify_only and fmt in ("html", "both"):
         html_path = output_dir / (getattr(args, "output_file", None) or "health_report.html")
-        html_path.write_text(
-            html_report.render_health_all(device_data, args.default_checks),
-            encoding="utf-8",
-        )
-        print(f"  -> {html_path}")
+        mode = getattr(args, "report_mode", "both")
+        if mode in ("both", "detailed"):
+            html_path.write_text(
+                html_report.render_health_all(device_data, args.default_checks),
+                encoding="utf-8",
+            )
+            print(f"  -> {html_path}")
+        if mode in ("both", "simple"):
+            sp = Path(_simple_html_path(str(html_path)))
+            sp.write_text(
+                html_report.render_health_all_simple(device_data),
+                encoding="utf-8",
+            )
+            print(f"  -> {sp}")
 
     if verify_only:
         print("  [verify-only] no files written")
@@ -1091,6 +1113,8 @@ def main() -> None:
                           help="Comma-separated tag filter — only run checks with any of these tags")
     p_health.add_argument("--verify-only",   action="store_true",
                           help="Run checks and print results but write no output files")
+    p_health.add_argument("--report-mode", choices=["both", "detailed", "simple"], default="both",
+                          help="HTML output mode: both (default), detailed only, or simple dashboard only")
     p_health.set_defaults(func=cmd_health)
 
     # health-all
@@ -1111,6 +1135,8 @@ def main() -> None:
                         help="Comma-separated tag filter — only run checks with any of these tags")
     p_hall.add_argument("--verify-only", action="store_true",
                         help="Run checks and print results but write no output files")
+    p_hall.add_argument("--report-mode", choices=["both", "detailed", "simple"], default="both",
+                        help="HTML output mode: both (default), detailed only, or simple dashboard only")
     p_hall.set_defaults(func=cmd_health_all)
 
     # health-diff

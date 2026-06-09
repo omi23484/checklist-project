@@ -322,6 +322,14 @@ details.jt-group{margin:0}
 .jt-preview{color:#64748b;font-size:.73rem}
 .jt-path-toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#0f172a;color:#e2e8f0;padding:7px 16px;border-radius:8px;font-size:.78rem;font-family:'SFMono-Regular',Consolas,monospace;pointer-events:none;opacity:0;transition:opacity .2s;z-index:9999;white-space:nowrap;max-width:90vw;overflow:hidden;text-overflow:ellipsis;box-shadow:0 4px 12px rgba(0,0,0,.4)}
 .jt-path-toast.show{opacity:1}
+/* ── Simple executive dashboard ── */
+.simple-table{width:100%;border-collapse:collapse;font-size:.88rem;margin-top:1rem}
+.simple-table th{background:#1a355e;color:#fff;padding:.45rem .7rem;text-align:left;font-weight:600}
+.simple-table td{padding:.42rem .7rem;border-bottom:1px solid #e8eaf0;vertical-align:middle}
+.simple-table tr:hover td{background:#f8f9fc}
+.fail-count{font-size:.8rem;color:var(--fail);margin-left:.4rem;font-style:italic}
+.err-msg{font-size:.8rem;color:var(--warn);margin-left:.4rem;font-style:italic}
+.skip-note{font-size:.8rem;color:var(--muted);margin-left:.4rem;font-style:italic}
 """
 
 _JS = """
@@ -1439,3 +1447,158 @@ def render_health_trend(trend_data: list[dict]) -> str:
 </div>"""
 
     return _page("Health Trend", body)
+
+
+# ---------------------------------------------------------------------------
+# Minimalist executive dashboard — no raw output, no JSON, no config values
+# ---------------------------------------------------------------------------
+
+def render_health_simple(report: dict) -> str:
+    """Single-device executive dashboard: status per check, no raw/JSON data."""
+    meta     = report.get("metadata", {})
+    s        = report.get("summary", {})
+    hostname = meta.get("hostname", "Unknown")
+    ts       = meta.get("collection_time", "")
+
+    cards = _summary_cards([
+        ("total", "Total",   s.get("total",  0)),
+        ("pass",  "Passed",  s.get("passed", 0)),
+        ("fail",  "Failed",  s.get("failed", 0)),
+        ("error", "Errors",  s.get("error",  0)),
+    ])
+    skipped = s.get("skipped", 0)
+    if skipped:
+        cards = _summary_cards([
+            ("total", "Total",   s.get("total",  0)),
+            ("pass",  "Passed",  s.get("passed", 0)),
+            ("fail",  "Failed",  s.get("failed", 0)),
+            ("error", "Errors",  s.get("error",  0)),
+            ("total", "Skipped", skipped),
+        ])
+
+    rows = []
+    for r in report.get("results", []):
+        status   = r.get("status", "error")
+        name     = r.get("name", "(unnamed)")
+        check    = r.get("check", {})
+        cmd      = check.get("command", "")
+        severity = r.get("severity", "critical")
+        tags     = check.get("tags", [])
+
+        tag_html = " ".join(f'<span class="tag-pill">{_e(t)}</span>' for t in (tags or []))
+
+        if status == "pass":
+            if r.get("print_only"):
+                badge = _badge("display", "DISPLAY")
+                detail = ""
+            else:
+                badge = _badge("pass", "PASS")
+                detail = ""
+        elif status == "fail":
+            badge = _badge("fail", "FAIL")
+            n_fail = len(r.get("failures", []))
+            # for multi-condition failures the count may be in a nested list
+            if n_fail == 0 and r.get("failures"):
+                n_fail = sum(len(f) if isinstance(f, list) else 1 for f in r.get("failures", []))
+            detail = f'<span class="fail-count">{n_fail} value(s) failed</span>' if n_fail else ""
+        elif status == "skip":
+            badge = _badge("skip", "SKIP")
+            skip_spec = check.get("skip_if", {})
+            detail = f'<span class="skip-note">skipped: {_e(skip_spec.get("metadata", "condition met"))}</span>'
+        elif status == "error":
+            badge = _badge("error", "ERROR")
+            detail = f'<span class="err-msg">{_e(str(r.get("message", ""))[:80])}</span>'
+        else:
+            badge = _badge(_e(status))
+            detail = ""
+
+        sev_html = ""
+        if severity and severity != "critical":
+            sev_html = f'<span class="badge sev-{_e(severity)}">{_e(severity.upper())}</span>'
+
+        rows.append(f"""<tr>
+  <td>{badge}{sev_html}</td>
+  <td>{_e(name)}{detail}</td>
+  <td><code style="font-size:.82rem">{_e(cmd)}</code></td>
+  <td>{tag_html}</td>
+</tr>""")
+
+    table_html = f"""<table class="simple-table">
+<thead><tr><th>Status</th><th>Check</th><th>Command</th><th>Tags</th></tr></thead>
+<tbody>{"".join(rows) if rows else "<tr><td colspan='4' style='color:var(--muted)'>No checks defined.</td></tr>"}</tbody>
+</table>"""
+
+    body = f"""
+<div class="page-header">
+  <div class="header-left">
+    <h1>Health Dashboard</h1>
+    <div class="sub">{_e(hostname)} &nbsp;·&nbsp; {_e(ts)}</div>
+  </div>
+  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
+</div>
+<div class="container">
+  {cards}
+  <div class="sec-title">Check Results</div>
+  {table_html}
+</div>"""
+
+    return _page(f"Health Dashboard — {hostname}", body)
+
+
+def render_health_all_simple(device_data: list[dict]) -> str:
+    """Multi-device executive dashboard: check matrix + device summary table."""
+    n_devices    = len(device_data)
+    total_passed = sum(item["report"].get("summary", {}).get("passed", 0) for item in device_data)
+    total_failed = sum(item["report"].get("summary", {}).get("failed", 0) for item in device_data)
+    total_errors = sum(item["report"].get("summary", {}).get("error",  0) for item in device_data)
+
+    cards = _summary_cards([
+        ("total", "Devices", n_devices),
+        ("pass",  "Passed",  total_passed),
+        ("fail",  "Failed",  total_failed),
+        ("error", "Errors",  total_errors),
+    ])
+
+    matrix = _check_matrix(device_data)
+
+    dev_rows = []
+    for item in device_data:
+        hn = item["report"].get("metadata", {}).get("hostname", item.get("hostname", "?"))
+        ts = item["report"].get("metadata", {}).get("collection_time", "")
+        s  = item["report"].get("summary", {})
+        fc = s.get("failed_critical", s.get("failed", 0))
+        overall = _badge("fail", "FAIL") if (fc or s.get("error", 0)) else _badge("pass", "PASS")
+        dev_rows.append(f"""<tr>
+  <td>{overall}</td>
+  <td><strong>{_e(hn)}</strong></td>
+  <td style="color:var(--muted);font-size:.82rem">{_e(ts)}</td>
+  <td style="text-align:center">{s.get("total",  0)}</td>
+  <td style="text-align:center;color:var(--pass)">{s.get("passed", 0)}</td>
+  <td style="text-align:center;color:var(--fail)">{s.get("failed", 0)}</td>
+  <td style="text-align:center;color:var(--warn)">{s.get("error",  0)}</td>
+</tr>""")
+
+    dev_table = f"""<table class="simple-table">
+<thead><tr><th>Status</th><th>Device</th><th>Collected</th>
+<th style="text-align:center">Total</th><th style="text-align:center">Passed</th>
+<th style="text-align:center">Failed</th><th style="text-align:center">Errors</th></tr></thead>
+<tbody>{"".join(dev_rows)}</tbody>
+</table>"""
+
+    body = f"""
+<div class="page-header">
+  <div class="header-left">
+    <h1>Health Dashboard</h1>
+    <div class="sub">{n_devices} device(s)</div>
+  </div>
+  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
+</div>
+<div class="container">
+  {cards}
+  <div class="sec-title">Device Summary</div>
+  {dev_table}
+  <div class="sec-title">Check Results Matrix</div>
+  {matrix}
+</div>"""
+
+    return _page(f"Health Dashboard — {n_devices} Devices", body)
