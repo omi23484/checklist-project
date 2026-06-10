@@ -18,6 +18,10 @@ checks, compare snapshots, or generate any report.py subcommand output.
                     (see below).
   continue_on_error 'yes' to continue the playbook even if this step exits
                     non-zero.  Default: 'no' (abort on failure).
+  on_failure        Optional shell command to run when this step exits
+                    non-zero.  Supports variable substitution including
+                    step-local placeholders (see below).  The hook's own
+                    exit code is printed but never fails the playbook.
   description       Free-form notes — ignored by the runner.
 
 ━━━ Step types ───────────────────────────────────────────────────────────────
@@ -35,12 +39,17 @@ checks, compare snapshots, or generate any report.py subcommand output.
   shell       →  run args as a raw shell command (mkdir, cp, rm, etc.)
                  Variable substitution applies: mkdir -p data/raw/{date}/wan
 
-━━━ Variable substitution in 'args' ─────────────────────────────────────────
+━━━ Variable substitution in 'args' and 'on_failure' ────────────────────────
 
   {date}        Today in filename format:   03-May-26
   {today}       Today in ISO format:        2026-05-30
   {timestamp}   Current datetime:           20260530_143000
   {yesterday}   Yesterday in ISO format:    2026-05-29
+
+  The following placeholders are available in 'on_failure' only:
+  {step}        The step number of the failed step
+  {name}        The name of the failed step
+  {exit_code}   The numeric exit code returned by the failed step
 
 ━━━ Usage ────────────────────────────────────────────────────────────────────
 
@@ -129,12 +138,13 @@ def _load_playbook(path: str) -> list[dict]:
                     f"{path}: line {lineno}: 'step' must be an integer, "
                     f"got {row['step']!r}"
                 )
-            # An empty cell means "use the default" — normalize here so list
-            # mode and run mode agree (run mode treated "" as enabled already)
+            # Normalize optional columns so list/run modes agree
             if not row.get("enabled"):
                 row["enabled"] = "yes"
             if not row.get("continue_on_error"):
                 row["continue_on_error"] = "no"
+            if not row.get("on_failure"):
+                row["on_failure"] = ""
             rows.append(row)
 
     if not rows:
@@ -180,6 +190,25 @@ def _run_step(row: dict, vars_: dict[str, str], dry_run: bool = False) -> int:
 
     result = subprocess.run(cmd, cwd=str(SCRIPT_DIR))
     return result.returncode
+
+
+def _run_on_failure(hook_cmd: str, vars_: dict[str, str],
+                    num: int, name: str, exit_code: int,
+                    dry_run: bool = False) -> None:
+    """Resolve and execute an on_failure hook.  Never raises or exits."""
+    step_vars = {
+        **vars_,
+        "{step}":      str(num),
+        "{name}":      name,
+        "{exit_code}": str(exit_code),
+    }
+    resolved = _resolve(hook_cmd, step_vars)
+    print(f"  [on_failure] $ {resolved}")
+    if dry_run:
+        return
+    result = subprocess.run(resolved, shell=True, cwd=str(SCRIPT_DIR))
+    if result.returncode != 0:
+        print(f"  [on_failure] exited {result.returncode} (ignored)")
 
 
 # ---------------------------------------------------------------------------
@@ -231,12 +260,13 @@ def main() -> None:
     # ── List mode ──────────────────────────────────────────────────────────
     if args.list:
         print(f"\nPlaybook: {args.playbook}  ({len(steps)} step(s))\n")
-        print(f"  {'STEP':>4}  {'TYPE':<12}  {'EN':>2}  {'COE':>3}  NAME")
-        print(f"  {'─'*4}  {'─'*12}  {'─'*2}  {'─'*3}  {'─'*36}")
+        print(f"  {'STEP':>4}  {'TYPE':<12}  {'EN':>2}  {'COE':>3}  {'ON_FAIL':>7}  NAME")
+        print(f"  {'─'*4}  {'─'*12}  {'─'*2}  {'─'*3}  {'─'*7}  {'─'*36}")
         for row in steps:
             en  = "Y" if row.get("enabled", "yes").lower() == "yes" else "N"
             coe = "Y" if row.get("continue_on_error", "no").lower() == "yes" else "N"
-            print(f"  {row['step']:>4}  {row['type']:<12}  {en:>2}  {coe:>3}  {row['name']}")
+            onf = "Y" if row.get("on_failure", "") else "N"
+            print(f"  {row['step']:>4}  {row['type']:<12}  {en:>2}  {coe:>3}  {onf:>7}  {row['name']}")
         return
 
     # ── Run mode ───────────────────────────────────────────────────────────
@@ -254,11 +284,12 @@ def main() -> None:
     ran = skipped = failed = 0
 
     for row in steps:
-        num  = row["_step_num"]
-        name = row["name"]
-        typ  = row["type"].strip().lower()
-        en   = row.get("enabled", "yes").strip().lower()
-        coe  = row.get("continue_on_error", "no").strip().lower() == "yes"
+        num      = row["_step_num"]
+        name     = row["name"]
+        typ      = row["type"].strip().lower()
+        en       = row.get("enabled", "yes").strip().lower()
+        coe      = row.get("continue_on_error", "no").strip().lower() == "yes"
+        on_fail  = row.get("on_failure", "").strip()
 
         # Apply filters
         if args.step is not None and num != args.step:
@@ -274,16 +305,23 @@ def main() -> None:
             continue
 
         print(f"[STEP {num:>3}]  {name}")
-        t0   = datetime.now()
-        code = _run_step(row, vars_, dry_run=args.dry_run)
+        t0      = datetime.now()
+        code    = _run_step(row, vars_, dry_run=args.dry_run)
         elapsed = (datetime.now() - t0).total_seconds()
 
         if code == 0:
             ran += 1
+            if args.dry_run and on_fail:
+                # Show what the hook would look like without knowing the exit code
+                step_vars = {**vars_, "{step}": str(num), "{name}": name, "{exit_code}": "<exit_code>"}
+                print(f"  [on_failure] $ {_resolve(on_fail, step_vars)}  (if step fails)")
             print(f"  ✓ OK  ({elapsed:.1f}s)\n")
         else:
             failed += 1
-            print(f"  ✗ FAILED  exit={code}  ({elapsed:.1f}s)\n")
+            print(f"  ✗ FAILED  exit={code}  ({elapsed:.1f}s)")
+            if on_fail:
+                _run_on_failure(on_fail, vars_, num, name, code, dry_run=args.dry_run)
+            print()
             if not coe:
                 print(
                     f"Aborting — step {num} failed and continue_on_error=no\n"
