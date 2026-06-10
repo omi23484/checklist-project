@@ -10,6 +10,14 @@
 #   parser: hierarchical + func: <function name in multicast_parser.py>
 #   parser: raw_only     (preserve raw text, skip structured parsing)
 #
+# Wildcard keys — use * to match any variable part (IP address, interface, VRF, etc.):
+#   show ip bgp neigh * routes:       matches show_ip_bgp_neigh_10_0_0_1_routes, etc.
+#   show interface *:                 matches show_interface_gi1_1, show_interface_eth0, etc.
+#   show ip ospf neighbor * detail:   matches any neighbour IP
+#   Each * matches one or more normalized characters (letters, digits, underscores).
+#   Exact entries always take precedence over wildcard entries.
+#   Wildcard entries are NOT sent to devices during 'collect' (can't run * on a device).
+#
 # To add a new command:
 #   Option A (explicit): add an entry here + a template file
 #   Option B (auto-discover TextFSM): drop a {platform}_{normalized_cmd}.textfsm
