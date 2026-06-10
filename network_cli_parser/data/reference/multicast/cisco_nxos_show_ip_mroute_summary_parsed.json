@@ -1,0 +1,9 @@
+{
+  "group_count": "3",
+  "avg_sources": "0.7",
+  "star_g_prefix_routes": "0",
+  "s_g_routes": "2",
+  "star_g_routes": "3",
+  "total_routes": "5",
+  "vrf": "default"
+}

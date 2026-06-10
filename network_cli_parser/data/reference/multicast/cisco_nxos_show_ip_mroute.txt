@@ -1,0 +1,29 @@
+N9K-CAMA-WAN-1# show ip mroute
+IP Multicast Routing Table for VRF "default"
+
+(*, 225.1.1.1/32), uptime: 03:48:57, igmp ip pim
+  Incoming interface: Vlan101, RPF nbr: 10.10.1.2, uptime: 03:48:57
+  Outgoing interface list: (count: 1)
+    Vlan102, uptime: 03:48:57, igmp
+
+(10.10.10.1/32, 225.1.1.1/32), uptime: 03:16:40, pim ip
+  Incoming interface: Ethernet1/19, RPF nbr: 10.10.10.1, uptime: 03:16:40
+  Outgoing interface list: (count: 2)
+    Vlan101, uptime: 03:16:40, pim
+    Vlan102, uptime: 03:16:40, pim
+
+(*, 239.1.2.3/32), uptime: 01:05:12, igmp ip pim
+  Incoming interface: Loopback0, RPF nbr: 10.0.0.1, uptime: 01:05:12
+  Outgoing interface list: (count: 1)
+    Ethernet1/1, uptime: 01:05:12, igmp
+
+(172.16.1.1/32, 239.1.2.3/32), uptime: 00:45:33, pim ip
+  Incoming interface: Ethernet1/2, RPF nbr: 172.16.1.1, uptime: 00:45:33
+  Outgoing interface list: (count: 1)
+    Ethernet1/1, uptime: 00:45:33, pim
+
+(*, 232.0.0.0/8), uptime: 04:10:30, pim ip
+  Incoming interface: Null, RPF nbr: 0.0.0.0
+  Outgoing interface list: (count: 0)
+
+N9K-CAMA-WAN-1#

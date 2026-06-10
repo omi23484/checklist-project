@@ -1,0 +1,49 @@
+{
+  "groups": [
+    {
+      "rp_pkt": "0",
+      "rp_pkt_sec": "0",
+      "rp_avg_size": "0",
+      "rp_kbps": "0",
+      "group": "225.1.1.1",
+      "source_count": "1",
+      "group_pkt_count": "25630",
+      "sources": [
+        {
+          "source": "10.10.10.1/32",
+          "pkt_count": "25630",
+          "pkt_sec": "256",
+          "avg_pkt_size": "1400",
+          "kbps": "2867"
+        }
+      ]
+    },
+    {
+      "rp_pkt": "0",
+      "rp_pkt_sec": "0",
+      "rp_avg_size": "0",
+      "rp_kbps": "0",
+      "group": "239.1.2.3",
+      "source_count": "1",
+      "group_pkt_count": "9845",
+      "sources": [
+        {
+          "source": "172.16.1.1/32",
+          "pkt_count": "9845",
+          "pkt_sec": "98",
+          "avg_pkt_size": "1000",
+          "kbps": "784"
+        }
+      ]
+    },
+    {
+      "rp_pkt": "0",
+      "rp_pkt_sec": "0",
+      "rp_avg_size": "0",
+      "rp_kbps": "0",
+      "group": "232.0.0.0/8",
+      "source_count": "0",
+      "group_pkt_count": "0"
+    }
+  ]
+}

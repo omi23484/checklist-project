@@ -1,0 +1,19 @@
+IOS-RTR-1# show ip mroute count
+IP Multicast Statistics
+5 routes using 2500 bytes of memory
+3 groups, 0.67 average sources per group
+Forwarding Counts: Pkt Count/Pkts per second/Avg Pkt Size/Kilobits per second
+Other counts: Total/RPF failed/Other drops(OIF-null, rate-limit etc)
+
+Group: 239.1.2.3, Source count: 1, Packets forwarded: 9845, Packets received: 9845
+  RP-tree: 0/0/0/0, Other: 0/0/0
+  Source: 10.10.10.1/32, Forwarding: 9845/100/1400/1120, Other: 9845/0/0
+
+Group: 225.1.1.1, Source count: 1, Packets forwarded: 25630, Packets received: 25630
+  RP-tree: 0/0/0/0, Other: 0/0/0
+  Source: 172.16.1.1/32, Forwarding: 25630/256/1400/2867, Other: 25630/0/0
+
+Group: 224.0.1.40, Source count: 0, Packets forwarded: 0, Packets received: 0
+  RP-tree: 0/0/0/0, Other: 0/0/0
+
+IOS-RTR-1#

@@ -1,0 +1,22 @@
+N9K-CAMA-WAN-1# show ip mroute count
+IP Multicast Statistics for VRF "default"
+Total number of routes: 5
+Total number of (*,G) routes: 3
+Total number of (S,G) routes: 2
+Total number of (*,G-prefix) routes: 0
+
+Group count: 3, rough average sources per group: 0.7
+Counts: Pkt Count/Pkts per second/Avg Pkt Size/Kilobits per second
+
+Group: 225.1.1.1, Source count: 1, Group pkt count: 25630
+  RP-tree: 0 pkt, 0 pkt/sec, 0 avg pkt size, 0 kbps
+  Source: 10.10.10.1/32, 25630 pkt, 256 pkt/sec, 1400 avg pkt size, 2867 kbps
+
+Group: 239.1.2.3, Source count: 1, Group pkt count: 9845
+  RP-tree: 0 pkt, 0 pkt/sec, 0 avg pkt size, 0 kbps
+  Source: 172.16.1.1/32, 9845 pkt, 98 pkt/sec, 1000 avg pkt size, 784 kbps
+
+Group: 232.0.0.0/8, Source count: 0, Group pkt count: 0
+  RP-tree: 0 pkt, 0 pkt/sec, 0 avg pkt size, 0 kbps
+
+N9K-CAMA-WAN-1#

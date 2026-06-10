@@ -1,0 +1,78 @@
+{
+  "routes": [
+    {
+      "incoming_intf": "GigabitEthernet1",
+      "rpf_nbr": "10.0.0.2",
+      "source": "*",
+      "group": "239.1.2.3",
+      "uptime": "00:35:12",
+      "expires": "stopped",
+      "route_info": "RP 10.0.0.1, flags: SJC",
+      "oif_list": [
+        {
+          "oif_intf": "GigabitEthernet2",
+          "state_mode": "Forward/Sparse",
+          "oif_uptime": "00:35:12",
+          "oif_expires": "00:02:30"
+        }
+      ]
+    },
+    {
+      "incoming_intf": "GigabitEthernet1",
+      "rpf_nbr": "192.168.1.100",
+      "source": "192.168.1.100",
+      "group": "239.1.2.3",
+      "uptime": "00:20:05",
+      "expires": "00:01:45",
+      "route_info": "flags: T",
+      "oif_list": [
+        {
+          "oif_intf": "GigabitEthernet2",
+          "state_mode": "Forward/Sparse",
+          "oif_uptime": "00:20:05",
+          "oif_expires": "00:02:15"
+        }
+      ]
+    },
+    {
+      "incoming_intf": "GigabitEthernet1",
+      "rpf_nbr": "10.0.0.2",
+      "source": "*",
+      "group": "225.0.0.1",
+      "uptime": "02:00:00",
+      "expires": "00:02:59",
+      "route_info": "RP 10.0.0.1, flags: SJC",
+      "oif_list": [
+        {
+          "oif_intf": "GigabitEthernet3",
+          "state_mode": "Forward/Sparse",
+          "oif_uptime": "02:00:00",
+          "oif_expires": "00:01:55"
+        }
+      ]
+    },
+    {
+      "incoming_intf": "GigabitEthernet1",
+      "rpf_nbr": "10.1.1.1",
+      "source": "10.1.1.1",
+      "group": "225.0.0.1",
+      "uptime": "01:45:30",
+      "expires": "00:02:00",
+      "route_info": "flags: T",
+      "oif_list": [
+        {
+          "oif_intf": "GigabitEthernet3",
+          "state_mode": "Forward/Sparse",
+          "oif_uptime": "01:45:30",
+          "oif_expires": "00:01:55"
+        },
+        {
+          "oif_intf": "GigabitEthernet4",
+          "state_mode": "Forward/Sparse",
+          "oif_uptime": "01:45:30",
+          "oif_expires": "00:02:00"
+        }
+      ]
+    }
+  ]
+}

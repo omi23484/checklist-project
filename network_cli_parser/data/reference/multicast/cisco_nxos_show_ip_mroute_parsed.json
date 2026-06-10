@@ -1,0 +1,86 @@
+{
+  "routes": [
+    {
+      "oif_count": "1",
+      "incoming_intf": "Vlan101",
+      "rpf_nbr": "10.10.1.2",
+      "rpf_uptime": "03:48:57",
+      "source": "*",
+      "group": "225.1.1.1/32",
+      "uptime": "03:48:57",
+      "flags": "igmp ip pim",
+      "oif_list": [
+        {
+          "oif_intf": "Vlan102",
+          "oif_uptime": "03:48:57",
+          "oif_flags": "igmp"
+        }
+      ]
+    },
+    {
+      "oif_count": "2",
+      "incoming_intf": "Ethernet1/19",
+      "rpf_nbr": "10.10.10.1",
+      "rpf_uptime": "03:16:40",
+      "source": "10.10.10.1/32",
+      "group": "225.1.1.1/32",
+      "uptime": "03:16:40",
+      "flags": "pim ip",
+      "oif_list": [
+        {
+          "oif_intf": "Vlan101",
+          "oif_uptime": "03:16:40",
+          "oif_flags": "pim"
+        },
+        {
+          "oif_intf": "Vlan102",
+          "oif_uptime": "03:16:40",
+          "oif_flags": "pim"
+        }
+      ]
+    },
+    {
+      "oif_count": "1",
+      "incoming_intf": "Loopback0",
+      "rpf_nbr": "10.0.0.1",
+      "rpf_uptime": "01:05:12",
+      "source": "*",
+      "group": "239.1.2.3/32",
+      "uptime": "01:05:12",
+      "flags": "igmp ip pim",
+      "oif_list": [
+        {
+          "oif_intf": "Ethernet1/1",
+          "oif_uptime": "01:05:12",
+          "oif_flags": "igmp"
+        }
+      ]
+    },
+    {
+      "oif_count": "1",
+      "incoming_intf": "Ethernet1/2",
+      "rpf_nbr": "172.16.1.1",
+      "rpf_uptime": "00:45:33",
+      "source": "172.16.1.1/32",
+      "group": "239.1.2.3/32",
+      "uptime": "00:45:33",
+      "flags": "pim ip",
+      "oif_list": [
+        {
+          "oif_intf": "Ethernet1/1",
+          "oif_uptime": "00:45:33",
+          "oif_flags": "pim"
+        }
+      ]
+    },
+    {
+      "oif_count": "0",
+      "incoming_intf": "Null",
+      "rpf_nbr": "0.0.0.0",
+      "source": "*",
+      "group": "232.0.0.0/8",
+      "uptime": "04:10:30",
+      "flags": "pim ip"
+    }
+  ]
+}

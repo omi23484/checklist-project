@@ -72,11 +72,14 @@ cisco_nxos:
     parser: custom
     template: cisco_nxos_show_ip_pim_neigh
   show ip mroute summary:
-    parser: hierarchical
-    func: parse_mroute_summary
+    parser: ttp
+    template: cisco_nxos_show_ip_mroute_summary
+  show ip mroute count:
+    parser: ttp
+    template: cisco_nxos_show_ip_mroute_count
   show ip mroute:
-    parser: hierarchical
-    func: parse_mroute
+    parser: ttp
+    template: cisco_nxos_show_ip_mroute
   show processes cpu history:
     parser: raw_only
   show logging last 100:
@@ -113,6 +116,15 @@ cisco_ios:
   show bfd neighbors details:
     parser: custom
     template: cisco_ios_show_bfd_neighbors_details
+  show ip mroute summary:
+    parser: ttp
+    template: cisco_ios_show_ip_mroute_summary
+  show ip mroute count:
+    parser: ttp
+    template: cisco_ios_show_ip_mroute_count
+  show ip mroute:
+    parser: ttp
+    template: cisco_ios_show_ip_mroute
   show logging:
     parser: raw_only
   show processes cpu history:
@@ -158,6 +170,15 @@ cisco_iosxe:
   show bfd neighbors details:
     parser: custom
     template: cisco_ios_show_bfd_neighbors_details
+  show ip mroute summary:
+    parser: ttp
+    template: cisco_iosxe_show_ip_mroute_summary
+  show ip mroute count:
+    parser: ttp
+    template: cisco_iosxe_show_ip_mroute_count
+  show ip mroute:
+    parser: ttp
+    template: cisco_iosxe_show_ip_mroute
   show logging:
     parser: raw_only
   show processes cpu history:

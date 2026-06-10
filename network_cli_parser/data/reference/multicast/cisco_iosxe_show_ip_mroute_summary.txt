@@ -1,0 +1,12 @@
+CSR1K# show ip mroute summary
+IP Multicast Routing Table
+Flags: D - Dense, S - Sparse, B - Bidir Group, s - SSM Group, C - Connected,
+       L - Local, P - Pruned, R - RP-bit set, F - Register flag,
+       T - SPT-bit set, J - Join SPT, M - MSDP created entry
+
+(*, 239.1.2.3), 00:35:12/stopped, RP 10.0.0.1, flags: SJC
+(192.168.1.100, 239.1.2.3), 00:20:05/00:01:45, flags: T
+(*, 225.0.0.1), 02:00:00/00:02:59, RP 10.0.0.1, flags: SJC
+(10.1.1.1, 225.0.0.1), 01:45:30/00:02:00, flags: T
+
+CSR1K#

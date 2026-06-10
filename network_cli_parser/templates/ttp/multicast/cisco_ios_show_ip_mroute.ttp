@@ -1,0 +1,7 @@
+<group name="routes*">
+({{ source | re("[^,]+") }}, {{ group | re("[^)]+") }}), {{ uptime | re("[^/]+") }}/{{ expires }}, {{ route_info | re(".+") }}
+  Incoming interface: {{ incoming_intf }}, RPF nbr {{ rpf_nbr }}
+<group name="oif_list*">
+    {{ oif_intf }}, {{ state_mode }}, {{ oif_uptime | re("[^/]+") }}/{{ oif_expires }}
+</group>
+</group>

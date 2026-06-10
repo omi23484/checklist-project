@@ -1,0 +1,39 @@
+{
+  "routes": [
+    {
+      "source": "*",
+      "group": "239.1.2.3",
+      "uptime": "00:22:37",
+      "expires": "stopped",
+      "route_info": "RP 192.168.100.1, flags: SJC"
+    },
+    {
+      "source": "10.10.10.1",
+      "group": "239.1.2.3",
+      "uptime": "00:15:45",
+      "expires": "00:02:46",
+      "route_info": "flags: T"
+    },
+    {
+      "source": "*",
+      "group": "225.1.1.1",
+      "uptime": "01:10:30",
+      "expires": "00:02:45",
+      "route_info": "RP 192.168.100.1, flags: SJC"
+    },
+    {
+      "source": "172.16.1.1",
+      "group": "225.1.1.1",
+      "uptime": "00:58:22",
+      "expires": "00:03:10",
+      "route_info": "flags: T"
+    },
+    {
+      "source": "*",
+      "group": "224.0.1.40",
+      "uptime": "02:15:00",
+      "expires": "00:01:55",
+      "route_info": "RP 0.0.0.0, flags: D"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{{ total_routes }} routes using {{ memory_bytes }} bytes of memory
+{{ total_groups }} groups, {{ avg_sources_per_group }} average sources per group
+
+<group name="groups*">
+Group: {{ group }}, Source count: {{ source_count }}, Packets forwarded: {{ pkts_fwd }}, Packets received: {{ pkts_rcvd }}
+  RP-tree: {{ rp_fwd }}/{{ rp_pps }}/{{ rp_avg_size }}/{{ rp_kbps }}, Other: {{ rp_total }}/{{ rp_rpf_fail }}/{{ rp_drops }}
+<group name="sources*">
+  Source: {{ source }}, Forwarding: {{ fwd_pkt }}/{{ fwd_pps }}/{{ fwd_avg_size }}/{{ fwd_kbps }}, Other: {{ tot_pkt }}/{{ rpf_fail }}/{{ drops }}
+</group>
+</group>

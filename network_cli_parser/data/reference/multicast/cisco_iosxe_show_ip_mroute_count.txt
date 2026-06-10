@@ -1,0 +1,16 @@
+CSR1K# show ip mroute count
+IP Multicast Statistics
+4 routes using 1600 bytes of memory
+2 groups, 1.00 average sources per group
+Forwarding Counts: Pkt Count/Pkts per second/Avg Pkt Size/Kilobits per second
+Other counts: Total/RPF failed/Other drops(OIF-null, rate-limit etc)
+
+Group: 239.1.2.3, Source count: 1, Packets forwarded: 12450, Packets received: 12450
+  RP-tree: 0/0/0/0, Other: 0/0/0
+  Source: 192.168.1.100/32, Forwarding: 12450/125/1400/1400, Other: 12450/0/0
+
+Group: 225.0.0.1, Source count: 1, Packets forwarded: 87300, Packets received: 87300
+  RP-tree: 0/0/0/0, Other: 0/0/0
+  Source: 10.1.1.1/32, Forwarding: 87300/875/1400/9800, Other: 87300/0/0
+
+CSR1K#

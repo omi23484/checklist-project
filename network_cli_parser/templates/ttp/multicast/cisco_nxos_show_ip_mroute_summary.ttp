@@ -1,0 +1,6 @@
+IP Multicast Routing Table for VRF "{{ vrf }}"
+Total number of routes: {{ total_routes }}
+Total number of (*,G) routes: {{ star_g_routes }}
+Total number of (S,G) routes: {{ s_g_routes }}
+Total number of (*,G-prefix) routes: {{ star_g_prefix_routes }}
+Group count: {{ group_count }}, rough average sources per group: {{ avg_sources }}

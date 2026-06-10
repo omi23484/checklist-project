@@ -1,0 +1,3 @@
+<group name="routes*">
+({{ source | re("[^,]+") }}, {{ group | re("[^)]+") }}), {{ uptime | re("[^/]+") }}/{{ expires }}, {{ route_info | re(".+") }}
+</group>

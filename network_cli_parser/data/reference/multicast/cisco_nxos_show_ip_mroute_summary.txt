@@ -1,0 +1,9 @@
+N9K-CAMA-WAN-1# show ip mroute summary
+IP Multicast Routing Table for VRF "default"
+Total number of routes: 5
+Total number of (*,G) routes: 3
+Total number of (S,G) routes: 2
+Total number of (*,G-prefix) routes: 0
+Group count: 3, rough average sources per group: 0.7
+
+N9K-CAMA-WAN-1#

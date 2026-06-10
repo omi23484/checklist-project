@@ -1,0 +1,54 @@
+{
+  "groups": [
+    {
+      "rp_fwd": "0",
+      "rp_pps": "0",
+      "rp_avg_size": "0",
+      "rp_kbps": "0",
+      "rp_total": "0",
+      "rp_rpf_fail": "0",
+      "rp_drops": "0",
+      "group": "239.1.2.3",
+      "source_count": "1",
+      "pkts_fwd": "12450",
+      "pkts_rcvd": "12450",
+      "sources": [
+        {
+          "source": "192.168.1.100/32",
+          "fwd_pkt": "12450",
+          "fwd_pps": "125",
+          "fwd_avg_size": "1400",
+          "fwd_kbps": "1400",
+          "tot_pkt": "12450",
+          "rpf_fail": "0",
+          "drops": "0"
+        }
+      ]
+    },
+    {
+      "rp_fwd": "0",
+      "rp_pps": "0",
+      "rp_avg_size": "0",
+      "rp_kbps": "0",
+      "rp_total": "0",
+      "rp_rpf_fail": "0",
+      "rp_drops": "0",
+      "group": "225.0.0.1",
+      "source_count": "1",
+      "pkts_fwd": "87300",
+      "pkts_rcvd": "87300",
+      "sources": [
+        {
+          "source": "10.1.1.1/32",
+          "fwd_pkt": "87300",
+          "fwd_pps": "875",
+          "fwd_avg_size": "1400",
+          "fwd_kbps": "9800",
+          "tot_pkt": "87300",
+          "rpf_fail": "0",
+          "drops": "0"
+        }
+      ]
+    }
+  ]
+}
