@@ -96,8 +96,10 @@ def validate_checks(checks: list, source: str = "") -> list[str]:
                         f"[WARN] {pos}: unknown condition {cond!r} "
                         f"(known: {', '.join(sorted(_VALID_CONDITIONS))})"
                     )
-                if "value" not in check and cond not in ("one_of", "not_one_of"):
+                if "value" not in check:
                     errors.append(f"{pos}: condition {cond!r} requires a 'value' field")
+                elif cond in ("one_of", "not_one_of") and not isinstance(check.get("value"), list):
+                    errors.append(f"{pos}: condition {cond!r} requires 'value' to be a list")
 
             if has_conditions:
                 for j, spec in enumerate(check.get("conditions", [])):
@@ -111,6 +113,32 @@ def validate_checks(checks: list, source: str = "") -> list[str]:
                         )
                     if "value" not in spec:
                         errors.append(f"{pos}: conditions[{j}]: missing 'value'")
+
+        if is_cross_check:
+            cc = check.get("cross_check")
+            if not isinstance(cc, dict):
+                errors.append(f"{pos}: cross_check must be a dict with 'if' and 'then'")
+            else:
+                if not isinstance(cc.get("if"), dict):
+                    errors.append(f"{pos}: cross_check missing 'if' dict")
+                then_spec = cc.get("then")
+                if not isinstance(then_spec, dict):
+                    errors.append(f"{pos}: cross_check missing 'then' dict")
+                elif not isinstance(then_spec.get("assert"), dict):
+                    errors.append(f"{pos}: cross_check 'then' missing 'assert' dict")
+
+        if "branches" in check:
+            branches = check.get("branches")
+            if not isinstance(branches, list):
+                errors.append(f"{pos}: branches must be a list")
+            else:
+                for j, b in enumerate(branches):
+                    if not isinstance(b, dict):
+                        errors.append(f"{pos}: branches[{j}]: expected a dict")
+                    elif "when" in b and not isinstance(b.get("then"), dict):
+                        errors.append(f"{pos}: branches[{j}]: 'when' without a 'then' dict")
+                    elif "when" not in b and "default" not in b:
+                        errors.append(f"{pos}: branches[{j}]: needs 'when'+'then' or 'default'")
 
         skip_spec = check.get("skip_if")
         if skip_spec is not None:
@@ -163,12 +191,17 @@ def evaluate_checks(snapshot: dict, checks: list[dict],
         tag_set = set(tags)
         checks = [c for c in checks if set(c.get("tags", [])) & tag_set]
 
-    results = [_run_check(c, commands, metadata, baseline_commands) for c in checks]
+    results = [_safe_run_check(c, commands, metadata, baseline_commands) for c in checks]
 
     passed  = sum(1 for r in results if r["status"] == "pass")
     failed  = sum(1 for r in results if r["status"] == "fail")
     errored = sum(1 for r in results if r["status"] == "error")
     skipped = sum(1 for r in results if r["status"] == "skip")
+
+    def _sev(r):
+        s = r.get("severity", "critical")
+        # unknown severities gate the exit code like critical rather than vanishing
+        return s if s in ("critical", "warn", "info") else "critical"
 
     return {
         "metadata": snapshot.get("metadata", {}),
@@ -178,12 +211,23 @@ def evaluate_checks(snapshot: dict, checks: list[dict],
             "failed":  failed,
             "error":   errored,
             "skipped": skipped,
-            "failed_critical": sum(1 for r in results if r["status"] == "fail" and r.get("severity", "critical") == "critical"),
-            "failed_warn":     sum(1 for r in results if r["status"] == "fail" and r.get("severity", "critical") == "warn"),
-            "failed_info":     sum(1 for r in results if r["status"] == "fail" and r.get("severity", "critical") == "info"),
+            "failed_critical": sum(1 for r in results if r["status"] == "fail" and _sev(r) == "critical"),
+            "failed_warn":     sum(1 for r in results if r["status"] == "fail" and _sev(r) == "warn"),
+            "failed_info":     sum(1 for r in results if r["status"] == "fail" and _sev(r) == "info"),
         },
         "results": results,
     }
+
+
+def _safe_run_check(check, commands: dict, metadata: dict, baseline_commands: dict) -> dict:
+    """One malformed check must not abort the whole run — degrade to an error result."""
+    try:
+        return _run_check(check, commands, metadata, baseline_commands)
+    except Exception as exc:
+        name = check.get("name", "(unnamed)") if isinstance(check, dict) else "(invalid)"
+        sev  = check.get("severity", "critical") if isinstance(check, dict) else "critical"
+        return _result_error(name, check if isinstance(check, dict) else {},
+                             f"Check crashed: {type(exc).__name__}: {exc}", sev)
 
 
 def _eval_skip_if(skip_spec: dict, metadata: dict) -> bool:
@@ -230,8 +274,24 @@ def _run_check(check: dict, commands: dict,
     except (KeyError, IndexError, TypeError) as exc:
         return _result_error(name, check, f"Path resolution failed: {exc}", severity)
 
-    # [*] expanding an empty list is vacuously true — no items to violate the condition
+    # count: — must run even when the path expands to 0 items ("at least N
+    # neighbors" has to FAIL when all neighbors are gone, not vacuously pass)
+    if "count" in check:
+        return _run_check_count(check, name, severity, values)
+
+    # [*] expanding an empty list is vacuously true for match: all — but an
+    # existential check (match: any) over 0 items has nothing to satisfy it,
+    # and a baseline comparison over 0 items means the values disappeared.
     if not values:
+        if check.get("match") == "any":
+            return {"name": name, "status": "fail", "severity": severity, "check": check,
+                    "failures": [{"path": path, "actual": None,
+                                  "message": f"Path '{path}' resolved to 0 items — "
+                                             f"no value can satisfy a match: any check"}]}
+        if "compare_baseline" in check:
+            return _result_error(name, check,
+                                 f"Path '{path}' resolved to 0 items in current snapshot — "
+                                 f"cannot compare against baseline", severity)
         return {
             "name":     name,
             "status":   "pass",
@@ -240,10 +300,6 @@ def _run_check(check: dict, commands: dict,
             "actual":   [],
             "note":     f"Path '{path}' resolved to 0 items (vacuously true)",
         }
-
-    # count: — assert how many items the path resolved to
-    if "count" in check:
-        return _run_check_count(check, name, severity, values)
 
     # compare_baseline: — delta check against a previous snapshot
     if "compare_baseline" in check:
@@ -362,9 +418,15 @@ def _run_metadata_check(check: dict, metadata: dict) -> dict:
 def _run_check_count(check: dict, name: str, severity: str, values: list) -> dict:
     """Assert the number of items resolved by the path."""
     count_spec = check["count"]
+    if not isinstance(count_spec, dict):
+        return _result_error(name, check, "count must be a dict with condition/value", severity)
     condition  = count_spec.get("condition", "eq")
     expected   = count_spec.get("value")
-    actual_cnt = len(values)
+    # A path-less count over a parsed list counts the rows, not "1 blob"
+    if len(values) == 1 and values[0][0] == "" and isinstance(values[0][1], (list, dict)):
+        actual_cnt = len(values[0][1])
+    else:
+        actual_cnt = len(values)
 
     ok, msg = _apply_condition(actual_cnt, condition, expected)
     if ok:
@@ -411,7 +473,16 @@ def _run_compare_baseline(check: dict, name: str, severity: str,
                 if condition.endswith("pct_lte") or condition.endswith("pct_gte") \
                         or condition.endswith("pct_lt") or condition.endswith("pct_gt"):
                     if b == 0:
-                        ok, msg = (a == 0), f"baseline is 0, cannot compute percentage"
+                        # baseline 0: no change → 0%, any change → infinite %
+                        pct = 0.0 if a == 0 else float("inf")
+                        ops = {"diff_pct_lte": pct <= float(cb_value),
+                               "diff_pct_gte": pct >= float(cb_value),
+                               "diff_pct_lt":  pct <  float(cb_value),
+                               "diff_pct_gt":  pct >  float(cb_value)}
+                        ok  = ops.get(condition, False)
+                        msg = (f"baseline is 0 — change treated as "
+                               f"{'0%' if a == 0 else 'infinite %'}, not "
+                               f"{condition.split('_', 1)[1]} {cb_value}%")
                     else:
                         pct = diff / abs(b) * 100
                         ops = {"diff_pct_lte": pct <= float(cb_value),
@@ -602,15 +673,22 @@ def _resolve_path(data: Any, path: str) -> list[tuple[str, Any]]:
 
 def _tokenize(path: str) -> list:
     tokens: list = []
-    for part in path.split("."):
+    # Split on dots that are not inside [brackets] — dict keys may contain
+    # dots (e.g. peers[10.2.240.1].state from a resolved wildcard path)
+    for part in re.split(r'\.(?![^\[]*\])', path):
         if not part:
             continue
-        m = re.match(r'^(.*?)\[(\*|\d+)\](.*)$', part)
+        m = re.match(r'^(.*?)\[([^\]]+)\](.*)$', part)
         if m:
             key, idx, rest = m.group(1), m.group(2), m.group(3)
             if key:
                 tokens.append(key)
-            tokens.append("*" if idx == "*" else int(idx))
+            if idx == "*":
+                tokens.append("*")
+            elif idx.isdigit():
+                tokens.append(int(idx))
+            else:
+                tokens.append(idx)   # literal dict key, e.g. [10.2.240.1] or [default]
             if rest:
                 tokens.extend(_tokenize(rest))
         else:

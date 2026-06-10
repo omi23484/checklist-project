@@ -95,59 +95,88 @@ def _build_transport(args):
     if args.tcp_keepalive:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
 
-    transport = paramiko.Transport(sock)
+    transport = None
+    try:
+        transport = paramiko.Transport(sock)
 
-    # ── Compression ─────────────────────────────────────────────────────────
-    if args.compress:
-        transport.use_compression(True)
+        # ── Compression ─────────────────────────────────────────────────────
+        if args.compress:
+            transport.use_compression(True)
 
-    # ── Banner / auth timeouts ───────────────────────────────────────────────
-    transport.banner_timeout = args.banner_timeout
-    transport.auth_timeout   = args.auth_timeout
-    transport.handshake_timeout = args.timeout
+        # ── Banner / auth timeouts ───────────────────────────────────────────
+        transport.banner_timeout = args.banner_timeout
+        transport.auth_timeout   = args.auth_timeout
+        transport.handshake_timeout = args.timeout
 
-    # ── Legacy / custom algorithms ───────────────────────────────────────────
-    #
-    # paramiko's preferred_* lists are set on the Transport *before* the
-    # handshake. Adding legacy entries makes them available for negotiation
-    # with old servers that don't support modern algorithms.
-    #
-    if args.legacy:
-        _prepend(transport, "preferred_kex",     _LEGACY_KEX)
-        _prepend(transport, "preferred_ciphers", _LEGACY_CIPHERS)
-        _prepend(transport, "preferred_macs",    _LEGACY_MACS)
-        _prepend(transport, "preferred_keys",    _LEGACY_HOST_KEYS)
+        # ── Legacy / custom algorithms ───────────────────────────────────────
+        #
+        # Algorithm preferences must go through Transport.get_security_options()
+        # — the SecurityOptions properties (kex/ciphers/digests/key_types) are
+        # the only supported way to change negotiation lists. Setting them
+        # raises ValueError for algorithms this paramiko build doesn't ship,
+        # so _prepend() drops those with a warning instead of crashing.
+        #
+        opts = transport.get_security_options()
+        if args.legacy:
+            _prepend(opts, "kex",       _LEGACY_KEX)
+            _prepend(opts, "ciphers",   _LEGACY_CIPHERS)
+            _prepend(opts, "digests",   _LEGACY_MACS)
+            _prepend(opts, "key_types", _LEGACY_HOST_KEYS)
 
-    if args.kex:
-        _prepend(transport, "preferred_kex", args.kex)
-    if args.cipher:
-        _prepend(transport, "preferred_ciphers", args.cipher)
-    if args.mac:
-        _prepend(transport, "preferred_macs", args.mac)
-    if args.host_key_alg:
-        _prepend(transport, "preferred_keys", args.host_key_alg)
+        if args.kex:
+            _prepend(opts, "kex", args.kex)
+        if args.cipher:
+            _prepend(opts, "ciphers", args.cipher)
+        if args.mac:
+            _prepend(opts, "digests", args.mac)
+        if args.host_key_alg:
+            _prepend(opts, "key_types", args.host_key_alg)
 
-    # ── Start SFTP subsystem handshake ───────────────────────────────────────
-    transport.start_client()
+        # ── Start SFTP subsystem handshake ───────────────────────────────────
+        transport.start_client()
 
-    # ── Host key verification ────────────────────────────────────────────────
-    server_key = transport.get_remote_server_key()
-    _verify_host_key(args, server_key, paramiko)
+        # ── Host key verification ─────────────────────────────────────────────
+        server_key = transport.get_remote_server_key()
+        _verify_host_key(args, server_key, paramiko)
 
-    # ── Authentication ───────────────────────────────────────────────────────
-    _authenticate(args, transport, paramiko)
+        # ── Authentication ────────────────────────────────────────────────────
+        _authenticate(args, transport, paramiko)
 
-    return transport
+        return transport
+    except SystemExit:
+        # sys.exit from verification/auth — close the connection before exiting
+        if transport is not None:
+            transport.close()
+        else:
+            sock.close()
+        raise
+    except Exception as exc:
+        if transport is not None:
+            transport.close()
+        else:
+            sock.close()
+        sys.exit(f"[ERROR] Connection to {args.host}:{args.port} failed: {exc}")
 
 
-def _prepend(transport, attr: str, values: list) -> None:
-    """Prepend values to a transport preferred-algorithm list (dedup, preserve order)."""
-    current = list(getattr(transport, attr, []))
+def _prepend(opts, attr: str, values: list) -> None:
+    """Prepend algorithms to a SecurityOptions list (dedup, preserve order).
+
+    Algorithms not compiled into this paramiko build raise ValueError on
+    assignment — those are skipped with a warning rather than aborting.
+    """
+    current = list(getattr(opts, attr))
+    skipped = []
     for v in reversed(values):
         if v in current:
             current.remove(v)
-        current.insert(0, v)
-    setattr(transport, attr, current)
+        candidate = [v] + current
+        try:
+            setattr(opts, attr, tuple(candidate))
+            current = candidate
+        except ValueError:
+            skipped.append(v)
+    if skipped:
+        print(f"  [WARN] not supported by this paramiko build ({attr}): {', '.join(skipped)}")
 
 
 def _verify_host_key(args, server_key, paramiko) -> None:
@@ -161,12 +190,17 @@ def _verify_host_key(args, server_key, paramiko) -> None:
         kf = Path(args.known_hosts).expanduser()
         if kf.exists():
             known.load(str(kf))
-        entry = known.lookup(args.host)
-        if entry is None:
+        if known.lookup(args.host) is None:
             known.add(args.host, server_key.get_name(), server_key)
             kf.parent.mkdir(parents=True, exist_ok=True)
             known.save(str(kf))
             print(f"  [HOST KEY] Auto-added {args.host} to {kf}")
+        elif not known.check(args.host, server_key):
+            # trust-on-first-use means VERIFY on every later connection
+            sys.exit(
+                f"[ERROR] Host key for {args.host} has CHANGED — possible MITM attack.\n"
+                f"        If the device was legitimately re-keyed, remove its entry from {kf} and retry."
+            )
         return
 
     # strict (default)
@@ -178,8 +212,9 @@ def _verify_host_key(args, server_key, paramiko) -> None:
             f"        Use --host-key-check auto-add to add it, or --host-key-check ignore to skip."
         )
     known.load(str(kf))
-    entry = known.lookup(args.host)
-    if entry is None or server_key not in entry.values():
+    # known.check() compares key bytes — works on all paramiko versions and
+    # handles hashed known_hosts entries (PKey __eq__ only exists in >= 3.2)
+    if not known.check(args.host, server_key):
         sys.exit(
             f"[ERROR] Host key verification failed for {args.host}.\n"
             f"        Run with --host-key-check auto-add once to trust this host."
@@ -194,7 +229,13 @@ def _authenticate(args, transport, paramiko) -> None:
         key_path = Path(args.key).expanduser()
         passphrase = args.key_passphrase
         pkey = _load_key(key_path, passphrase, paramiko)
-        transport.auth_publickey(username, pkey)
+        if pkey is None:
+            sys.exit(f"[ERROR] Could not load private key {key_path} "
+                     f"(wrong passphrase or unsupported key type)")
+        try:
+            transport.auth_publickey(username, pkey)
+        except paramiko.AuthenticationException:
+            sys.exit(f"[ERROR] Key authentication failed for {username} using {key_path}")
         if transport.is_authenticated():
             return
         sys.exit(f"[ERROR] Key authentication failed for {username} using {key_path}")
@@ -355,9 +396,16 @@ def fetch(args, transport) -> None:
         print(f"  {len(files)} matching file(s)")
 
         for entry in files:
-            name        = entry.filename
+            # The filename comes from the remote server — never trust it as a
+            # path. basename() strips any ../ or absolute-path components that
+            # a malicious server could use to write outside local_root.
+            name = os.path.basename(entry.filename.replace("\\", "/"))
+            if not name or name in (".", ".."):
+                print(f"  [SKIP] suspicious remote filename {entry.filename!r}")
+                total_skipped += 1
+                continue
             remote_size = entry.st_size or 0
-            remote_full = f"{remote_path.rstrip('/')}/{name}"
+            remote_full = f"{remote_path.rstrip('/')}/{entry.filename}"
             date_str    = _date_from_filename(name)
             local_dir   = local_root / date_str
             local_path  = local_dir / name
@@ -407,7 +455,7 @@ def _build_parser() -> argparse.ArgumentParser:
     conn = p.add_argument_group("Connection")
     conn.add_argument("--host",            required=True,  help="SFTP server hostname or IP")
     conn.add_argument("--port",            type=int, default=22, help="Port (default: 22)")
-    conn.add_argument("--user",            required=True,  help="Username")
+    conn.add_argument("--user", "--username", dest="user", required=True, help="Username")
     conn.add_argument("--timeout",         type=float, default=30.0,
                       help="TCP connect + handshake timeout in seconds (default: 30)")
     conn.add_argument("--banner-timeout",  type=float, default=15.0,

@@ -122,6 +122,9 @@ def _diff_list_by_key(before: list, after: list, path: str, key_field: str) -> l
 
 
 def _detect_key_field(rows: list[dict]):
+    # Mixed lists (None / str rows from partial parses) fall back to positional diff
+    if not all(isinstance(row, dict) for row in rows):
+        return None
     for field in _NATURAL_KEYS:
         if all(field in row for row in rows):
             return field

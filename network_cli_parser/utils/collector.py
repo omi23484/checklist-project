@@ -11,7 +11,8 @@ except ImportError:
 _PLATFORM_TO_DEVICE_TYPE = {
     "cisco_nxos":  "cisco_nxos_ssh",
     "cisco_ios":   "cisco_ios",
-    "cisco_iosxe": "cisco_iosxe_ssh",
+    "cisco_iosxe": "cisco_xe",   # netmiko's name for IOS-XE is cisco_xe
+    "cisco_xe":    "cisco_xe",
 }
 
 
@@ -57,6 +58,8 @@ def write_txt_dump(hostname: str, ts: str, command_outputs: dict, raw_dir: Path)
         lines.append(f"{hostname}#")
         lines.append("")
 
-    txt_path = raw_dir / f"{hostname}_{ts}.txt"
+    # hostname comes from devices.yaml — strip any path components so a
+    # value like "../x" can't write outside raw_dir
+    txt_path = raw_dir / f"{Path(hostname).name or 'device'}_{ts}.txt"
     txt_path.write_text("\n".join(lines), encoding="utf-8")
     return txt_path

@@ -40,8 +40,15 @@ from utils import html_report
 # ---------------------------------------------------------------------------
 
 def _load_json(path: str) -> dict:
-    with open(path, encoding="utf-8") as fh:
-        return json.load(fh)
+    try:
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+    except json.JSONDecodeError as exc:
+        sys.exit(f"[ERROR] {path}: invalid JSON — {exc}")
+    if not isinstance(data, dict):
+        sys.exit(f"[ERROR] {path}: expected a JSON object (snapshot/report), "
+                 f"got {type(data).__name__}")
+    return data
 
 
 def _load_checks(path: str) -> list:
@@ -224,6 +231,12 @@ def cmd_delta_all(args: argparse.Namespace) -> None:
     )
     print(f"  -> {index_path}")
 
+    # A run that compared zero devices is a failure, not a green CI result
+    matched = sum(1 for r in results if r["status"] == "matched")
+    if matched == 0:
+        print("  [ERROR] no devices matched between the two directories", file=sys.stderr)
+        sys.exit(1)
+
 
 def _print_delta_all_summary(results: list) -> None:
     header = f"  {'Device':<32} {'Status':<10} {'Added':>6} {'Removed':>8} {'Changed':>8} {'Unchanged':>10}"
@@ -331,11 +344,19 @@ def _find_baseline(baseline_dir: Path, hostname: str):
     """Find the newest baseline snapshot for hostname in baseline_dir."""
     if not baseline_dir or not baseline_dir.exists():
         return None
-    candidates = sorted(baseline_dir.glob(f"{hostname}*.json"))
+    # Exact-stem matching only: "SW1*.json" would also match SW10's files,
+    # silently comparing one device against another.
+    candidates = list(baseline_dir.glob(f"{hostname}_*.json"))
+    exact = baseline_dir / f"{hostname}.json"
+    if exact.exists():
+        candidates.append(exact)
     if not candidates:
         return None
+    # Filenames embed dates as DD-Mon-YY, which doesn't sort lexicographically
+    # — use the file's modification time to pick the newest.
+    newest = max(candidates, key=lambda p: p.stat().st_mtime)
     try:
-        with open(candidates[-1], encoding="utf-8") as fh:
+        with open(newest, encoding="utf-8") as fh:
             import json as _json
             return _json.load(fh)
     except Exception:
@@ -460,10 +481,16 @@ def cmd_health_diff(args: argparse.Namespace) -> None:
     bm = before.get("metadata", {})
     am = after.get("metadata", {})
 
-    before_map = {r["name"]: r for r in before.get("results", [])}
-    after_map  = {r["name"]: r for r in after.get("results", [])}
+    before_map = {r.get("name", f"(unnamed-{i})"): r
+                  for i, r in enumerate(before.get("results", []))}
+    after_map  = {r.get("name", f"(unnamed-{i})"): r
+                  for i, r in enumerate(after.get("results", []))}
 
     all_names = list(dict.fromkeys(list(before_map) + list(after_map)))
+
+    # Status rank: lower is worse. A move to a worse rank is a regression
+    # (covers skip→fail and fail→error, not just pass→fail).
+    _RANK = {"error": 0, "fail": 1, "skip": 2, "pass": 3}
 
     regressions = 0
     fixed       = 0
@@ -476,11 +503,11 @@ def cmd_health_diff(args: argparse.Namespace) -> None:
         br = before_map.get(name)
         ar = after_map.get(name)
         if br and ar:
-            bs, as_ = br["status"], ar["status"]
+            bs, as_ = br.get("status", "error"), ar.get("status", "error")
             if bs == as_:
                 unchanged += 1
                 change = "unchanged"
-            elif bs == "pass" and as_ != "pass":
+            elif _RANK.get(as_, 0) < _RANK.get(bs, 0):
                 regressions += 1
                 change = "regressed"
             else:
@@ -489,13 +516,12 @@ def cmd_health_diff(args: argparse.Namespace) -> None:
         elif br and not ar:
             removed += 1
             change = "removed"
-            as_    = None
+            bs, as_ = br.get("status", "error"), None
         else:
             added += 1
             change = "added"
-            bs     = None
-        diff_rows.append({"name": name, "before": bs if br else None,
-                           "after": as_ if ar else None, "change": change})
+            bs, as_ = None, ar.get("status", "error")
+        diff_rows.append({"name": name, "before": bs, "after": as_, "change": change})
 
     print(f"\nHealth diff")
     print(f"  host:   {bm.get('hostname', '?')}")
@@ -748,6 +774,10 @@ def cmd_collect(args: argparse.Namespace) -> None:
     import main as _main
     failed = []
     for dev in devices:
+        if not isinstance(dev, dict) or not dev.get("hostname"):
+            print(f"  [SKIP] device entry missing 'hostname': {dev!r}")
+            failed.append(str(dev))
+            continue
         hostname = dev["hostname"]
         platform = dev.get("platform", "cisco_ios")
         cmds     = dev.get("commands") or platform_commands.get(platform, [])
@@ -810,8 +840,11 @@ def cmd_test_template(args: argparse.Namespace) -> None:
                 sys.exit(1)
         elif ext in (".ttp", ".j2"):
             try:
-                from parsers.ttp_engine import parse_path as ttp_parse
-                rows = ttp_parse(template_path, raw_text)
+                from ttp import ttp as TTP
+                parser = TTP(data=raw_text, template=str(tpl))
+                parser.parse()
+                rows = parser.result(format="raw")[0][0]
+                rows = [] if rows == "" else rows
                 _print_template_result(template_path, "ttp", rows if isinstance(rows, list) else [rows], [])
             except Exception as exc:
                 print(f"ERROR: {exc}", file=sys.stderr)
@@ -821,21 +854,29 @@ def cmd_test_template(args: argparse.Namespace) -> None:
             sys.exit(1)
     elif getattr(args, "command", None) and getattr(args, "platform", None):
         from utils.normalization import normalize_command
-        from parsers.custom_engine import find_by_convention, parse_path
-        from parsers import ttp_engine
+        from parsers import custom_engine, ttp_engine
         norm = normalize_command(args.command)
-        tpl_path = find_by_convention(args.platform, norm)
-        if tpl_path is None:
-            tpl_path = ttp_engine.find_by_convention(args.platform, norm)
-            if tpl_path:
-                rows = ttp_engine.parse_path(tpl_path, raw_text)
-                _print_template_result(str(tpl_path), "ttp", rows if isinstance(rows, list) else [rows], [])
-                return
-        if tpl_path is None:
-            print(f"ERROR: no template found for {args.platform}/{norm}", file=sys.stderr)
-            sys.exit(1)
-        rows = parse_path(str(tpl_path), raw_text)
-        _print_template_result(str(tpl_path), "textfsm", rows, [])
+        # find_by_convention returns a template STEM, passable to parse()
+        stem = custom_engine.find_by_convention(args.platform, norm)
+        if stem is not None:
+            try:
+                rows = custom_engine.parse(stem, raw_text)
+            except Exception as exc:
+                print(f"ERROR: {exc}", file=sys.stderr)
+                sys.exit(1)
+            _print_template_result(stem, "textfsm", rows, [])
+            return
+        stem = ttp_engine.find_by_convention(args.platform, norm)
+        if stem is not None:
+            try:
+                rows = ttp_engine.parse(stem, raw_text)
+            except Exception as exc:
+                print(f"ERROR: {exc}", file=sys.stderr)
+                sys.exit(1)
+            _print_template_result(stem, "ttp", rows if isinstance(rows, list) else [rows], [])
+            return
+        print(f"ERROR: no template found for {args.platform}/{norm}", file=sys.stderr)
+        sys.exit(1)
     else:
         print("ERROR: specify --template <file> or --command + --platform", file=sys.stderr)
         sys.exit(1)
@@ -876,8 +917,8 @@ def cmd_health_trend(args: argparse.Namespace) -> None:
     for p in run_files:
         try:
             data = _load_json(str(p))
-            hostname = data.get("metadata", {}).get("hostname", p.stem)
-            ts       = data.get("metadata", {}).get("collection_time", p.stem)
+            hostname = data.get("metadata", {}).get("hostname") or p.stem
+            ts       = data.get("metadata", {}).get("collection_time") or p.stem
             trend_data.append({
                 "filename":  p.name,
                 "timestamp": ts,
@@ -945,8 +986,16 @@ def _search_parsed(data, query: str, case_sensitive: bool, path: str = "") -> li
 def cmd_search(args: argparse.Namespace) -> None:
     snap_dir       = Path(args.dir)
     query          = args.query
+    if not query or not query.strip():
+        print("ERROR: --query must not be empty", file=sys.stderr)
+        sys.exit(2)
     case_sensitive = getattr(args, "case_sensitive", False)
     cmd_filter     = getattr(args, "command", None)
+    if cmd_filter:
+        # accept either the raw command ("show ip bgp summary") or the
+        # normalized snapshot key ("show_ip_bgp_summary")
+        from utils.normalization import normalize_command
+        cmd_filter = normalize_command(cmd_filter)
     raw_only       = getattr(args, "raw_only",    False)
     parsed_only    = getattr(args, "parsed_only", False)
     context_lines  = getattr(args, "context", 0)

@@ -129,6 +129,12 @@ def _load_playbook(path: str) -> list[dict]:
                     f"{path}: line {lineno}: 'step' must be an integer, "
                     f"got {row['step']!r}"
                 )
+            # An empty cell means "use the default" — normalize here so list
+            # mode and run mode agree (run mode treated "" as enabled already)
+            if not row.get("enabled"):
+                row["enabled"] = "yes"
+            if not row.get("continue_on_error"):
+                row["continue_on_error"] = "no"
             rows.append(row)
 
     if not rows:
@@ -284,6 +290,14 @@ def main() -> None:
                     f"Summary: {ran} OK  {skipped} skipped  {failed} failed"
                 )
                 sys.exit(code)
+
+    # A filter that matched no steps means the requested work never ran —
+    # a typo'd --step 99 or --only-type bogus must not look like a green run
+    filters_given = (args.step is not None or args.from_step is not None
+                     or type_filter is not None)
+    if filters_given and ran == 0 and skipped == 0 and failed == 0:
+        print("[ERROR] no steps matched the given --step/--from-step/--only-type filters")
+        sys.exit(2)
 
     print(f"Playbook complete: {ran} OK  {skipped} skipped  {failed} failed")
     if failed:

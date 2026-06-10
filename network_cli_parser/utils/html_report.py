@@ -16,6 +16,13 @@ def _badge(cls: str, label=None) -> str:
     return f'<span class="badge {_e(cls)}">{_e(label or cls.upper())}</span>'
 
 
+def _anchor(hostname: str) -> str:
+    """HTML id/fragment-safe slug — '#' or quotes in a hostname would break
+    the href fragment or produce mismatched id attributes."""
+    import re as _re
+    return _re.sub(r'[^A-Za-z0-9_-]', '_', str(hostname))
+
+
 def _json_block(data) -> str:
     return f'<pre class="raw-output">{_e(json.dumps(data, indent=2))}</pre>'
 
@@ -704,8 +711,8 @@ def _health_check_list(results: list) -> str:
                 msgs = f.get("messages") or ([f["message"]] if f.get("message") else [])
                 reason_html = "".join(f'<div class="fr">{_e(m)}</div>' for m in msgs)
                 rows += f"""<div class="failure-row">
-  <div class="fp">{_e(f["path"])}</div>
-  <div class="fa">Actual: <span>{_e(str(f["actual"]))}</span></div>
+  <div class="fp">{_e(f.get("path", ""))}</div>
+  <div class="fa">Actual: <span>{_e(str(f.get("actual", "")))}</span></div>
   {reason_html}
 </div>"""
             extra = f'<div class="failures">{rows}</div>'
@@ -752,8 +759,9 @@ def _health_check_list(results: list) -> str:
 # ---------------------------------------------------------------------------
 
 def render_delta(report: dict, before_snap: dict, after_snap: dict) -> str:
-    b_meta = report["metadata"].get("before", {})
-    a_meta = report["metadata"].get("after",  {})
+    meta   = report.get("metadata", {})
+    b_meta = meta.get("before", {})
+    a_meta = meta.get("after",  {})
     s      = report.get("summary", {})
     hostname = b_meta.get("hostname", a_meta.get("hostname", "Unknown"))
 
@@ -828,9 +836,9 @@ def _delta_changes(changes: dict) -> str:
         diffs = data.get("diffs", [])
         rows  = "".join(
             f"""<tr>
-  <td class="dp">{_e(d["path"])}</td>
-  <td class="db">{_e_val(d["before"])}</td>
-  <td class="da">{_e_val(d["after"])}</td>
+  <td class="dp">{_e(d.get("path", ""))}</td>
+  <td class="db">{_e_val(d.get("before"))}</td>
+  <td class="da">{_e_val(d.get("after"))}</td>
 </tr>"""
             for d in diffs
         )
@@ -1000,7 +1008,7 @@ def _check_matrix(device_data: list[dict], link: bool = True) -> str:
     for check_name in check_names:
         cells = ""
         for hn, lookup in devices:
-            anchor = _e(hn.replace(" ", "_"))
+            anchor = _anchor(hn)
             status = lookup.get(check_name)
             if status is None:
                 cells += '<td class="m-na">—</td>'
@@ -1029,7 +1037,7 @@ def _device_accordion(report: dict, snapshot: dict) -> str:
     s        = report.get("summary", {})
     hostname = meta.get("hostname", "?")
     ts       = meta.get("collection_time", "")
-    anchor   = _e(hostname.replace(" ", "_"))
+    anchor   = _anchor(hostname)
 
     pass_badge = _badge("pass", f'✓ {s.get("passed", 0)} Passed')
     fail_count = s.get("failed", 0)
@@ -1110,7 +1118,7 @@ _INDEX_TABLE_CSS = """
 
 def render_delta_index(results: list[dict], before_dir: str, after_dir: str) -> str:
     total     = len(results)
-    matched   = sum(1 for r in results if r["status"] == "matched")
+    matched   = sum(1 for r in results if r.get("status") == "matched")
     unmatched = total - matched
 
     cards = _summary_cards([
@@ -1140,8 +1148,8 @@ def render_delta_index(results: list[dict], before_dir: str, after_dir: str) -> 
 def _delta_index_table(results: list[dict]) -> str:
     rows = []
     for r in results:
-        hostname = _e(r["hostname"])
-        if r["status"] == "unmatched":
+        hostname = _e(r.get("hostname", "?"))
+        if r.get("status") == "unmatched":
             side = "after only" if r.get("side") == "after-only" else "before only"
             rows.append(f"""
 <tr style="opacity:.45">
@@ -1151,11 +1159,11 @@ def _delta_index_table(results: list[dict]) -> str:
   <td style="color:var(--faint)">— no report —</td>
 </tr>""")
         else:
-            s       = r["summary"]
-            added   = len(s["commands_added"])
-            removed = len(s["commands_removed"])
-            changed = len(s["commands_changed"])
-            unch    = len(s["commands_unchanged"])
+            s       = r.get("summary") or {}
+            added   = len(s.get("commands_added",   []))
+            removed = len(s.get("commands_removed", []))
+            changed = len(s.get("commands_changed", []))
+            unch    = len(s.get("commands_unchanged", []))
             has_changes = (added + removed + changed) > 0
             row_style   = "" if has_changes else 'style="opacity:.55"'
             status_badge = _badge("changed", "CHANGED") if has_changes else _badge("clean", "CLEAN")
@@ -1187,7 +1195,9 @@ def _delta_index_table(results: list[dict]) -> str:
 
 def render_health_index(results: list[dict], snapshot_dir: str) -> str:
     total    = len(results)
-    all_pass = sum(1 for r in results if r["summary"]["failed"] == 0 and r["summary"]["error"] == 0)
+    all_pass = sum(1 for r in results
+                   if (r.get("summary") or {}).get("failed", 0) == 0
+                   and (r.get("summary") or {}).get("error", 0) == 0)
     failures = total - all_pass
 
     cards = _summary_cards([
@@ -1217,10 +1227,10 @@ def render_health_index(results: list[dict], snapshot_dir: str) -> str:
 def _health_index_table(results: list[dict]) -> str:
     rows = []
     for r in results:
-        s        = r["summary"]
-        hostname = _e(r["hostname"])
+        s        = r.get("summary") or {}
+        hostname = _e(r.get("hostname", "?"))
         ts       = _e(r.get("timestamp", "?"))
-        clean    = s["failed"] == 0 and s["error"] == 0
+        clean    = s.get("failed", 0) == 0 and s.get("error", 0) == 0
         badge    = _badge("pass", "PASS") if clean else _badge("fail", "FAIL")
         row_style = 'style="opacity:.55"' if clean else ""
         link = f'<a href="{_e(r["report_path"])}">{_e(r["report_path"])}</a>' if r.get("report_path") else "—"
@@ -1229,10 +1239,10 @@ def _health_index_table(results: list[dict]) -> str:
   <td><code>{hostname}</code></td>
   <td>{ts}</td>
   <td>{badge}</td>
-  <td>{s["total"]}</td>
-  <td style="color:var(--pass)">{s["passed"]}</td>
-  <td style="color:var(--fail)">{s["failed"]}</td>
-  <td style="color:var(--warn)">{s["error"]}</td>
+  <td>{s.get("total",  0)}</td>
+  <td style="color:var(--pass)">{s.get("passed", 0)}</td>
+  <td style="color:var(--fail)">{s.get("failed", 0)}</td>
+  <td style="color:var(--warn)">{s.get("error",  0)}</td>
   <td>{link}</td>
 </tr>""")
 
@@ -1256,9 +1266,15 @@ def render_health_diff(
     bm = before_report.get("metadata", {})
     am = after_report.get("metadata", {})
 
-    before_map = {r["name"]: r for r in before_report.get("results", [])}
-    after_map  = {r["name"]: r for r in after_report.get("results", [])}
+    before_map = {r.get("name", f"(unnamed-{i})"): r
+                  for i, r in enumerate(before_report.get("results", []))}
+    after_map  = {r.get("name", f"(unnamed-{i})"): r
+                  for i, r in enumerate(after_report.get("results", []))}
     all_names  = list(dict.fromkeys(list(before_map) + list(after_map)))
+
+    # Same rank logic as report.py cmd_health_diff: a move to a worse status
+    # (skip→fail, fail→error) is a regression, not just pass→non-pass
+    _RANK = {"error": 0, "fail": 1, "skip": 2, "pass": 3}
 
     regressions = fixed = added = removed = unchanged = 0
     rows_html   = []
@@ -1268,12 +1284,12 @@ def render_health_diff(
         ar = after_map.get(name)
 
         if br and ar:
-            bs, as_ = br["status"], ar["status"]
+            bs, as_ = br.get("status", "error"), ar.get("status", "error")
             if bs == as_:
                 unchanged += 1
                 change_badge = f'<span style="color:var(--muted)">—</span>'
                 row_cls = ""
-            elif bs == "pass" and as_ != "pass":
+            elif _RANK.get(as_, 0) < _RANK.get(bs, 0):
                 regressions += 1
                 change_badge = _badge("fail", "⬇ Regressed")
                 row_cls = ' style="background:#fff8f8"'
@@ -1283,12 +1299,12 @@ def render_health_diff(
                 row_cls = ' style="background:#f8fff8"'
         elif br and not ar:
             removed += 1
-            bs, as_ = br["status"], None
+            bs, as_ = br.get("status", "error"), None
             change_badge = _badge("removed", "✖ Removed")
             row_cls = ' style="opacity:.6"'
         else:
             added += 1
-            bs, as_ = None, ar["status"]
+            bs, as_ = None, ar.get("status", "error")
             change_badge = _badge("added", "✚ Added")
             row_cls = ""
 
