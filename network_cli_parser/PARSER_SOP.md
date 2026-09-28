@@ -187,7 +187,7 @@ Output is written to `data/json/<date>/` by default. The date is extracted from 
 | `failed` | Parser threw an exception; raw preserved |
 | `no_template` | Not in registry; auto-discovery found nothing; raw preserved |
 
-Only `parsed` status produces data that health checks can evaluate against.
+Only `parsed` status produces data that health checks can evaluate against. A check (or either side of a `cross_check`) that targets a command with status `failed`, `no_template` or `raw_only` reports **ERROR** — it never passes vacuously on missing data. (`partial` still evaluates: a template that legitimately matched zero rows, e.g. no BGP peers configured.)
 
 ---
 
@@ -1243,7 +1243,7 @@ Paths navigate the parsed JSON structure.
 | `vrfs[*].summary.total_routes` | Nested VRF → summary → total_routes |
 | `[*][*].address_family[*].pfxrcd` | Three-level wildcard (VRF → neighbor → AF) |
 
-**Empty path expansion:** If `[*]` expands to zero items, the check vacuously passes (no items violate the condition).
+**Empty path expansion:** If `[*]` expands to zero items in a *parsed* command, the check vacuously passes (no items violate the condition) — use `count:` or `match: any` when zero items should fail. A command that didn't parse at all reports ERROR instead (see §5).
 
 **Mixed-dict expansion:** When `[*]` hits a dict with both scalar values and nested dicts, scalar entries are automatically skipped — only nested dicts/lists are expanded.
 
@@ -1255,8 +1255,8 @@ Paths navigate the parsed JSON structure.
 
 | Condition | Passes when |
 |-----------|-------------|
-| `eq` | actual == expected |
-| `ne` | actual != expected |
+| `eq` | actual == expected — numeric-aware: `"10"` eq `10` passes (parsed values are strings, YAML values are often numbers) |
+| `ne` | actual != expected — numeric-aware: `"0"` ne `0` fails |
 | `gt` | actual > expected (numeric) |
 | `gte` | actual ≥ expected (numeric) |
 | `lt` | actual < expected (numeric) |
@@ -1274,8 +1274,8 @@ Paths navigate the parsed JSON structure.
 
 | Condition | Passes when | `value` must be |
 |-----------|-------------|-----------------|
-| `one_of` | actual is in the list | YAML list `[...]` |
-| `not_one_of` | actual is NOT in the list | YAML list `[...]` |
+| `one_of` | actual is in the list (numeric-aware, like `eq`) | YAML list `[...]` |
+| `not_one_of` | actual is NOT in the list (numeric-aware) | YAML list `[...]` |
 
 #### Duration comparison
 
@@ -2362,7 +2362,7 @@ Safe to forward externally (management, tickets) without exposing device config,
 
 ### Trend report (`health-trend`, `trend.html`)
 
-Written by `render_health_trend()` from a directory of historical `health --format json` runs (`--runs-dir`). One row per check, one column per run date (ascending), cell colour-coded pass/fail/error/skip/absent, with a small pass-rate sparkline per row. Shows check stability over time — useful for spotting a flaky check versus a real regression.
+Written by `render_health_trend()` from a directory of historical `health --output FILE.json` runs (`--runs-dir`). One row per check, one column per run date (ascending), cell colour-coded pass/fail/error/skip/absent, with a small pass-rate sparkline per row. Shows check stability over time — useful for spotting a flaky check versus a real regression.
 
 ### Interactive HTML filtering
 

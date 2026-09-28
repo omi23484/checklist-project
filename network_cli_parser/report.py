@@ -1232,7 +1232,7 @@ def main() -> None:
     p_trend = sub.add_parser("health-trend",
                               help="Time-series trend report across multiple health result JSON files")
     p_trend.add_argument("--runs-dir", required=True,
-                         help="Directory of health JSON files (output of 'health --format json')")
+                         help="Directory of health JSON files (output of 'health --output FILE.json')")
     p_trend.add_argument("--checks",   default=None, help="Checks YAML (for context labels; optional)")
     p_trend.add_argument("--output",   default="health_trend.html",
                          help="Output HTML file (default: health_trend.html)")
