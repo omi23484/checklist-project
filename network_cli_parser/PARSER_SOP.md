@@ -81,9 +81,9 @@ checklist-project/                        ← repository root
     ├── parsers/
     │   ├── command_mapper.py             ← loads commands.yaml; returns strategy per command
     │   ├── splitter.py                   ← splits CLI dump into {cmd: raw_output} dict
-    │   ├── ntc_engine.py                 ← wrapper around ntc-templates library
     │   ├── custom_engine.py              ← TextFSM engine + auto-discovery
-    │   └── ttp_engine.py                 ← TTP engine + auto-discovery
+    │   ├── ttp_engine.py                 ← TTP engine + auto-discovery
+    │   └── _template_lookup.py           ← shared rglob-search helper for both engines above
     │
     ├── templates/
     │   ├── custom/                       ← TextFSM templates (.textfsm)

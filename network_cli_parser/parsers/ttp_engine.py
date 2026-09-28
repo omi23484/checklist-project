@@ -2,6 +2,8 @@ from pathlib import Path
 
 from ttp import ttp as TTP
 
+from parsers import _template_lookup
+
 _TEMPLATE_DIR = Path(__file__).parent.parent / "templates" / "ttp"
 
 
@@ -15,7 +17,7 @@ def parse(template_name: str, raw: str):
     Raises FileNotFoundError if no template is found.
     Raises ttp.ttp.TTPException on template errors.
     """
-    template_path = _find_template(template_name)
+    template_path = _template_lookup.find_template(_TEMPLATE_DIR, "ttp", template_name)
     parser = TTP(data=raw, template=str(template_path))
     parser.parse()
     result = parser.result(format="raw")[0][0]
@@ -38,15 +40,4 @@ def find_by_convention(platform: str, normalized_cmd: str):
     Example: cisco_nxos_show_ip_ospf_neighbors.ttp auto-wires to
     show_ip_ospf_neighbors on cisco_nxos.
     """
-    stem = f"{platform}_{normalized_cmd}"
-    for _ in _TEMPLATE_DIR.rglob(f"{stem}.ttp"):
-        return stem
-    return None
-
-
-def _find_template(name: str) -> Path:
-    for path in _TEMPLATE_DIR.rglob(f"{name}.ttp"):
-        return path
-    raise FileNotFoundError(
-        f"TTP template not found: {name}.ttp (searched under {_TEMPLATE_DIR})"
-    )
+    return _template_lookup.find_by_convention(_TEMPLATE_DIR, "ttp", platform, normalized_cmd)

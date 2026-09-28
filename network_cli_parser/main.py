@@ -12,7 +12,9 @@ import os
 import sys
 import traceback
 
-from parsers import command_mapper, custom_engine, ntc_engine, splitter, ttp_engine
+from ntc_templates.parse import parse_output
+
+from parsers import command_mapper, custom_engine, splitter, ttp_engine
 from utils import json_builder, normalization
 
 
@@ -32,7 +34,7 @@ def _auto_discover(platform: str, normalized_cmd: str, raw: str) -> tuple[dict, 
     # we fall through so a custom TextFSM or TTP template can take over.
     denorm_cmd = normalization.denormalize_command(normalized_cmd)
     try:
-        rows = ntc_engine.parse(platform, denorm_cmd, raw)
+        rows = parse_output(platform=platform, command=denorm_cmd, data=raw)
         if rows:
             return rows, "parsed"
         # NTC found a template but matched nothing — try custom parsers next
@@ -85,7 +87,7 @@ def _parse_command(platform: str, cmd: str, raw: str) -> tuple[dict, str]:
             print(f"[WARN] ntc strategy for '{cmd}' missing 'template' key")
             return {}, "failed"
         try:
-            rows = ntc_engine.parse(platform, template, raw)
+            rows = parse_output(platform=platform, command=template, data=raw)
             status = "parsed" if rows else "partial"
             return rows, status
         except Exception:

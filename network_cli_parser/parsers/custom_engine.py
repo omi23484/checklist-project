@@ -1,6 +1,8 @@
 import textfsm
 from pathlib import Path
 
+from parsers import _template_lookup
+
 _TEMPLATE_DIR = Path(__file__).parent.parent / "templates" / "custom"
 
 
@@ -13,7 +15,7 @@ def parse(template_name: str, raw: str) -> list:
     Raises FileNotFoundError if no template is found.
     Raises textfsm.TextFSMError on template or parse errors.
     """
-    template_path = _find_template(template_name)
+    template_path = _template_lookup.find_template(_TEMPLATE_DIR, "textfsm", template_name)
     with open(template_path, encoding="utf-8") as fh:
         fsm = textfsm.TextFSM(fh)
     rows = fsm.ParseText(raw)
@@ -36,16 +38,4 @@ def find_by_convention(platform: str, normalized_cmd: str):
     templates/custom/ and it will be picked up automatically without
     any entry in commands.yaml.
     """
-    stem = f"{platform}_{normalized_cmd}"
-    for _ in _TEMPLATE_DIR.rglob(f"{stem}.textfsm"):
-        return stem
-    return None
-
-
-def _find_template(name: str) -> Path:
-    for path in _TEMPLATE_DIR.rglob(f"{name}.textfsm"):
-        return path
-    raise FileNotFoundError(
-        f"Custom TextFSM template not found: {name}.textfsm "
-        f"(searched under {_TEMPLATE_DIR})"
-    )
+    return _template_lookup.find_by_convention(_TEMPLATE_DIR, "textfsm", platform, normalized_cmd)

@@ -435,6 +435,17 @@ document.addEventListener('toggle',function(e){
 """
 
 
+def _page_header(h1: str, sub_html: str) -> str:
+    ts = _e(datetime.now().strftime("%Y-%m-%d %H:%M"))
+    return f"""<div class="page-header">
+  <div class="header-left">
+    <h1>{h1}</h1>
+    <div class="sub">{sub_html}</div>
+  </div>
+  <div class="header-right">Generated {ts}</div>
+</div>"""
+
+
 def _page(title: str, body: str) -> str:
     ts = datetime.now().strftime("%Y-%m-%d %H:%M")
     return f"""<!DOCTYPE html>
@@ -478,15 +489,7 @@ def render_health(report: dict, snapshot: dict) -> str:
     json_html = _json_outputs_section(snapshot.get("commands", {}))
 
     body = f"""
-<div class="page-header">
-  <div class="header-left">
-    <h1>Health Report</h1>
-    <div class="sub">{_e(hostname)} &nbsp;·&nbsp; {_e(ts)}</div>
-  </div>
-  <div class="header-right">
-    Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}
-  </div>
-</div>
+{_page_header("Health Report", f"{_e(hostname)} &nbsp;·&nbsp; {_e(ts)}")}
 <div class="container">
   {cards}
   <div class="sec-title">Check Results</div>
@@ -522,13 +525,7 @@ def render_health_all(device_data: list[dict], checks_file: str) -> str:
     )
 
     body = f"""
-<div class="page-header">
-  <div class="header-left">
-    <h1>Health Report</h1>
-    <div class="sub">{n_devices} device(s) &nbsp;·&nbsp; {_e(checks_name)}</div>
-  </div>
-  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
-</div>
+{_page_header("Health Report", f"{n_devices} device(s) &nbsp;·&nbsp; {_e(checks_name)}")}
 <div class="container">
   {cards}
   <div class="sec-title">Check Results Matrix</div>
@@ -807,15 +804,7 @@ def render_delta(report: dict, before_snap: dict, after_snap: dict) -> str:
     raw_html     = _delta_raw_section(changed_keys, before_cmds, after_cmds)
 
     body = f"""
-<div class="page-header">
-  <div class="header-left">
-    <h1>Delta Report</h1>
-    <div class="sub">{_e(hostname)} &nbsp;·&nbsp; {_e(b_meta.get("collection_time","?"))} → {_e(a_meta.get("collection_time","?"))}</div>
-  </div>
-  <div class="header-right">
-    Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}
-  </div>
-</div>
+{_page_header("Delta Report", f'{_e(hostname)} &nbsp;·&nbsp; {_e(b_meta.get("collection_time","?"))} → {_e(a_meta.get("collection_time","?"))}')}
 <div class="container">
   {meta_html}
   {cards}
@@ -1128,13 +1117,7 @@ def render_delta_index(results: list[dict], before_dir: str, after_dir: str) -> 
     ])
 
     body = f"""
-<div class="page-header">
-  <div class="header-left">
-    <h1>Delta-All Index</h1>
-    <div class="sub">Before: {_e(before_dir)} &nbsp;→&nbsp; After: {_e(after_dir)}</div>
-  </div>
-  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
-</div>
+{_page_header("Delta-All Index", f"Before: {_e(before_dir)} &nbsp;→&nbsp; After: {_e(after_dir)}")}
 <div class="container">
   {cards}
   <div class="sec-title">Per-Device Summary</div>
@@ -1207,13 +1190,7 @@ def render_health_index(results: list[dict], snapshot_dir: str) -> str:
     ])
 
     body = f"""
-<div class="page-header">
-  <div class="header-left">
-    <h1>Health-All Index</h1>
-    <div class="sub">Snapshots: {_e(snapshot_dir)}</div>
-  </div>
-  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
-</div>
+{_page_header("Health-All Index", f"Snapshots: {_e(snapshot_dir)}")}
 <div class="container">
   {cards}
   <div class="sec-title">Per-Device Summary</div>
@@ -1348,16 +1325,7 @@ def render_health_diff(
 </table>"""
 
     body = f"""
-<div class="page-header">
-  <div class="header-left">
-    <h1>Health Diff</h1>
-    <div class="sub">
-      {_e(bm.get("hostname", "?"))} &nbsp;·&nbsp;
-      {_e(bm.get("collection_time", "?"))} → {_e(am.get("collection_time", "?"))}
-    </div>
-  </div>
-  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
-</div>
+{_page_header("Health Diff", f'{_e(bm.get("hostname", "?"))} &nbsp;·&nbsp; {_e(bm.get("collection_time", "?"))} → {_e(am.get("collection_time", "?"))}')}
 <div class="container">
   <div class="sec-title">Summary</div>
   {cards}
@@ -1454,13 +1422,7 @@ def render_health_trend(trend_data: list[dict]) -> str:
 </div>"""
 
     body = f"""
-<div class="page-header">
-  <div class="header-left">
-    <h1>Health Trend</h1>
-    <div class="sub">{_e(subtitle)}</div>
-  </div>
-  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
-</div>
+{_page_header("Health Trend", _e(subtitle))}
 <div class="container">
   {cards}
   <div class="sec-title">Check Trend Matrix</div>
@@ -1541,13 +1503,7 @@ def render_health_simple(report: dict) -> str:
 </table>"""
 
     body = f"""
-<div class="page-header">
-  <div class="header-left">
-    <h1>Health Dashboard</h1>
-    <div class="sub">{_e(hostname)} &nbsp;·&nbsp; {_e(ts)}</div>
-  </div>
-  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
-</div>
+{_page_header("Health Dashboard", f"{_e(hostname)} &nbsp;·&nbsp; {_e(ts)}")}
 <div class="container">
   {cards}
   <div class="sec-title">Check Results</div>
@@ -1598,13 +1554,7 @@ def render_health_all_simple(device_data: list[dict]) -> str:
 </table>"""
 
     body = f"""
-<div class="page-header">
-  <div class="header-left">
-    <h1>Health Dashboard</h1>
-    <div class="sub">{n_devices} device(s)</div>
-  </div>
-  <div class="header-right">Generated {_e(datetime.now().strftime("%Y-%m-%d %H:%M"))}</div>
-</div>
+{_page_header("Health Dashboard", f"{n_devices} device(s)")}
 <div class="container">
   {cards}
   <div class="sec-title">Device Summary</div>
