@@ -13,9 +13,9 @@
 #   show ip bgp neigh * routes:       matches show_ip_bgp_neigh_10.0.0.1_routes, etc.
 #   show interface *:                 matches show_interface_gigabitethernet1/0/1, etc.
 #   show ip ospf neighbor * detail:   matches any neighbour IP
-#   Each * matches one or more non-whitespace characters — normalize_command() only
-#   collapses whitespace to '_'; it does NOT touch '.', '/', or '-', so the wildcard
-#   must match those too (real IPs like 10.0.0.1, interfaces like Gi1/0/1, etc.).
+#   Each * matches exactly ONE token. normalize_command() turns whitespace into '_'
+#   but keeps '.', '/', '-', so 10.0.0.1 and Gi1/0/1 are one token each; a command
+#   with extra words (e.g. "... peer vrf all", "... | include X") does not match.
 #   Exact entries always take precedence over wildcard entries.
 #   Wildcard entries are NOT sent to devices during 'collect' (can't run * on a device).
 #

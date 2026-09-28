@@ -1,8 +1,8 @@
-<group name="vrfs">
+<group name="vrfs*">
 BGP summary information for VRF {{ vrf }}, address family {{ afi | re(".+") }}
 BGP router identifier {{ router_id }}, local AS number {{ local_as }}
 
-<group name="neighbors">
+<group name="neighbors*">
 {{ neighbor | re("\d+\.\d+\.\d+\.\d+") }}  {{ version }}  {{ remote_as }}  {{ msg_rcvd }}  {{ msg_sent }}  {{ tbl_ver }}  {{ inq }}  {{ outq }}  {{ updown }}  {{ state_pfx }}
 </group>
 

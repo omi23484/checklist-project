@@ -11,9 +11,10 @@ Wildcard keys:
   Use * in a commands.yaml key to match any variable part (IP, interface, VRF).
   Example: "show ip bgp neigh * routes" matches the normalized command
   "show_ip_bgp_neigh_10.0.0.1_routes" and any other variant.
-  Each * matches one or more non-whitespace characters — normalize_command()
-  only collapses whitespace to '_', it does NOT touch '.', '/', or '-', so a
-  wildcard must match those too (real IPs, interface names, hyphenated tokens).
+  Each * matches exactly one normalized token ([^_]+). normalize_command()
+  turns whitespace into '_' but leaves '.', '/', '-' alone, so an IP (10.0.0.1)
+  or interface (gi1/0/1) is one token, while extra words (vrf_all, a pipe
+  suffix like _include) are extra tokens and do not match.
   Exact entries always take precedence over wildcard entries.
   Wildcard entries are excluded from 'collect' command lists.
 """
@@ -63,12 +64,11 @@ def _load_registry(yaml_path: Path) -> tuple[dict, dict]:
             norm_key = normalize_command(str(raw_cmd))
             strat    = strategy if strategy is not None else {"parser": "raw_only"}
             if "*" in norm_key:
-                # Build a regex: each * → one or more non-whitespace chars.
-                # normalize_command() only collapses whitespace to '_' — it does NOT
-                # touch '.', '/', or '-', so a wildcard covering a real IP address
-                # (10.0.0.1), interface name (Gi1/0/1), or hyphenated token (sa-cache)
-                # must match those characters too, not just [a-z0-9_].
-                regex_str = "[^\\s]+".join(re.escape(part) for part in norm_key.split("*"))
+                # Each * matches exactly one normalized token: '_' is the token
+                # separator (normalize_command turns whitespace into it), while '.',
+                # '/', '-' stay inside a token -- so 10.0.0.1 and gi1/0/1 match, but
+                # extra tokens (vrf_all, advertised-sa, a pipe suffix) do not.
+                regex_str = "[^_]+".join(re.escape(part) for part in norm_key.split("*"))
                 wc_list.append((re.compile("^" + regex_str + "$"), strat))
             else:
                 if norm_key in normalized:

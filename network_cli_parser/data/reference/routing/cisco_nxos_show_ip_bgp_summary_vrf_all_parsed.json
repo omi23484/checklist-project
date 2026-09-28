@@ -1,0 +1,56 @@
+{
+  "vrfs": [
+    {
+      "router_id": "10.0.0.1",
+      "local_as": "65001",
+      "vrf": "default",
+      "afi": "IPv4 Unicast",
+      "neighbors": [
+        {
+          "neighbor": "10.0.1.2",
+          "version": "4",
+          "remote_as": "65002",
+          "msg_rcvd": "14523",
+          "msg_sent": "14521",
+          "tbl_ver": "218",
+          "inq": "0",
+          "outq": "0",
+          "updown": "5w2d",
+          "state_pfx": "142"
+        },
+        {
+          "neighbor": "10.0.1.6",
+          "version": "4",
+          "remote_as": "65003",
+          "msg_rcvd": "14485",
+          "msg_sent": "14482",
+          "tbl_ver": "218",
+          "inq": "0",
+          "outq": "0",
+          "updown": "5w1d",
+          "state_pfx": "158"
+        }
+      ]
+    },
+    {
+      "router_id": "192.168.1.1",
+      "local_as": "65001",
+      "vrf": "MGMT",
+      "afi": "IPv4 Unicast",
+      "neighbors": [
+        {
+          "neighbor": "192.168.1.254",
+          "version": "4",
+          "remote_as": "65099",
+          "msg_rcvd": "420",
+          "msg_sent": "418",
+          "tbl_ver": "4",
+          "inq": "0",
+          "outq": "0",
+          "updown": "3w1d",
+          "state_pfx": "2"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+TEST-N9K-1# show ip bgp summary vrf all
+BGP summary information for VRF default, address family IPv4 Unicast
+BGP router identifier 10.0.0.1, local AS number 65001
+BGP table version is 218, IPv4 Unicast config peers 2, capable peers 2
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+10.0.1.2        4 65002   14523   14521      218    0    0 5w2d             142
+10.0.1.6        4 65003   14485   14482      218    0    0 5w1d             158
+
+BGP summary information for VRF MGMT, address family IPv4 Unicast
+BGP router identifier 192.168.1.1, local AS number 65001
+BGP table version is 4, IPv4 Unicast config peers 1, capable peers 1
+
+Neighbor        V    AS MsgRcvd MsgSent   TblVer  InQ OutQ Up/Down  State/PfxRcd
+192.168.1.254   4 65099     420     418        4    0    0 3w1d               2
+
+TEST-N9K-1#

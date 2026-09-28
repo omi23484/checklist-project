@@ -1,0 +1,20 @@
+{
+  "neighbors": [
+    {
+      "neighbor_id": "10.0.2.2",
+      "priority": "1",
+      "state": "FULL/ -",
+      "uptime": "5w2d",
+      "address": "10.0.2.2",
+      "interface": "Eth1/1"
+    },
+    {
+      "neighbor_id": "10.0.2.6",
+      "priority": "1",
+      "state": "2WAY/DROTHER",
+      "uptime": "00:03:42",
+      "address": "10.0.2.6",
+      "interface": "Eth1/2"
+    }
+  ]
+}
