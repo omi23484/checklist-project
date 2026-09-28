@@ -1,0 +1,16 @@
+<group name="process">
+ Routing Process {{ process_id }} with ID {{ router_id }} VRF {{ vrf }}
+ Administrative distance {{ admin_distance }}
+ Reference Bandwidth is {{ reference_bandwidth }} Mbps
+ SPF schedule delay {{ spf_delay_msecs }} msecs, hold time between two SPFs {{ spf_hold_msecs }} msecs
+ Number of external LSAs {{ external_lsa_count }}, checksum sum {{ external_lsa_checksum }}
+ Number of areas is {{ area_count }}, {{ normal_area_count }} normal, {{ stub_area_count }} stub, {{ nssa_area_count }} nssa
+<group name="areas*">
+    Area ({{ area_id }}) ({{ area_state }})
+        Area has existed for {{ area_uptime }}
+        Interfaces in this area: {{ interface_count }}  Active interfaces: {{ active_interface_count }}
+        Nbrs in this area: {{ nbr_count }}   Nbrs Full in this area: {{ nbr_full_count }}
+        SPF calculation has run {{ spf_run_count }} times
+        Number of LSAs: {{ lsa_count }}, checksum sum {{ lsa_checksum }}
+</group>
+</group>

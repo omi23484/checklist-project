@@ -1,0 +1,14 @@
+{
+  "vpc_role": {
+    "peer_config_role_priority": "101",
+    "peer_role_priority": "101",
+    "peer_system_mac": "8c:60:4f:27:23:42",
+    "local_config_role_priority": "100",
+    "local_role_priority": "100",
+    "local_system_mac": "54:7f:ee:de:c4:42",
+    "system_priority": "32667",
+    "system_mac": "00:23:04:ee:be:64",
+    "dual_active_detection_status": "0",
+    "role": "primary"
+  }
+}

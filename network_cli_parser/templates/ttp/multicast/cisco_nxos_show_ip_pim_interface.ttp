@@ -3,4 +3,3 @@ PIM Interface Status for VRF "{{ vrf }}"
 <group name="interfaces*">
 {{ interface }}                {{ ip_address }}       {{ dr_address }}         {{ nbr_count }}          {{ border }}
 </group>
-</output>

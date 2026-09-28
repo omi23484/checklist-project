@@ -1,0 +1,19 @@
+N9K-CAMA-WAN-1# show vpc consistency-parameters global
+Legend:
+        Type 1 : vPC will be suspended in case of mismatch
+
+Name                          Type  Local Value                Peer Value
+-----------------------------  ----  -------------------------  -------------------------
+QoS                            2     ([],[],[],[],[],[])        ([],[],[],[],[],[])
+Network QoS (MTU)              2     (1538,0,0,0,0,0,0)         (1538,0,0,0,0,0,0)
+Network QoS (Pause)            2     (F,F,F,F,F,F,F,F)          (F,F,F,F,F,F,F,F)
+STP Mode                       1     Rapid-PVST                 Rapid-PVST
+STP Disable                    1     No                         No
+STP MST Simulate PVST          1     Enabled                    Enabled
+STP Bridge Assurance           1     Enabled                    Enabled
+STP Loopguard                  1     Disabled                   Disabled
+Interface-vlan admin up        2     1,10-20                    1,10-20
+Allowed VLANs                  -     1,10-20,100-110            1,10-20,100-110
+Local suspended VLANs          -     -                          -
+
+N9K-CAMA-WAN-1#

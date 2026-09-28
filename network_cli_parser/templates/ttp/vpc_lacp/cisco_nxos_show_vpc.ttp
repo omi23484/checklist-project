@@ -21,7 +21,5 @@ id   Port   Status Active vlans{{ ignore(".*") }}
 </group>
 
 <group name="vpcs*">
-vPC status{{ ignore(".*") }}
-id   Port   Status Consistency Reason                    Active vlans{{ ignore(".*") }}
 {{ id | re("\d+") }}   {{ port | re("Po\d+") }}   {{ status }}     {{ consistency }}     {{ reason | re(".+?") }}  {{ active_vlans | re("[\d,\-]+") }}
 </group>

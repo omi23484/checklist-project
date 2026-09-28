@@ -1,0 +1,12 @@
+<group name="vpc_role">
+vPC role                        : {{ role }}
+Dual Active Detection Status    : {{ dual_active_detection_status }}
+vPC system-mac                  : {{ system_mac }}
+vPC system-priority             : {{ system_priority }}
+vPC local system-mac            : {{ local_system_mac }}
+vPC local role-priority         : {{ local_role_priority }}
+vPC local config role-priority  : {{ local_config_role_priority }}
+vPC peer system-mac             : {{ peer_system_mac }}
+vPC peer role-priority          : {{ peer_role_priority }}
+vPC peer config role-priority   : {{ peer_config_role_priority }}
+</group>

@@ -1,0 +1,29 @@
+N9K-CAMA-WAN-1# show ip ospf
+ Routing Process 100 with ID 10.100.1.1 VRF default
+ Stateful High Availability enabled
+ Supports only single TOS(TOS0) routes
+ Supports opaque LSA
+ Administrative distance 110
+ Reference Bandwidth is 40000 Mbps
+ SPF schedule delay 200.000 msecs, hold time between two SPFs 1000.000 msecs
+ Minimum LSA interval 5 secs
+ Minimum LSA arrival 1000 msecs
+ LSA group pacing timer 10 secs
+ Maximum paths to destination 8
+ Number of external LSAs 0, checksum sum 0
+ Number of opaque AS LSAs 0, checksum sum 0
+ Number of areas is 1, 1 normal, 0 stub, 0 nssa
+ Number of active areas is 1, 1 normal, 0 stub, 0 nssa
+ Install discard route for summarized external routes.
+ Install discard route for summarized internal routes.
+    Area (0.0.0.0) (Active)
+        Area has existed for 3w2d
+        Interfaces in this area: 4  Active interfaces: 4
+        Passive interfaces: 0
+        Nbrs in this area: 3   Nbrs Full in this area: 3
+        SPF calculation has run 42 times
+        Last SPF ran for 0.000123s
+        Area ranges are
+        Number of LSAs: 12, checksum sum 0x4a3b2c
+
+N9K-CAMA-WAN-1#

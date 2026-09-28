@@ -1,0 +1,15 @@
+N9K-CAMA-WAN-1# show vpc role
+vPC Role status
+----------------------------------------------------
+vPC role                        : primary
+Dual Active Detection Status    : 0
+vPC system-mac                  : 00:23:04:ee:be:64
+vPC system-priority             : 32667
+vPC local system-mac            : 54:7f:ee:de:c4:42
+vPC local role-priority         : 100
+vPC local config role-priority  : 100
+vPC peer system-mac             : 8c:60:4f:27:23:42
+vPC peer role-priority          : 101
+vPC peer config role-priority   : 101
+
+N9K-CAMA-WAN-1#

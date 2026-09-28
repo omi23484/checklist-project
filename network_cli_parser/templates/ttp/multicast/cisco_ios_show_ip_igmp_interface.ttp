@@ -15,4 +15,3 @@
   Multicast designated router (DR) is {{ dr_address | re("[^\n(]+") }}
   IGMP querying router is {{ querier_router | re(".+") }}
 </group>
-</output>

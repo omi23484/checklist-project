@@ -1,0 +1,82 @@
+{
+  "parameters": [
+    {
+      "name": "        Type",
+      "type": "1",
+      "local_value": ":",
+      "peer_value": "vPC will be suspended in case of mismatch"
+    },
+    {
+      "name": "-----------------------------",
+      "type": "----",
+      "local_value": "-------------------------",
+      "peer_value": "-------------------------"
+    },
+    {
+      "name": "QoS",
+      "type": "2",
+      "local_value": "([],[],[],[],[],[])",
+      "peer_value": "([],[],[],[],[],[])"
+    },
+    {
+      "name": "Network QoS (MTU)",
+      "type": "2",
+      "local_value": "(1538,0,0,0,0,0,0)",
+      "peer_value": "(1538,0,0,0,0,0,0)"
+    },
+    {
+      "name": "Network QoS (Pause)",
+      "type": "2",
+      "local_value": "(F,F,F,F,F,F,F,F)",
+      "peer_value": "(F,F,F,F,F,F,F,F)"
+    },
+    {
+      "name": "STP Mode",
+      "type": "1",
+      "local_value": "Rapid-PVST",
+      "peer_value": "Rapid-PVST"
+    },
+    {
+      "name": "STP Disable",
+      "type": "1",
+      "local_value": "No",
+      "peer_value": "No"
+    },
+    {
+      "name": "STP MST Simulate PVST",
+      "type": "1",
+      "local_value": "Enabled",
+      "peer_value": "Enabled"
+    },
+    {
+      "name": "STP Bridge Assurance",
+      "type": "1",
+      "local_value": "Enabled",
+      "peer_value": "Enabled"
+    },
+    {
+      "name": "STP Loopguard",
+      "type": "1",
+      "local_value": "Disabled",
+      "peer_value": "Disabled"
+    },
+    {
+      "name": "Interface-vlan admin up",
+      "type": "2",
+      "local_value": "1,10-20",
+      "peer_value": "1,10-20"
+    },
+    {
+      "name": "Allowed VLANs",
+      "type": "-",
+      "local_value": "1,10-20,100-110",
+      "peer_value": "1,10-20,100-110"
+    },
+    {
+      "name": "Local suspended VLANs",
+      "type": "-",
+      "local_value": "-",
+      "peer_value": "-"
+    }
+  ]
+}

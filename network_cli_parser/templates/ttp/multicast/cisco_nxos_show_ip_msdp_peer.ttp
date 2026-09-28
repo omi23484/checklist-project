@@ -12,4 +12,3 @@ MSDP Peer {{ peer_address }} ({{ peer_name | re("[^)]+") }}), AS {{ asn }}
   Peer ttl threshold: {{ ttl_threshold }}
   SAs learned from this peer: {{ sa_learned }}
   Input queue size: {{ input_queue | re("[^,]+") }}, Output queue size: {{ output_queue }}
-</output>

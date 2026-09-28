@@ -1,0 +1,13 @@
+<group name="process">
+ OSPF Process ID {{ process_id }} VRF {{ vrf }}
+ Total number of neighbors: {{ total_neighbors }}
+<group name="neighbors*">
+ Neighbor {{ neighbor_id }}, interface address {{ neighbor_address }}
+    In the area {{ area_id }} via interface {{ interface }}
+    Neighbor priority is {{ priority }}, State is {{ state }}, {{ state_changes }} state changes
+    DR is {{ dr }} BDR is {{ bdr }}
+    Dead timer due in {{ dead_timer }}
+    Neighbor is up for {{ uptime }}
+    Index {{ index }}, Retransmission queue length {{ retransmit_qlen }}, Number of retransmission {{ retransmit_count }}
+</group>
+</group>

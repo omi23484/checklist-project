@@ -1,4 +1,3 @@
 <group name="groups*">
 {{ group_address }}    {{ type }}     {{ interface }}     {{ uptime }}  {{ expires }}  {{ last_reporter }}
 </group>
-</output>

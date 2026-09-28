@@ -1,0 +1,49 @@
+{
+  "domain": {
+    "operational_l3_peer_router": "Disabled",
+    "auto_recovery_status": "Enabled (timeout = 240 seconds)",
+    "graceful_consistency_check": "Enabled",
+    "dual_active_excluded_vlans": "-",
+    "peer_gateway": "Enabled",
+    "num_vpcs_configured": "3",
+    "vpc_role": "primary",
+    "type2_consistency_status": "success",
+    "per_vlan_consistency_status": "success",
+    "config_consistency_status": "success",
+    "keepalive_status": "peer is alive",
+    "peer_status": "peer adjacency formed ok",
+    "vpc_domain_id": "10"
+  },
+  "peer_link": {
+    "id": "1",
+    "port": "Po1",
+    "status": "up",
+    "active_vlans": "1,10-20,100-110"
+  },
+  "vpcs": [
+    {
+      "id": "10",
+      "port": "Po10",
+      "status": "up",
+      "consistency": "success",
+      "reason": "success",
+      "active_vlans": "1,10-20"
+    },
+    {
+      "id": "11",
+      "port": "Po11",
+      "status": "up",
+      "consistency": "success",
+      "reason": "success",
+      "active_vlans": "1,100-110"
+    },
+    {
+      "id": "12",
+      "port": "Po12",
+      "status": "down",
+      "consistency": "failed",
+      "reason": "Compat check not done",
+      "active_vlans": "-"
+    }
+  ]
+}

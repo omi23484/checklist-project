@@ -1,5 +1,5 @@
 <group name="trunk_interfaces*">
-{{ port | re("\S*\d\S*") }}  {{ mode }}  {{ encapsulation | re("802\.1q|isl|negotiate") }}  {{ status | re("trunking|not-trunking") }}  {{ native_vlan | re("\d+") }}
+{{ port | re("\S*\d\S*") }}  {{ mode }}  {{ encapsulation | re("[a-z0-9.]+") }}  {{ status | re("[a-z-]+") }}  {{ native_vlan | re("\d+") }}
 </group>
 
 <group name="vlans_allowed*">
