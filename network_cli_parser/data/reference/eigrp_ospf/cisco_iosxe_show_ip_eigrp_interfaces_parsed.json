@@ -1,0 +1,31 @@
+{
+  "interfaces": [
+    {
+      "interface": "Gi0/1",
+      "peers": "1",
+      "xmit_queue_un_reliable": "0/0",
+      "srtt": "12",
+      "pacing_time_un_reliable": "0/10",
+      "multicast_flow_timer": "0",
+      "pending_routes": "0"
+    },
+    {
+      "interface": "Gi0/2",
+      "peers": "1",
+      "xmit_queue_un_reliable": "0/0",
+      "srtt": "8",
+      "pacing_time_un_reliable": "0/10",
+      "multicast_flow_timer": "0",
+      "pending_routes": "0"
+    },
+    {
+      "interface": "Lo0",
+      "peers": "0",
+      "xmit_queue_un_reliable": "0/0",
+      "srtt": "0",
+      "pacing_time_un_reliable": "0/0",
+      "multicast_flow_timer": "0",
+      "pending_routes": "0"
+    }
+  ]
+}

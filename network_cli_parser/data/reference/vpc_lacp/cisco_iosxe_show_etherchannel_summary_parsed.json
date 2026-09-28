@@ -1,0 +1,46 @@
+{
+  "summary": {
+    "num_aggregators": "2",
+    "num_channel_groups_in_use": "2"
+  },
+  "channels": [
+    {
+      "group_num": "1",
+      "port_channel": "Po1",
+      "port_channel_flags": "(SU)",
+      "protocol": "LACP",
+      "ports_raw": "Te1/0/1(P)  Te1/0/2(P)",
+      "members": [
+        {
+          "interface": "Te1/0/1",
+          "flags": "P"
+        },
+        {
+          "interface": "Te1/0/2",
+          "flags": "P"
+        }
+      ]
+    },
+    {
+      "group_num": "2",
+      "port_channel": "Po2",
+      "port_channel_flags": "(SU)",
+      "protocol": "LACP",
+      "ports_raw": "Te1/0/3(P)  Te1/0/4(P)  Te1/0/5(D)",
+      "members": [
+        {
+          "interface": "Te1/0/3",
+          "flags": "P"
+        },
+        {
+          "interface": "Te1/0/4",
+          "flags": "P"
+        },
+        {
+          "interface": "Te1/0/5",
+          "flags": "D"
+        }
+      ]
+    }
+  ]
+}

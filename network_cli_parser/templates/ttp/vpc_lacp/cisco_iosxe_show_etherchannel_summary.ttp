@@ -1,0 +1,17 @@
+<macro>
+def split_ports(data):
+    import re
+    members = []
+    for m in re.finditer(r"(\S+?)\(([A-Za-z]+)\)", data):
+        members.append({"interface": m.group(1), "flags": m.group(2)})
+    return data, {"members": members}
+</macro>
+
+<group name="summary">
+Number of channel-groups in use: {{ num_channel_groups_in_use }}
+Number of aggregators:           {{ num_aggregators }}
+</group>
+
+<group name="channels*">
+{{ group_num | re("\d+") }}      {{ port_channel | re("Po\d+") }}{{ port_channel_flags | re("\([A-Za-z]*\)") }}         {{ protocol }}      {{ ports_raw | macro("split_ports") | re(".+") }}
+</group>

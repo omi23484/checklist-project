@@ -1,0 +1,20 @@
+C9300-CORE-1#show lacp neighbor
+Flags:  S - Device is sending Slow LACPDUs   F - Device is sending Fast LACPDUs
+        A - Device is in Active mode         P - Device is in Passive mode
+
+Channel group 1 neighbors
+Partner's information:
+
+                  LACP port                        Admin       Oper    Port      Port
+Port      Flags   State      Priority    Dev ID     key         key     Number    State
+Te1/0/1     SA      bndl      32768    aabb.cc00.ee01   0x0        0x1    0x202    0x3D
+Te1/0/2     SA      bndl      32768    aabb.cc00.ee01   0x0        0x1    0x203    0x3D
+
+Channel group 2 neighbors
+Partner's information:
+
+                  LACP port                        Admin       Oper    Port      Port
+Port      Flags   State      Priority    Dev ID     key         key     Number    State
+Te1/0/3     SA      bndl      32768    aabb.cc00.ee02   0x0        0x2    0x205    0x3D
+
+C9300-CORE-1#

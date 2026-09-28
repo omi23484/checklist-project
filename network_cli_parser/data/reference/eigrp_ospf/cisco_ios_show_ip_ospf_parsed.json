@@ -1,0 +1,26 @@
+{
+  "process": {
+    "area_count": "1",
+    "normal_area_count": "1",
+    "stub_area_count": "0",
+    "nssa_area_count": "0",
+    "external_lsa_count": "3",
+    "external_lsa_checksum": "0x00A1B2",
+    "spf_hold_msecs": "10000",
+    "spf_delay_msecs": "5000",
+    "start_time": "00:00:14",
+    "time_elapsed": "3w2d",
+    "process_name": "ospf 100",
+    "router_id": "10.100.1.1",
+    "areas": [
+      {
+        "lsa_count": "24",
+        "lsa_checksum": "0x0A1B2C",
+        "spf_run_count": "28",
+        "spf_last_run": "00:12:34.512",
+        "interface_count": "3",
+        "area_id": "BACKBONE(0)"
+      }
+    ]
+  }
+}

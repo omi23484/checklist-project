@@ -1,0 +1,12 @@
+{
+  "summary": {
+    "query_stubs": "0",
+    "update_stubs": "0",
+    "interior_routes": "38",
+    "system_routes": "0",
+    "redistributed_routes": "4",
+    "total_routes": "42",
+    "head_serial_number": "87",
+    "as_number": "100"
+  }
+}

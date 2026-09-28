@@ -1,0 +1,41 @@
+{
+  "routes": [
+    {
+      "reply_count": "1",
+      "active_time": "00:02:14",
+      "query_origin": "Local origin",
+      "prefix": "172.16.50.0/24",
+      "successors": "1",
+      "fd": "Inaccessible",
+      "state": "Q",
+      "via_paths": [
+        {
+          "path": "Connected (Infinity/Infinity), Eth1/5"
+        },
+        {
+          "path": "10.1.12.2, r, Eth1/1"
+        }
+      ]
+    },
+    {
+      "reply_count": "2",
+      "active_time": "00:00:47",
+      "query_origin": "Local origin",
+      "prefix": "172.16.60.0/24",
+      "successors": "0",
+      "fd": "Inaccessible",
+      "state": "Q",
+      "via_paths": [
+        {
+          "path": "Summary (Infinity/Infinity), Null0"
+        },
+        {
+          "path": "10.1.12.2, r, Eth1/1"
+        },
+        {
+          "path": "10.1.13.3, r, Eth1/2"
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,8 @@
+<group name="summary">
 BGP routing table information for VRF {{ vrf }}, address family {{ afi | re(".+") }}
 BGP table version is {{ bgp_table_version }}, Local Router ID is {{ router_id }}
+</group>
 
 <group name="routes*">
-{{ flags | re("[^\d]+") }}{{ network }} {{ next_hop }} {{ metric }} {{ local_pref }} {{ weight }} {{ as_path | re("(?:[0-9]+\s)*") }}{{ origin | re("[ie?&amp;]") }}
+{{ flags | re("[sxSdh*>ielcarI]+") }}{{ network }} {{ next_hop }} {{ metric }} {{ local_pref }} {{ weight }} {{ as_path | re("(?:[0-9]+\s)*") | strip() }}{{ origin | re("[ie?&amp;]") }}
 </group>

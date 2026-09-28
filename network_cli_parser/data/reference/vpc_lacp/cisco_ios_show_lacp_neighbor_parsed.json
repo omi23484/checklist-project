@@ -1,0 +1,47 @@
+{
+  "channel_groups": [
+    {
+      "group_num": "1",
+      "neighbors": [
+        {
+          "port": "Gi1/0/1",
+          "flags": "SA",
+          "lacp_state": "bndl",
+          "priority": "32768",
+          "dev_id": "aabb.cc00.ff01",
+          "admin_key": "0x0",
+          "oper_key": "0x1",
+          "port_number": "0x102",
+          "port_state": "0x3D"
+        },
+        {
+          "port": "Gi1/0/2",
+          "flags": "SA",
+          "lacp_state": "bndl",
+          "priority": "32768",
+          "dev_id": "aabb.cc00.ff01",
+          "admin_key": "0x0",
+          "oper_key": "0x1",
+          "port_number": "0x103",
+          "port_state": "0x3D"
+        }
+      ]
+    },
+    {
+      "group_num": "2",
+      "neighbors": [
+        {
+          "port": "Gi1/0/3",
+          "flags": "SA",
+          "lacp_state": "bndl",
+          "priority": "32768",
+          "dev_id": "aabb.cc00.ff02",
+          "admin_key": "0x0",
+          "oper_key": "0x2",
+          "port_number": "0x105",
+          "port_state": "0x3D"
+        }
+      ]
+    }
+  ]
+}

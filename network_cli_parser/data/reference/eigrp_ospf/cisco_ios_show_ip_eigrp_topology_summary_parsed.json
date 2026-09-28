@@ -1,0 +1,13 @@
+{
+  "summary": {
+    "query_stubs": "0",
+    "update_stubs": "0",
+    "interior_routes": "15",
+    "system_routes": "0",
+    "redistributed_routes": "3",
+    "total_routes": "18",
+    "head_serial_number": "23",
+    "as_number": "100",
+    "router_id": "10.100.1.1"
+  }
+}

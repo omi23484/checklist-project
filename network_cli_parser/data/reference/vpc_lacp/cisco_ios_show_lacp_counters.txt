@@ -1,0 +1,11 @@
+C3750-ACCESS-1#show lacp counters
+                    LACPDUs         Marker          Marker Response    LACPDUs
+Port           Sent    Recv        Sent    Recv        Sent    Recv        Pkts    Err
+---------------------------------------------------------------------------------------
+Channel group: 1
+Gi1/0/1         112     110         0       0           0       0            0       0
+Gi1/0/2         108     107         0       0           0       0            0       0
+Channel group: 2
+Gi1/0/3         95      94          0       0           0       0            0       0
+
+C3750-ACCESS-1#

@@ -1,0 +1,19 @@
+CSR1K# show ip eigrp topology active
+EIGRP-IPv4 Topology Table for AS(100)/ID(10.100.1.1)
+Codes: P - Passive, A - Active, U - Update, Q - Query, R - Reply,
+       r - reply Status, s - sia Status
+
+A 172.16.50.0/24, 1 successors, FD is Inaccessible, Q
+        1 replies, active 00:01:11, query-origin: Local origin
+         via Connected (Infinity/Infinity), Loopback0
+    Remaining replies:
+         via 10.12.1.2, r, Gi0/1
+
+A 192.168.100.0/24, 0 successors, FD is Inaccessible, Q
+        2 replies, active 00:00:29, query-origin: Local origin
+         via Summary (Infinity/Infinity), Null0
+    Remaining replies:
+         via 10.12.1.2, r, Gi0/1
+         via 10.13.1.3, r, Gi0/2
+
+CSR1K#

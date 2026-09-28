@@ -1,0 +1,15 @@
+OSPF Router with ID ({{ router_id }}) (Process ID {{ process_id }})
+
+<group name="area_summary">
+  Area {{ area_id }} database summary
+<group name="lsa_types*">
+       {{ lsa_type | re("[A-Za-z0-9\-]+(?: [A-Za-z0-9\-]+)*") }}  {{ count | re("\d+") }}        {{ delete | re("\d+") }}        {{ maxage | re("\d+") }}
+</group>
+</group>
+<group name="process_summary">
+  Process {{ process_id }} database summary
+<group name="lsa_types*">
+       {{ lsa_type | re("[A-Za-z0-9\-]+(?: [A-Za-z0-9\-]+)*") }}  {{ count | re("\d+") }}        {{ delete | re("\d+") }}        {{ maxage | re("\d+") }}
+</group>
+       Non-self      {{ non_self_count | re("\d+") }}
+</group>

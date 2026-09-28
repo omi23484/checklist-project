@@ -1,0 +1,9 @@
+CSR1K# show ip eigrp topology summary
+EIGRP-IPv4 Topology Summary for AS(100)/ID(10.100.1.1)
+  Head serial number: 23
+  Number of routes: 18
+    Interior: 15  System: 0  Redistributed: 3
+  Number of update stubs: 0
+  Number of query stubs: 0
+
+CSR1K#

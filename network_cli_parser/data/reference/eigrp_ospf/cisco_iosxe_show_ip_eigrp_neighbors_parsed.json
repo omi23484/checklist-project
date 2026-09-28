@@ -1,0 +1,26 @@
+{
+  "neighbors": [
+    {
+      "handle": "1",
+      "neighbor": "10.12.1.2",
+      "interface": "Gi0/1",
+      "hold": "13",
+      "uptime": "00:14:22",
+      "srtt": "12",
+      "rto": "200",
+      "q_cnt": "0",
+      "seq_num": "45"
+    },
+    {
+      "handle": "0",
+      "neighbor": "10.13.1.3",
+      "interface": "Gi0/2",
+      "hold": "11",
+      "uptime": "3w2d",
+      "srtt": "8",
+      "rto": "200",
+      "q_cnt": "0",
+      "seq_num": "102"
+    }
+  ]
+}

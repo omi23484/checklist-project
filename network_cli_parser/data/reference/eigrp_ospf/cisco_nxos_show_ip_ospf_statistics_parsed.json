@@ -1,0 +1,47 @@
+{
+  "process": {
+    "process_id": "100",
+    "vrf": "default",
+    "areas": [
+      {
+        "area_id": "0.0.0.0",
+        "spf_run_count": "42"
+      }
+    ],
+    "spf_events": [
+      {
+        "delta_t": "00:05:12",
+        "intra": "0",
+        "d_intra": "0",
+        "summ": "0",
+        "d_summ": "0",
+        "ext": "0",
+        "d_ext": "0",
+        "total": "0",
+        "reason": "R,"
+      },
+      {
+        "delta_t": "00:03:47",
+        "intra": "0",
+        "d_intra": "1",
+        "summ": "0",
+        "d_summ": "0",
+        "ext": "0",
+        "d_ext": "0",
+        "total": "1",
+        "reason": "R, N,"
+      },
+      {
+        "delta_t": "00:01:02",
+        "intra": "1",
+        "d_intra": "0",
+        "summ": "0",
+        "d_summ": "0",
+        "ext": "0",
+        "d_ext": "0",
+        "total": "1",
+        "reason": "R,"
+      }
+    ]
+  }
+}

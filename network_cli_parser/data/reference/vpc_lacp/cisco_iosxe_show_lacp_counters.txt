@@ -1,0 +1,11 @@
+C9300-CORE-1#show lacp counters
+                    LACPDUs         Marker          Marker Response    LACPDUs
+Port           Sent    Recv        Sent    Recv        Sent    Recv        Pkts    Err
+---------------------------------------------------------------------------------------
+Channel group: 1
+Te1/0/1         214     212         0       0           0       0            0       0
+Te1/0/2         210     209         0       0           0       0            0       0
+Channel group: 2
+Te1/0/3         188     186         0       0           0       0            0       0
+
+C9300-CORE-1#

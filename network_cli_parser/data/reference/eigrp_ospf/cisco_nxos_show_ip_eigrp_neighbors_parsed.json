@@ -1,0 +1,26 @@
+{
+  "neighbors": [
+    {
+      "handle": "1",
+      "neighbor": "10.1.12.2",
+      "interface": "Eth1/1",
+      "hold": "13",
+      "uptime": "3w2d",
+      "srtt": "1",
+      "rto": "3000",
+      "q_cnt": "0",
+      "seq_num": "45"
+    },
+    {
+      "handle": "0",
+      "neighbor": "10.1.13.3",
+      "interface": "Eth1/2",
+      "hold": "12",
+      "uptime": "01:14:52",
+      "srtt": "4",
+      "rto": "3000",
+      "q_cnt": "0",
+      "seq_num": "128"
+    }
+  ]
+}

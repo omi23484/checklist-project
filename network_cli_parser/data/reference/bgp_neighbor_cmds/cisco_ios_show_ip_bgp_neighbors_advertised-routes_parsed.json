@@ -1,0 +1,39 @@
+{
+  "summary": {
+    "total_prefixes": "3",
+    "bgp_table_version": "52",
+    "router_id": "192.168.1.1"
+  },
+  "routes": [
+    {
+      "status": "*>",
+      "network": "192.168.1.0/24",
+      "next_hop": "0.0.0.0",
+      "metric": "0",
+      "local_pref": "100",
+      "weight": "32768",
+      "as_path": "",
+      "origin": "i"
+    },
+    {
+      "status": "*>",
+      "network": "192.168.2.0/24",
+      "next_hop": "0.0.0.0",
+      "metric": "0",
+      "local_pref": "100",
+      "weight": "32768",
+      "as_path": "",
+      "origin": "i"
+    },
+    {
+      "status": "*>",
+      "network": "10.20.30.0/24",
+      "next_hop": "10.0.0.5",
+      "metric": "0",
+      "local_pref": "100",
+      "weight": "0",
+      "as_path": "65010",
+      "origin": "i"
+    }
+  ]
+}

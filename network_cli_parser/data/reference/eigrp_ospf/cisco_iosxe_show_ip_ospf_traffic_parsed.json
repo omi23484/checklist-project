@@ -1,0 +1,35 @@
+{
+  "process": {
+    "router_id": "10.100.1.1",
+    "process_id": "100",
+    "received": {
+      "ls_ack": "490",
+      "ls_upd": "890",
+      "ls_req": "45",
+      "db_des": "120",
+      "hello": "10500",
+      "checksum_errors": "0",
+      "total": "12045"
+    },
+    "sent": {
+      "ls_ack": "490",
+      "ls_upd": "852",
+      "ls_req": "40",
+      "db_des": "118",
+      "hello": "10480",
+      "total": "11980"
+    },
+    "interface_queues": [
+      {
+        "interface": "GigabitEthernet0/1",
+        "hello_q": "0/0/4",
+        "router_q": "200/0/12"
+      },
+      {
+        "interface": "GigabitEthernet0/2",
+        "hello_q": "0/0/3",
+        "router_q": "200/0/9"
+      }
+    ]
+  }
+}

@@ -1,0 +1,3 @@
+<group name="interfaces*">
+{{ interface }}                {{ peers }}     {{ xmit_queue_un_reliable | re("[\d/]+") }}        {{ srtt }}      {{ pacing_time_un_reliable | re("[\d/]+") }}           {{ multicast_flow_timer }}            {{ pending_routes }}
+</group>

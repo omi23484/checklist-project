@@ -1,0 +1,40 @@
+{
+  "summary": {
+    "bgp_table_version": "128",
+    "router_id": "10.255.255.1",
+    "vrf": "default",
+    "afi": "IPv4 Unicast"
+  },
+  "routes": [
+    {
+      "flags": "*>l",
+      "network": "192.168.1.0/24",
+      "next_hop": "0.0.0.0",
+      "metric": "0",
+      "local_pref": "100",
+      "weight": "32768",
+      "as_path": "",
+      "origin": "i"
+    },
+    {
+      "flags": "*>l",
+      "network": "192.168.2.0/24",
+      "next_hop": "0.0.0.0",
+      "metric": "0",
+      "local_pref": "100",
+      "weight": "32768",
+      "as_path": "",
+      "origin": "i"
+    },
+    {
+      "flags": "*>e",
+      "network": "10.20.30.0/24",
+      "next_hop": "10.0.0.9",
+      "metric": "0",
+      "local_pref": "100",
+      "weight": "0",
+      "as_path": "65010",
+      "origin": "i"
+    }
+  ]
+}

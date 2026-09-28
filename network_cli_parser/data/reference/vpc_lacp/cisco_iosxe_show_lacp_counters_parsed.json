@@ -1,0 +1,47 @@
+{
+  "channel_groups": [
+    {
+      "group_num": "1",
+      "members": [
+        {
+          "interface": "Te1/0/1",
+          "lacpdu_sent": "214",
+          "lacpdu_recv": "212",
+          "marker_sent": "0",
+          "marker_recv": "0",
+          "marker_resp_sent": "0",
+          "marker_resp_recv": "0",
+          "pkts": "0",
+          "err": "0"
+        },
+        {
+          "interface": "Te1/0/2",
+          "lacpdu_sent": "210",
+          "lacpdu_recv": "209",
+          "marker_sent": "0",
+          "marker_recv": "0",
+          "marker_resp_sent": "0",
+          "marker_resp_recv": "0",
+          "pkts": "0",
+          "err": "0"
+        }
+      ]
+    },
+    {
+      "group_num": "2",
+      "members": [
+        {
+          "interface": "Te1/0/3",
+          "lacpdu_sent": "188",
+          "lacpdu_recv": "186",
+          "marker_sent": "0",
+          "marker_recv": "0",
+          "marker_resp_sent": "0",
+          "marker_resp_recv": "0",
+          "pkts": "0",
+          "err": "0"
+        }
+      ]
+    }
+  ]
+}

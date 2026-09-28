@@ -1,0 +1,22 @@
+CSR1K# show ip ospf traffic
+ OSPF Router ID 10.100.1.1, Process ID 100
+ Rcvd: Total 12045
+       Checksum errors 0
+       Hello 10500
+       DB des 120
+       LS req 45
+       LS upd 890
+       LS Ack 490
+ Sent: Total 11980
+       Hello 10480
+       DB des 118
+       LS req 40
+       LS upd 852
+       LS Ack 490
+  OSPF Queue Statistics
+ Interface           Hello Q Size    Router Q Size
+                      Limit/Drops/MaxSize  Limit/Drops/MaxSize
+ GigabitEthernet0/1   0/0/4                 200/0/12
+ GigabitEthernet0/2   0/0/3                 200/0/9
+
+CSR1K#

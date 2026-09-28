@@ -1,0 +1,23 @@
+<group name="process">
+ OSPF Router ID {{ router_id }}, Process ID {{ process_id }}
+<group name="received">
+ Rcvd: Total {{ total }}
+       Checksum errors {{ checksum_errors }}
+       Hello {{ hello }}
+       DB des {{ db_des }}
+       LS req {{ ls_req }}
+       LS upd {{ ls_upd }}
+       LS Ack {{ ls_ack }}
+</group>
+<group name="sent">
+ Sent: Total {{ total }}
+       Hello {{ hello }}
+       DB des {{ db_des }}
+       LS req {{ ls_req }}
+       LS upd {{ ls_upd }}
+       LS Ack {{ ls_ack }}
+</group>
+<group name="interface_queues*">
+ {{ interface }}   {{ hello_q | re("[\d/]+") }}                 {{ router_q | re("[\d/]+") }}
+</group>
+</group>

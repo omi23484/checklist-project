@@ -1,0 +1,6 @@
+<group name="channel_groups*">
+Channel group: {{ group_num }}
+<group name="members*">
+{{ interface | re("[A-Za-z]+[\d/]+") }}         {{ lacpdu_sent }}     {{ lacpdu_recv }}         {{ marker_sent }}       {{ marker_recv }}           {{ marker_resp_sent }}       {{ marker_resp_recv }}            {{ pkts }}       {{ err }}
+</group>
+</group>

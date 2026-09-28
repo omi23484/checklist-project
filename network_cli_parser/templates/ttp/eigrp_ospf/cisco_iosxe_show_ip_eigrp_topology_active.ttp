@@ -1,0 +1,7 @@
+<group name="routes*">
+A {{ prefix }}, {{ successors }} successors, FD is {{ fd }}, {{ state | re(".+") }}
+        {{ reply_count }} replies, active {{ active_time }}, query-origin: {{ query_origin | re(".+") }}
+<group name="via_paths*">
+         via {{ path | re(".+") }}
+</group>
+</group>

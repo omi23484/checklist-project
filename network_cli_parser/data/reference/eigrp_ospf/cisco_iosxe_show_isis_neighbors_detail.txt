@@ -1,0 +1,18 @@
+CSR1K# show isis neighbors detail
+Tag null:
+System Id      Type Interface     IP Address      State Holdtime Circuit Id
+IOS-RTR-2      L1   Gi0/1         10.12.1.2        UP    24       IOS-RTR-1.01
+  Area Address(es): 49.0001
+  SNPA: aabb.cc00.1200
+  State Changed: 00:14:02
+  LAN Priority: 64
+  Format: Phase V
+
+IOS-RTR-3      L2   Gi0/2         10.13.1.3        UP    27       IOS-RTR-1.02
+  Area Address(es): 49.0001
+  SNPA: aabb.cc00.1300
+  State Changed: 00:20:15
+  LAN Priority: 64
+  Format: Phase V
+
+CSR1K#
