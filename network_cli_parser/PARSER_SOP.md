@@ -409,27 +409,44 @@ For each row, three files exist per platform under `data/reference/multicast/`:
 - `{platform}_{normalized_cmd}_parsed.json` — the exact JSON that template produces against that raw file
 - the template itself: `templates/ttp/multicast/{platform}_{normalized_cmd}.ttp`
 
-**Worked example — `cisco_nxos_show_ip_mroute.ttp`:**
+**Worked example — `cisco_nxos_show_ip_mroute.ttp`** (validated against real N9K dumps in `data/raw/`; output is identical to the original hand-written Python parser it replaced):
 
 ```xml
-<group name="routes*">
-({{ source | re("[^,/]+(?:/\d+)?") }}, {{ group | re("[^)]+") }}), uptime: {{ uptime }}, {{ flags | re(".+") }}
-  Incoming interface: {{ incoming_intf }}, RPF nbr: {{ rpf_nbr | re("[\d.]+") }}, uptime: {{ rpf_uptime }}
-  Incoming interface: {{ incoming_intf }}, RPF nbr: {{ rpf_nbr | re("[\d.]+") }}
-  Outgoing interface list: (count: {{ oif_count }})
-<group name="oif_list*">
-    {{ oif_intf }}, uptime: {{ oif_uptime }}, {{ oif_flags | re(".+") }}
+<macro>
+def vrf_defaults(data):
+    data.setdefault("entries", [])
+    return data
+
+def ensure_oifs(data):
+    data.setdefault("oifs", [])
+    return data
+</macro>
+
+<group name="vrfs.{{ vrf }}" macro="vrf_defaults">
+IP Multicast Routing Table for VRF "{{ vrf }}"
+<group name="entries*" macro="ensure_oifs">
+({{ source | re("[^,]+") }},{{ group | re("[^)]+") }}), uptime: {{ uptime }}, {{ flags | re(".+") }}
+  Incoming interface: {{ incoming_interface }}, RPF nbr: {{ rpf_neighbor | re("[\\d.]+") }}, uptime: {{ rpf_uptime }}
+  Incoming interface: {{ incoming_interface }}, RPF nbr: {{ rpf_neighbor | re("[\\d.]+") }}
+<group name="oifs*">
+    {{ oif }}, uptime: {{ uptime }}, expires: {{ expires }}
+</group>
 </group>
 </group>
 ```
 
-Parses `(*, 225.1.1.1/32), uptime: 03:48:57, igmp ip pim` blocks into:
+Parses real NX-OS blocks like `(*,239.255.0.1/32), uptime: 2w3d, igmp ip pim` into a VRF-keyed structure:
 
 ```json
-{"routes": [{"source": "*", "group": "225.1.1.1/32", "uptime": "03:48:57", "flags": "igmp ip pim",
-             "incoming_intf": "Vlan101", "rpf_nbr": "10.10.1.2", "rpf_uptime": "03:48:57",
-             "oif_count": "1", "oif_list": [{"oif_intf": "Vlan102", "oif_uptime": "03:48:57", "oif_flags": "igmp"}]}]}
+{"vrfs": {"default": {"entries": [
+  {"source": "*", "group": "239.255.0.1/32", "uptime": "2w3d", "flags": "igmp ip pim",
+   "incoming_interface": "Ethernet1/1", "rpf_neighbor": "10.0.0.2",
+   "oifs": [{"oif": "Ethernet1/2", "uptime": "2w3d", "expires": "00:02:30"}]}]}}}
 ```
+
+Three techniques worth copying: `vrfs.{{ vrf }}` keys the result by the captured VRF name (so a check can path `vrfs[*].entries[*]` or `vrfs[default]...`); a `<macro>` sets `entries: []` / `oifs: []` so an empty VRF or a route with no OIFs still has the key; and NX-OS prints `(*,G)` with **no** space after the comma, unlike IOS.
+
+> **Validate against real output, not documentation samples.** The first version of this template was built from Cisco doc examples and parsed *nothing* on real N9K output (different spacing, `expires:` on OIF lines). `cisco_nxos_show_ip_mroute_count.ttp` is still built from documentation samples only — no real NX-OS capture of that command was available — so verify it against a live device before relying on it.
 
 **Two hard-won TTP lessons this template (and the rest of the multicast set) encode:**
 
@@ -511,6 +528,7 @@ Note: `show etherchannel summary`'s space-separated port-member list (`Gi1/0/1(P
 4. **The wildcard `*` must match exactly one token — no more, no less.** `normalize_command()` turns whitespace into `_` and never touches `.`, `/`, or `-`. So `[a-z0-9_]+` is too narrow (fails on the dots in `10.0.0.1` — every BGP-neighbor/MSDP-peer wildcard silently fell through to `auto_discover`), and `[^\s]+` is too wide (normalized keys contain no whitespace, so it spans `_` boundaries and `show ip msdp peer *` swallowed `show ip msdp peer vrf all`). The correct class is `[^_]+` — see `parsers/command_mapper.py::_load_registry`.
 5. **Repeating rows need the `*` list suffix on the group name.** `<group name="neighbors">` returns a **list** for 2+ matches but a **dict** for exactly one. A health check path like `neighbors[*].state` then expands the dict's *values* instead of rows, resolves to zero items, and **passes vacuously** — a single OSPF neighbor stuck in INIT passed "all neighbors FULL". Always write `<group name="neighbors*">` for anything that can repeat.
 6. **Watch sibling sections with identical row formats.** In `show ip ospf database database-summary`, the per-area and per-process tables have the same row layout, so the last area's nested group kept capturing the process rows. End each section explicitly: put `| _end_` on the last field of the terminating line (`Subtotal` / `Total`). TTP discards that line's own values, which is fine when they're just sums of the rows above.
+7. **Double the backslash in `re("...")` arguments: write `re("\\d+")`, not `re("\d+")`.** TTP evaluates filter arguments as Python string literals, so `\d`, `\S`, `\-`, `\(` are invalid escape sequences — they work today with a `DeprecationWarning` and are slated to become a hard error in a future Python. (`<macro>` blocks are real Python and should use raw strings as usual.)
 
 ---
 

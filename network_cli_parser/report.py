@@ -346,7 +346,12 @@ def _find_baseline(baseline_dir: Path, hostname: str):
         return None
     # Exact-stem matching only: "SW1*.json" would also match SW10's files,
     # silently comparing one device against another.
-    candidates = list(baseline_dir.glob(f"{hostname}_*.json"))
+    # ...and "SW1_*.json" also matches SW1_A's files, so confirm the hostname
+    # part (everything before the trailing _date) is exactly this device.
+    from utils.normalization import extract_hostname
+    import glob as _glob
+    candidates = [p for p in baseline_dir.glob(f"{_glob.escape(hostname)}_*.json")
+                  if extract_hostname(p.name) == hostname]
     exact = baseline_dir / f"{hostname}.json"
     if exact.exists():
         candidates.append(exact)

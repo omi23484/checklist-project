@@ -48,7 +48,8 @@ checks, compare snapshots, or generate any report.py subcommand output.
 
   The following placeholders are available in 'on_failure' only:
   {step}        The step number of the failed step
-  {name}        The name of the failed step
+  {name}        The name of the failed step (passed as env var PB_NAME — safe
+                inside any quotes; PB_STEP / PB_EXIT_CODE are also set)
   {exit_code}   The numeric exit code returned by the failed step
 
 ━━━ Usage ────────────────────────────────────────────────────────────────────
@@ -63,6 +64,7 @@ checks, compare snapshots, or generate any report.py subcommand output.
 
 import argparse
 import csv
+import os
 import shlex
 import subprocess
 import sys
@@ -101,6 +103,13 @@ def _build_vars() -> dict[str, str]:
         "{timestamp}": now.strftime("%Y%m%d_%H%M%S"),
         "{yesterday}": (now - timedelta(days=1)).strftime("%Y-%m-%d"),
     }
+
+
+_NAME_REF = "%PB_NAME%" if os.name == "nt" else "${PB_NAME}"
+
+
+def _is_yes(v) -> bool:
+    return str(v or "").strip().lower() in ("yes", "y", "true", "1", "on")
 
 
 def _resolve(s: str, vars_: dict[str, str]) -> str:
@@ -196,17 +205,21 @@ def _run_on_failure(hook_cmd: str, vars_: dict[str, str],
                     num: int, name: str, exit_code: int,
                     dry_run: bool = False) -> None:
     """Resolve and execute an on_failure hook.  Never raises or exits."""
+    # {name} is free text from the CSV: pass it via an env var so the shell
+    # expands it as data and never re-parses it as commands, whatever quotes
+    # the hook puts around the placeholder.
     step_vars = {
         **vars_,
         "{step}":      str(num),
-        "{name}":      name,
+        "{name}":      _NAME_REF,
         "{exit_code}": str(exit_code),
     }
     resolved = _resolve(hook_cmd, step_vars)
-    print(f"  [on_failure] $ {resolved}")
+    print(f"  [on_failure] $ {resolved}   ({_NAME_REF}={name!r})")
     if dry_run:
         return
-    result = subprocess.run(resolved, shell=True, cwd=str(SCRIPT_DIR))
+    env = {**os.environ, "PB_NAME": name, "PB_STEP": str(num), "PB_EXIT_CODE": str(exit_code)}
+    result = subprocess.run(resolved, shell=True, cwd=str(SCRIPT_DIR), env=env)
     if result.returncode != 0:
         print(f"  [on_failure] exited {result.returncode} (ignored)")
 
@@ -263,8 +276,8 @@ def main() -> None:
         print(f"  {'STEP':>4}  {'TYPE':<12}  {'EN':>2}  {'COE':>3}  {'ON_FAIL':>7}  NAME")
         print(f"  {'─'*4}  {'─'*12}  {'─'*2}  {'─'*3}  {'─'*7}  {'─'*36}")
         for row in steps:
-            en  = "Y" if row.get("enabled", "yes").lower() == "yes" else "N"
-            coe = "Y" if row.get("continue_on_error", "no").lower() == "yes" else "N"
+            en  = "Y" if _is_yes(row.get("enabled", "yes")) else "N"
+            coe = "Y" if _is_yes(row.get("continue_on_error", "no")) else "N"
             onf = "Y" if row.get("on_failure", "") else "N"
             print(f"  {row['step']:>4}  {row['type']:<12}  {en:>2}  {coe:>3}  {onf:>7}  {row['name']}")
         return
@@ -287,8 +300,8 @@ def main() -> None:
         num      = row["_step_num"]
         name     = row["name"]
         typ      = row["type"].strip().lower()
-        en       = row.get("enabled", "yes").strip().lower()
-        coe      = row.get("continue_on_error", "no").strip().lower() == "yes"
+        enabled  = _is_yes(row.get("enabled", "yes"))
+        coe      = _is_yes(row.get("continue_on_error", "no"))
         on_fail  = row.get("on_failure", "").strip()
 
         # Apply filters
@@ -299,8 +312,8 @@ def main() -> None:
         if type_filter and typ not in type_filter:
             continue
 
-        if en == "no":
-            print(f"[STEP {num:>3}]  {name}  — SKIPPED (enabled=no)")
+        if not enabled:
+            print(f"[STEP {num:>3}]  {name}  — SKIPPED (enabled={row.get('enabled', '').strip()})")
             skipped += 1
             continue
 
@@ -313,7 +326,7 @@ def main() -> None:
             ran += 1
             if args.dry_run and on_fail:
                 # Show what the hook would look like without knowing the exit code
-                step_vars = {**vars_, "{step}": str(num), "{name}": name, "{exit_code}": "<exit_code>"}
+                step_vars = {**vars_, "{step}": str(num), "{name}": _NAME_REF, "{exit_code}": "<exit_code>"}
                 print(f"  [on_failure] $ {_resolve(on_fail, step_vars)}  (if step fails)")
             print(f"  ✓ OK  ({elapsed:.1f}s)\n")
         else:

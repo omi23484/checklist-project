@@ -17,9 +17,9 @@ Operational Layer3 Peer-router    : {{ operational_l3_peer_router }}
 <group name="peer_link">
 vPC Peer-link status{{ ignore(".*") }}
 id   Port   Status Active vlans{{ ignore(".*") }}
-{{ id | re("\d+") }}    {{ port | re("Po\d+") }}    {{ status }} {{ active_vlans | re(".+") }}
+{{ id | re("\\d+") }}    {{ port | re("Po\\d+") }}    {{ status }} {{ active_vlans | re(".+") }}
 </group>
 
 <group name="vpcs*">
-{{ id | re("\d+") }}   {{ port | re("Po\d+") }}   {{ status }}     {{ consistency }}     {{ reason | re(".+?") }}  {{ active_vlans | re("[\d,\-]+") }}
+{{ id | re("\\d+") }}   {{ port | re("Po\\d+") }}   {{ status }}     {{ consistency }}     {{ reason | re(".+?") }}  {{ active_vlans | re("[\\d,\\-]+") }}
 </group>

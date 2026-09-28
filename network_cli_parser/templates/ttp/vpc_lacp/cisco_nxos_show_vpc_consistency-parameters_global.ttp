@@ -1,3 +1,3 @@
 <group name="parameters*">
-{{ name | re("(?!-)(?!\s*Type\s).+?") }} {{ type | re("[\d\-]+") }} {{ local_value }} {{ peer_value | re(".+") }}
+{{ name | re("(?!-)(?!\\s*Type\\s).+?") }} {{ type | re("[\\d\\-]+") }} {{ local_value }} {{ peer_value | re(".+") }}
 </group>

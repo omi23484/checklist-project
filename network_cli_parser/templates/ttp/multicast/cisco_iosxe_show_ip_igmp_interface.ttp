@@ -1,7 +1,7 @@
 <group name="interfaces*">
 {{ interface }} is {{ link_status | re("[^,]+") }}, line protocol is {{ line_protocol }}
   Internet address is {{ ip_address }}
-  IGMP is {{ igmp_status | re("[^\n]+") }}
+  IGMP is {{ igmp_status | re("[^\\n]+") }}
   Current IGMP version is {{ igmp_version }}
   CGMP is {{ cgmp_status | re(".+") }}
   IGMP query interval is {{ query_interval }} seconds
@@ -12,6 +12,6 @@
   IGMP activity: {{ joins }} joins, {{ leaves }} leaves
   Multicast routing is {{ mroute_status | re(".+") }}
   Multicast TTL threshold is {{ ttl_threshold }}
-  Multicast designated router (DR) is {{ dr_address | re("[^\n(]+") }}
+  Multicast designated router (DR) is {{ dr_address | re("[^\\n(]+") }}
   IGMP querying router is {{ querier_router | re(".+") }}
 </group>

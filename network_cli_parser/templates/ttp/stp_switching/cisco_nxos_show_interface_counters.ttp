@@ -1,7 +1,7 @@
 <group name="in_counters*">
-{{ port | re("\S*\d\S*") }}  {{ in_octets | re("\d+") }}  {{ in_ucast_pkts | re("\d+") }}  {{ in_mcast_pkts | re("\d+") }}  {{ in_bcast_pkts | re("\d+") }}
+{{ port | re("\\S*\\d\\S*") }}  {{ in_octets | re("\\d+") }}  {{ in_ucast_pkts | re("\\d+") }}  {{ in_mcast_pkts | re("\\d+") }}  {{ in_bcast_pkts | re("\\d+") }}
 </group>
 
 <group name="out_counters*">
-{{ port | re("\S*\d\S*") }}  {{ out_octets | re("\d+") }}  {{ out_ucast_pkts | re("\d+") }}  {{ out_mcast_pkts | re("\d+") }}  {{ out_bcast_pkts | re("\d+") }}
+{{ port | re("\\S*\\d\\S*") }}  {{ out_octets | re("\\d+") }}  {{ out_ucast_pkts | re("\\d+") }}  {{ out_mcast_pkts | re("\\d+") }}  {{ out_bcast_pkts | re("\\d+") }}
 </group>

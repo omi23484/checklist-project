@@ -157,6 +157,10 @@ def validate_checks(checks: list, source: str = "") -> list[str]:
                         f"the check will never be skipped"
                     )
 
+        if "count" in check and not isinstance(check["count"], dict):
+            errors.append(f"{pos}: 'count' must be a mapping with condition/value, "
+                          f"got {type(check['count']).__name__}")
+
         sev = check.get("severity")
         if sev and sev not in _VALID_SEVERITIES:
             warnings.append(
@@ -222,12 +226,15 @@ def evaluate_checks(snapshot: dict, checks: list[dict],
 def _safe_run_check(check, commands: dict, metadata: dict, baseline_commands: dict) -> dict:
     """One malformed check must not abort the whole run — degrade to an error result."""
     try:
-        return _run_check(check, commands, metadata, baseline_commands)
+        result = _run_check(check, commands, metadata, baseline_commands)
     except Exception as exc:
         name = check.get("name", "(unnamed)") if isinstance(check, dict) else "(invalid)"
-        sev  = check.get("severity", "critical") if isinstance(check, dict) else "critical"
-        return _result_error(name, check if isinstance(check, dict) else {},
-                             f"Check crashed: {type(exc).__name__}: {exc}", sev)
+        result = _result_error(name, check if isinstance(check, dict) else {},
+                               f"Check crashed: {type(exc).__name__}: {exc}", "critical")
+    # YAML may give severity as empty/None/int; renderers need a known string.
+    sev = str(result.get("severity") or "critical").strip().lower()
+    result["severity"] = sev if sev in _VALID_SEVERITIES else "critical"
+    return result
 
 
 def _eval_skip_if(skip_spec: dict, metadata: dict) -> bool:
@@ -269,6 +276,14 @@ def _run_check(check: dict, commands: dict,
 
     parsed = commands[cmd].get("parsed", {})
 
+    # A command that failed to parse has no rows; without this guard every
+    # [*] path resolves to 0 items and the check passes vacuously.
+    cmd_status = commands[cmd].get("status")
+    if cmd_status in _UNPARSED_STATUSES:
+        return _result_error(name, check,
+                             f"Command '{cmd}' has status '{cmd_status}' — no parsed data to check",
+                             severity)
+
     try:
         values = _resolve_path(parsed, path)
     except (KeyError, IndexError, TypeError) as exc:
@@ -303,7 +318,7 @@ def _run_check(check: dict, commands: dict,
 
     # compare_baseline: — delta check against a previous snapshot
     if "compare_baseline" in check:
-        return _run_compare_baseline(check, name, severity, cmd, path, values, baseline_commands)
+        return _run_compare_baseline(check, name, severity, cmd, path, values, baseline_commands, parsed)
 
     # Print-only: no condition/value/conditions/branches — just surface the resolved values
     is_print_only = (
@@ -438,7 +453,7 @@ def _run_check_count(check: dict, name: str, severity: str, values: list) -> dic
 
 def _run_compare_baseline(check: dict, name: str, severity: str,
                           cmd: str, path: str, values: list,
-                          baseline_commands: dict) -> dict:
+                          baseline_commands: dict, current_parsed: Any = None) -> dict:
     """Compare current values against the same path in the baseline snapshot."""
     if not baseline_commands:
         return _result_error(name, check, "compare_baseline requires --baseline snapshot", severity)
@@ -456,15 +471,20 @@ def _run_compare_baseline(check: dict, name: str, severity: str,
     except Exception as exc:
         return _result_error(name, check, f"Baseline path resolution failed: {exc}", severity)
 
-    baseline_map = {rp: v for rp, v in baseline_vals}
+    # Match rows by identity (neighbor/address/...), not list position, so a
+    # reordered or shrunken list still compares each peer against itself.
+    baseline_map = {_identity_key(baseline_parsed, rp): (rp, v) for rp, v in baseline_vals}
+    current_keys = set()
 
     failures, passes = [], []
     for resolved_path, actual in values:
-        if resolved_path not in baseline_map:
+        ident = _identity_key(current_parsed, resolved_path)
+        current_keys.add(ident)
+        if ident not in baseline_map:
             failures.append({"path": resolved_path, "actual": actual,
                              "message": f"path not found in baseline snapshot"})
             continue
-        baseline_val = baseline_map[resolved_path]
+        baseline_val = baseline_map[ident][1]
 
         if condition.startswith("diff"):
             try:
@@ -508,10 +528,32 @@ def _run_compare_baseline(check: dict, name: str, severity: str,
         (passes if ok else failures).append({"path": resolved_path, "actual": actual,
                                               "baseline": baseline_val, "message": msg})
 
+    for ident, (b_path, b_val) in baseline_map.items():
+        if ident not in current_keys:
+            failures.append({"path": b_path, "actual": None, "baseline": b_val,
+                             "message": "present in baseline, missing from current snapshot"})
+
     if failures:
         return {"name": name, "status": "fail", "severity": severity, "check": check, "failures": failures}
     return {"name": name, "status": "pass", "severity": severity, "check": check,
             "actual": [p["actual"] for p in passes]}
+
+
+def _identity_key(parsed: Any, resolved_path: str) -> tuple:
+    """Resolved path with each list index replaced by that row's natural key
+    (e.g. neighbors[1].pfx -> ('neighbors', 'B', 'pfx')). Falls back to the
+    index when a list has no unique natural key."""
+    from utils.delta import _detect_key_fields
+    node, parts = parsed, []
+    for tok in _tokenize(resolved_path):
+        if isinstance(tok, int) and isinstance(node, list) and tok < len(node):
+            kf = _detect_key_fields(node, node) if all(isinstance(r, dict) for r in node) else None
+            parts.append("/".join(str(node[tok][f]) for f in kf) if kf else tok)
+            node = node[tok]
+        else:
+            parts.append(tok)
+            node = node.get(tok) if isinstance(node, dict) else None
+    return tuple(parts)
 
 
 def _run_cross_check(check: dict, commands: dict, metadata: dict = None) -> dict:
@@ -539,6 +581,10 @@ def _run_cross_check(check: dict, commands: dict, metadata: dict = None) -> dict
         if_field = if_spec.get("field", "")
         if if_cmd not in commands:
             return _result_error(name, check, f"Command '{if_cmd}' not in snapshot", severity)
+        if commands[if_cmd].get("status") in _UNPARSED_STATUSES:
+            return _result_error(name, check,
+                                 f"IF command '{if_cmd}' has status "
+                                 f"'{commands[if_cmd].get('status')}' — no parsed data", severity)
         if_parsed = commands[if_cmd].get("parsed", {})
         try:
             if_rows = _resolve_path(if_parsed, if_spec.get("path", ""))
@@ -565,6 +611,10 @@ def _run_cross_check(check: dict, commands: dict, metadata: dict = None) -> dict
 
     if then_cmd not in commands:
         return _result_error(name, check, f"Command '{then_cmd}' not in snapshot", severity)
+    if commands[then_cmd].get("status") in _UNPARSED_STATUSES:
+        return _result_error(name, check,
+                             f"THEN command '{then_cmd}' has status "
+                             f"'{commands[then_cmd].get('status')}' — no parsed data", severity)
     then_parsed = commands[then_cmd].get("parsed", {})
     try:
         then_rows = _resolve_path(then_parsed, then_spec.get("path", ""))
@@ -834,13 +884,29 @@ def _format_print(template, path: str, value, data=None) -> str:
     return s
 
 
+_UNPARSED_STATUSES = ("failed", "no_template", "raw_only")
+
+
+def _same(a: Any, b: Any) -> bool:
+    """Equality that treats '10' and 10 as equal (parsed values are strings,
+    YAML values are often ints). Bools and non-numeric values compare exactly."""
+    if a == b:
+        return True
+    if isinstance(a, bool) or isinstance(b, bool):
+        return False
+    try:
+        return float(a) == float(b)
+    except (TypeError, ValueError):
+        return False
+
+
 def _apply_condition(actual: Any, condition: str, expected: Any) -> tuple[bool, str]:
     try:
         if condition == "eq":
-            ok = actual == expected
+            ok = _same(actual, expected)
             return ok, f"{actual!r} != {expected!r}"
         if condition == "ne":
-            ok = actual != expected
+            ok = not _same(actual, expected)
             return ok, f"{actual!r} == {expected!r} (expected not equal)"
         if condition in ("gt", "lt", "gte", "lte"):
             a, e = float(actual), float(expected)
@@ -870,12 +936,12 @@ def _apply_condition(actual: Any, condition: str, expected: Any) -> tuple[bool, 
         if condition == "one_of":
             if not isinstance(expected, list):
                 return False, f"one_of requires a list value, got {type(expected).__name__}"
-            ok = actual in expected
+            ok = any(_same(actual, e) for e in expected)
             return ok, f"{actual!r} not in {expected!r}"
         if condition == "not_one_of":
             if not isinstance(expected, list):
                 return False, f"not_one_of requires a list value, got {type(expected).__name__}"
-            ok = actual not in expected
+            ok = not any(_same(actual, e) for e in expected)
             return ok, f"{actual!r} is in {expected!r} (should not be)"
         if condition in ("len_eq", "len_ne", "len_gt", "len_gte", "len_lt", "len_lte"):
             n = len(actual)

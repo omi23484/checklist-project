@@ -1,9 +1,21 @@
-<group name="routes*">
-({{ source | re("[^,/]+(?:/\d+)?") }}, {{ group | re("[^)]+") }}), uptime: {{ uptime }}, {{ flags | re(".+") }}
-  Incoming interface: {{ incoming_intf }}, RPF nbr: {{ rpf_nbr | re("[\d.]+") }}, uptime: {{ rpf_uptime }}
-  Incoming interface: {{ incoming_intf }}, RPF nbr: {{ rpf_nbr | re("[\d.]+") }}
-  Outgoing interface list: (count: {{ oif_count }})
-<group name="oif_list*">
-    {{ oif_intf }}, uptime: {{ oif_uptime }}, {{ oif_flags | re(".+") }}
+<macro>
+def vrf_defaults(data):
+    data.setdefault("entries", [])
+    return data
+
+def ensure_oifs(data):
+    data.setdefault("oifs", [])
+    return data
+</macro>
+
+<group name="vrfs.{{ vrf }}" macro="vrf_defaults">
+IP Multicast Routing Table for VRF "{{ vrf }}"
+<group name="entries*" macro="ensure_oifs">
+({{ source | re("[^,]+") }},{{ group | re("[^)]+") }}), uptime: {{ uptime }}, {{ flags | re(".+") }}
+  Incoming interface: {{ incoming_interface }}, RPF nbr: {{ rpf_neighbor | re("[\\d.]+") }}, uptime: {{ rpf_uptime }}
+  Incoming interface: {{ incoming_interface }}, RPF nbr: {{ rpf_neighbor | re("[\\d.]+") }}
+<group name="oifs*">
+    {{ oif }}, uptime: {{ uptime }}, expires: {{ expires }}
+</group>
 </group>
 </group>

@@ -1,5 +1,5 @@
 PIM Interface Status for VRF "{{ vrf }}"
 
 <group name="interfaces*">
-{{ interface | re("[A-Za-z][\w/-]*") }}                {{ ip_address | re("[\d.]+") }}       {{ dr_address }}         {{ nbr_count }}          {{ border }}
+{{ interface | re("[A-Za-z][\\w/-]*") }}                {{ ip_address | re("[\\d.]+") }}       {{ dr_address }}         {{ nbr_count }}          {{ border }}
 </group>

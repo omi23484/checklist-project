@@ -4,5 +4,5 @@ Total number of prefixes {{ total_prefixes }}
 </group>
 
 <group name="routes*">
- {{ status }} {{ network }} {{ next_hop }} {{ metric }} {{ local_pref }} {{ weight }} {{ as_path | re("(?:[0-9]+\s)*") | strip() }}{{ origin | re("[ie?&amp;]") }}
+ {{ status }} {{ network }} {{ next_hop }} {{ metric }} {{ local_pref }} {{ weight }} {{ as_path | re("(?:[0-9]+\\s)*") | strip() }}{{ origin | re("[ie?&amp;]") }}
 </group>

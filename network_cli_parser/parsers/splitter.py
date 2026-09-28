@@ -7,7 +7,7 @@ from utils.normalization import normalize_command
 #   "N9K-DEVICE# show version"
 #   "N9K-DEVICE> show ip bgp summary vrf all"
 _COMMAND_RE = re.compile(
-    r'^(?:[\w\-\.]+[#>]\s*)?(show\s+[\w][\w\s\-\/\.]*?(?:\s*\|.*)?)$',
+    r'^(?:[\w\-\.]+[#>]\s*)?(show\s+[^\s|][^|]*?(?:\s*\|.*)?)$',
     re.IGNORECASE,
 )
 
@@ -19,7 +19,9 @@ def split_commands(content: str) -> dict:
     """
     Split a raw CLI dump into {normalized_command: raw_output_block}.
 
-    Duplicate commands get a numeric suffix: show_version, show_version_2, etc.
+    Duplicate commands get a numeric suffix: show_version, show_version__2, etc.
+    (double underscore — a normalized command never contains '__', so the mapper
+    can strip it and give the repeat the same parser as the first capture).
     The raw output block for each command preserves the original whitespace/newlines.
     """
     lines = content.splitlines()
@@ -55,4 +57,4 @@ def _store(segments: dict, counts: dict, cmd: str, output: str) -> None:
         segments[cmd] = output
     else:
         counts[cmd] += 1
-        segments[f"{cmd}_{counts[cmd]}"] = output
+        segments[f"{cmd}__{counts[cmd]}"] = output

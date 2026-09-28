@@ -1,9 +1,102 @@
 {
-  "group_count": "3",
-  "avg_sources": "0.7",
-  "star_g_prefix_routes": "0",
-  "s_g_routes": "2",
-  "star_g_routes": "3",
-  "total_routes": "5",
-  "vrf": "default"
+  "vrfs": {
+    "default": {
+      "groups": [
+        {
+          "group": "239.255.0.1/32",
+          "source_count": 2,
+          "entries": [
+            {
+              "source_type": "(*,G)",
+              "packets": 12450,
+              "bytes": 1805650,
+              "aps": 0,
+              "pps": 5,
+              "bitrate": "320.000 bps",
+              "oifs": 3
+            },
+            {
+              "source_type": "(10.1.1.100,G)",
+              "packets": 12450,
+              "bytes": 1805650,
+              "aps": 0,
+              "pps": 5,
+              "bitrate": "320.000 bps",
+              "oifs": 3
+            }
+          ]
+        },
+        {
+          "group": "239.255.0.2/32",
+          "source_count": 0,
+          "entries": [
+            {
+              "source_type": "(*,G)",
+              "packets": 0,
+              "bytes": 0,
+              "aps": 0,
+              "pps": 0,
+              "bitrate": "0.000 bps",
+              "oifs": 0
+            }
+          ]
+        },
+        {
+          "group": "232.0.0.0/8",
+          "source_count": 0,
+          "entries": [
+            {
+              "source_type": "(*,G)",
+              "packets": 0,
+              "bytes": 0,
+              "aps": 0,
+              "pps": 0,
+              "bitrate": "0.000 bps",
+              "oifs": 0
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "star_g_prefix_routes": 1,
+        "sg_routes": 2,
+        "star_g_routes": 2,
+        "total_routes": 5
+      }
+    },
+    "MCAST-VRF": {
+      "groups": [
+        {
+          "group": "239.100.0.1/32",
+          "source_count": 1,
+          "entries": [
+            {
+              "source_type": "(*,G)",
+              "packets": 5000,
+              "bytes": 725000,
+              "aps": 0,
+              "pps": 2,
+              "bitrate": "128.000 bps",
+              "oifs": 2
+            },
+            {
+              "source_type": "(192.168.10.10,G)",
+              "packets": 5000,
+              "bytes": 725000,
+              "aps": 0,
+              "pps": 2,
+              "bitrate": "128.000 bps",
+              "oifs": 2
+            }
+          ]
+        }
+      ],
+      "summary": {
+        "star_g_prefix_routes": 0,
+        "sg_routes": 1,
+        "star_g_routes": 1,
+        "total_routes": 2
+      }
+    }
+  }
 }

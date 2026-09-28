@@ -18,6 +18,6 @@
        LS Ack {{ ls_ack }}
 </group>
 <group name="interface_queues*">
- {{ interface }}   {{ hello_q | re("[\d/]+") }}                 {{ router_q | re("[\d/]+") }}
+ {{ interface }}   {{ hello_q | re("[\\d/]+") }}                 {{ router_q | re("[\\d/]+") }}
 </group>
 </group>

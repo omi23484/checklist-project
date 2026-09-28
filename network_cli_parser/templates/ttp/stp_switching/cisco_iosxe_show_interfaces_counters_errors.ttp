@@ -1,7 +1,7 @@
 <group name="error_counters*">
-{{ port | re("\S*\d\S*") }}  {{ align_err | re("\d+") }}  {{ fcs_err | re("\d+") }}  {{ xmit_err | re("\d+") }}  {{ rcv_err | re("\d+") }}  {{ undersize | re("\d+") }}  {{ out_discards | re("\d+") }}
+{{ port | re("\\S*\\d\\S*") }}  {{ align_err | re("\\d+") }}  {{ fcs_err | re("\\d+") }}  {{ xmit_err | re("\\d+") }}  {{ rcv_err | re("\\d+") }}  {{ undersize | re("\\d+") }}  {{ out_discards | re("\\d+") }}
 </group>
 
 <group name="collision_counters*">
-{{ port | re("\S*\d\S*") }}  {{ single_col | re("\d+") }}  {{ multi_col | re("\d+") }}  {{ late_col | re("\d+") }}  {{ excess_col | re("\d+") }}  {{ carri_sen | re("\d+") }}  {{ runts | re("\d+") }}  {{ giants | re("\d+") }}
+{{ port | re("\\S*\\d\\S*") }}  {{ single_col | re("\\d+") }}  {{ multi_col | re("\\d+") }}  {{ late_col | re("\\d+") }}  {{ excess_col | re("\\d+") }}  {{ carri_sen | re("\\d+") }}  {{ runts | re("\\d+") }}  {{ giants | re("\\d+") }}
 </group>

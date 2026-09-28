@@ -1,6 +1,6 @@
 <group name="port_channels*">
 port-channel{{ port_channel }}
 <group name="members*">
-  {{ interface | re("Ethernet[\d/]+") }}                 {{ lacpdu_sent }}   {{ lacpdu_recv }}       {{ marker_resp_recv }}       {{ marker_resp_sent }}     {{ pkts }}    {{ err }}
+  {{ interface | re("Ethernet[\\d/]+") }}                 {{ lacpdu_sent }}   {{ lacpdu_recv }}       {{ marker_resp_recv }}       {{ marker_resp_sent }}     {{ pkts }}    {{ err }}
 </group>
 </group>

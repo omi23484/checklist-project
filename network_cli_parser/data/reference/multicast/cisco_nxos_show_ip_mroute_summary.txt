@@ -1,9 +1,32 @@
-N9K-CAMA-WAN-1# show ip mroute summary
+N9K-WAN-1# show ip mroute summary
 IP Multicast Routing Table for VRF "default"
 Total number of routes: 5
-Total number of (*,G) routes: 3
+Total number of (*,G) routes: 2
 Total number of (S,G) routes: 2
-Total number of (*,G-prefix) routes: 0
-Group count: 3, rough average sources per group: 0.7
+Total number of (*,G-prefix) routes: 1
 
-N9K-CAMA-WAN-1#
+Group: 239.255.0.1/32, Source count: 2
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           12450      1805650    0          5          320.000 bps       3
+(10.1.1.100,G)  12450      1805650    0          5          320.000 bps       3
+
+Group: 239.255.0.2/32, Source count: 0
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           0          0          0          0          0.000 bps         0
+
+Group: 232.0.0.0/8, Source count: 0
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           0          0          0          0          0.000 bps         0
+
+IP Multicast Routing Table for VRF "MCAST-VRF"
+Total number of routes: 2
+Total number of (*,G) routes: 1
+Total number of (S,G) routes: 1
+Total number of (*,G-prefix) routes: 0
+
+Group: 239.100.0.1/32, Source count: 1
+Source          packets    bytes      aps        pps        bit-rate          oifs
+(*,G)           5000       725000     0          2          128.000 bps       2
+(192.168.10.10,G) 5000     725000     0          2          128.000 bps       2
+
+N9K-WAN-1#

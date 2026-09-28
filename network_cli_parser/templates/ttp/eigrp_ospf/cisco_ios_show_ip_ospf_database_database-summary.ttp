@@ -5,16 +5,16 @@
 <group name="areas*">
   Area {{ area_id }} database summary
 <group name="lsa_types*">
-       {{ lsa_type | re("(?!Subtotal)(?!Total)(?!Non-self)[A-Za-z][A-Za-z0-9\-]*(?: [A-Za-z0-9\-]+)?") }}  {{ count | re("\d+") }}        {{ delete | re("\d+") }}        {{ maxage | re("\d+") }}
+       {{ lsa_type | re("(?!Subtotal)(?!Total)(?!Non-self)[A-Za-z][A-Za-z0-9\\-]*(?: [A-Za-z0-9\\-]+)?") }}  {{ count | re("\\d+") }}        {{ delete | re("\\d+") }}        {{ maxage | re("\\d+") }}
 </group>
-       Subtotal      {{ subtotal_count | re("\d+") }}        {{ subtotal_delete | re("\d+") }}        {{ subtotal_maxage | re("\d+") | _end_ }}
+       Subtotal      {{ subtotal_count | re("\\d+") }}        {{ subtotal_delete | re("\\d+") }}        {{ subtotal_maxage | re("\\d+") | _end_ }}
 </group>
 
 <group name="process_summary">
   Process {{ process_id }} database summary
 <group name="lsa_types*">
-       {{ lsa_type | re("(?!Subtotal)(?!Total)(?!Non-self)[A-Za-z][A-Za-z0-9\-]*(?: [A-Za-z0-9\-]+)?") }}  {{ count | re("\d+") }}        {{ delete | re("\d+") }}        {{ maxage | re("\d+") }}
+       {{ lsa_type | re("(?!Subtotal)(?!Total)(?!Non-self)[A-Za-z][A-Za-z0-9\\-]*(?: [A-Za-z0-9\\-]+)?") }}  {{ count | re("\\d+") }}        {{ delete | re("\\d+") }}        {{ maxage | re("\\d+") }}
 </group>
-       Non-self      {{ non_self_count | re("\d+") }}
-       Total         {{ total_count | re("\d+") }}        {{ total_delete | re("\d+") }}        {{ total_maxage | re("\d+") | _end_ }}
+       Non-self      {{ non_self_count | re("\\d+") }}
+       Total         {{ total_count | re("\\d+") }}        {{ total_delete | re("\\d+") }}        {{ total_maxage | re("\\d+") | _end_ }}
 </group>

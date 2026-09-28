@@ -605,7 +605,7 @@ def _health_check_list(results: list) -> str:
   <span class="dk">Condition</span><code>{_e(cond)} {_e(str(val))}</code>
 </div>"""
         elif "count" in check:
-            cs = check["count"]
+            cs = check["count"] if isinstance(check["count"], dict) else {"value": check["count"]}
             detail_rows = f"""
 <div class="dg">
   <span class="dk">Command</span><code>{_e(cmd)}</code>

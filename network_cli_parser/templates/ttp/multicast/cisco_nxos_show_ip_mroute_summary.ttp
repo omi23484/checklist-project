@@ -1,6 +1,21 @@
+<macro>
+def vrf_defaults(data):
+    data.setdefault("groups", [])
+    return data
+</macro>
+
+<group name="vrfs.{{ vrf }}" macro="vrf_defaults">
 IP Multicast Routing Table for VRF "{{ vrf }}"
-Total number of routes: {{ total_routes }}
-Total number of (*,G) routes: {{ star_g_routes }}
-Total number of (S,G) routes: {{ s_g_routes }}
-Total number of (*,G-prefix) routes: {{ star_g_prefix_routes }}
-Group count: {{ group_count }}, rough average sources per group: {{ avg_sources }}
+<group name="summary">
+Total number of routes: {{ total_routes | to_int }}
+Total number of (*,G) routes: {{ star_g_routes | to_int }}
+Total number of (S,G) routes: {{ sg_routes | to_int }}
+Total number of (*,G-prefix) routes: {{ star_g_prefix_routes | to_int }}
+</group>
+<group name="groups*">
+Group: {{ group }}, Source count: {{ source_count | to_int }}
+<group name="entries*">
+{{ source_type | re("\\(\\S+,G\\)") }}  {{ packets | to_int }}  {{ bytes | to_int }}  {{ aps | to_int }}  {{ pps | to_int }}  {{ bitrate | re("\\S+ bps") }}  {{ oifs | to_int }}
+</group>
+</group>
+</group>

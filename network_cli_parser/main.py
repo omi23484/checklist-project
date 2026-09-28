@@ -9,6 +9,7 @@ Usage:
 
 import argparse
 import os
+import re
 import sys
 import traceback
 
@@ -72,6 +73,8 @@ def _parse_command(platform: str, cmd: str, raw: str) -> tuple[dict, str]:
     Returns (parsed_data, status) where status is one of:
         parsed | partial | raw_only | no_template | failed
     """
+    # Repeat captures are stored as cmd__2, cmd__3 (see splitter) — parse them like cmd.
+    cmd = re.sub(r"__\d+$", "", cmd)
     strategy = command_mapper.get_strategy(platform, cmd)
     parser_type = strategy["parser"]
 
@@ -165,7 +168,10 @@ def process_file(input_path: str, output_dir: str, platform_override=None) -> st
     )
 
     basename    = os.path.splitext(os.path.basename(input_path))[0]
-    output_path = os.path.join(output_dir, collection_time, f"{basename}.json")
+    # collection_time comes from the filename; "x_...txt" would yield ".." and
+    # write outside output_dir.
+    date_dir = collection_time if collection_time not in ("", ".", "..") else "undated"
+    output_path = os.path.join(output_dir, date_dir, f"{basename}.json")
     json_builder.write_snapshot(snapshot, output_path)
     print(f"  -> {output_path}")
     return output_path

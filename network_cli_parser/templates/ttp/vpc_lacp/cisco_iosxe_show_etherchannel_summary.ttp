@@ -13,5 +13,5 @@ Number of aggregators:           {{ num_aggregators }}
 </group>
 
 <group name="channels*">
-{{ group_num | re("\d+") }}      {{ port_channel | re("Po\d+") }}{{ port_channel_flags | re("\([A-Za-z]*\)") }}         {{ protocol }}      {{ ports_raw | macro("split_ports") | re(".+") }}
+{{ group_num | re("\\d+") }}      {{ port_channel | re("Po\\d+") }}{{ port_channel_flags | re("\\([A-Za-z]*\\)") }}         {{ protocol }}      {{ ports_raw | macro("split_ports") | re(".+") }}
 </group>

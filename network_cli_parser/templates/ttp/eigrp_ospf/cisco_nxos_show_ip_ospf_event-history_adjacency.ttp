@@ -2,5 +2,5 @@
 OSPF Adjacency events for Process "{{ process_id }}"
 </group>
 <group name="events*">
-{{ timestamp | re("[\d]{4} \w+ \d+ [\d:.]+") }} ospf {{ event_process_id }} [{{ event_id }}]: RID: {{ router_id }}, Nbr: {{ neighbor }} {{ event_detail | re(".+") }}
+{{ timestamp | re("[\\d]{4} \\w+ \\d+ [\\d:.]+") }} ospf {{ event_process_id }} [{{ event_id }}]: RID: {{ router_id }}, Nbr: {{ neighbor }} {{ event_detail | re(".+") }}
 </group>

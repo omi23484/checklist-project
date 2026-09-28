@@ -1,6 +1,6 @@
 <group name="channel_groups*">
 Channel group {{ group_num }} neighbors
 <group name="neighbors*">
-{{ port | re("[A-Za-z]+[\d/]+") }}     {{ flags }}      {{ lacp_state }}      {{ priority }}    {{ dev_id }}   {{ admin_key }}        {{ oper_key }}    {{ port_number }}    {{ port_state }}
+{{ port | re("[A-Za-z]+[\\d/]+") }}     {{ flags }}      {{ lacp_state }}      {{ priority }}    {{ dev_id }}   {{ admin_key }}        {{ oper_key }}    {{ port_number }}    {{ port_state }}
 </group>
 </group>

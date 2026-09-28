@@ -1,4 +1,4 @@
 <group name="blocked_ports*">
-{{ vlan | re("VLAN\d+") }}  {{ interfaces | re(".+") }}
+{{ vlan | re("VLAN\\d+") }}  {{ interfaces | re(".+") }}
 </group>
-Number of blocked ports (segments) in the system : {{ total_blocked_ports | re("\d+") }}
+Number of blocked ports (segments) in the system : {{ total_blocked_ports | re("\\d+") }}

@@ -422,14 +422,20 @@ def fetch(args, transport) -> None:
                 continue
 
             local_dir.mkdir(parents=True, exist_ok=True)
+            # Download beside the target, then rename: an interrupted transfer
+            # leaves only a .part file (never matched by *.txt) and the previous
+            # good copy, if any, stays intact.
+            part_path = local_path.with_name(local_path.name + ".part")
             try:
                 if args.verbose:
                     print(f"  [GET ] {remote_full}")
-                sftp.get(remote_full, str(local_path))
+                sftp.get(remote_full, str(part_path))
+                os.replace(part_path, local_path)
                 size_kb = local_path.stat().st_size / 1024
                 print(f"  [OK  ] {name}  ->  {local_path}  ({size_kb:.1f} KB)")
                 total_downloaded += 1
             except Exception as exc:
+                part_path.unlink(missing_ok=True)
                 print(f"  [FAIL] {name}: {exc}")
                 total_failed += 1
 

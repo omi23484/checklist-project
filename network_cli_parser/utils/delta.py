@@ -2,9 +2,13 @@
 
 from typing import Any
 
+# Identity fields first (neighbor/address are unique per row); interface/vrf
+# repeat on multi-access segments, so they only win if actually unique.
 _NATURAL_KEYS = (
-    "INTERFACE", "NEIGHBOR", "NEIGHBOR_ID", "IP_ADDRESS", "VRF", "NAME", "PORT",
-    "neighbor", "interface", "neighbor_id", "ip_address", "vrf", "name", "port",
+    "NEIGHBOR_ID", "NEIGHBOR", "IP_ADDRESS", "ADDRESS", "PEER_ADDRESS", "MAC",
+    "neighbor_id", "neighbor", "ip_address", "address", "peer_address", "mac",
+    "INTERFACE", "VRF", "NAME", "PORT",
+    "interface", "vrf", "name", "port",
 )
 
 
@@ -86,9 +90,9 @@ def _diff_dict(before: dict, after: dict, path: str) -> list[dict]:
 
 def _diff_list(before: list, after: list, path: str) -> list[dict]:
     if before and after and isinstance(before[0], dict):
-        key_field = _detect_key_field(before + after)
-        if key_field:
-            return _diff_list_by_key(before, after, path, key_field)
+        key_fields = _detect_key_fields(before, after)
+        if key_fields:
+            return _diff_list_by_key(before, after, path, key_fields)
 
     diffs = []
     for i in range(max(len(before), len(after))):
@@ -102,16 +106,15 @@ def _diff_list(before: list, after: list, path: str) -> list[dict]:
     return diffs
 
 
-def _diff_list_by_key(before: list, after: list, path: str, key_field: str) -> list[dict]:
-    b_map = {str(row[key_field]): row for row in before if key_field in row}
-    a_map = {str(row[key_field]): row for row in after  if key_field in row}
-    if len(b_map) < sum(1 for r in before if key_field in r):
-        print(f"[WARN] delta: duplicate '{key_field}' values in before '{path}' — last row wins")
-    if len(a_map) < sum(1 for r in after if key_field in r):
-        print(f"[WARN] delta: duplicate '{key_field}' values in after '{path}' — last row wins")
+def _diff_list_by_key(before: list, after: list, path: str, key_fields: tuple) -> list[dict]:
+    def key(row):
+        return "/".join(str(row[f]) for f in key_fields)
+    b_map = {key(row): row for row in before}
+    a_map = {key(row): row for row in after}
+    label = "+".join(key_fields)
     diffs = []
     for k in sorted(set(b_map) | set(a_map)):
-        child = f"{path}[{key_field}={k}]"
+        child = f"{path}[{label}={k}]"
         if k not in b_map:
             diffs.append({"path": child, "before": None, "after": a_map[k]})
         elif k not in a_map:
@@ -121,11 +124,25 @@ def _diff_list_by_key(before: list, after: list, path: str, key_field: str) -> l
     return diffs
 
 
-def _detect_key_field(rows: list[dict]):
+def _detect_key_fields(before: list, after: list):
+    """Smallest set of natural-key fields that uniquely identifies rows on both
+    sides: one field if any is unique, else all present natural keys combined.
+    None -> caller falls back to positional diff."""
+    rows = before + after
     # Mixed lists (None / str rows from partial parses) fall back to positional diff
     if not all(isinstance(row, dict) for row in rows):
         return None
-    for field in _NATURAL_KEYS:
-        if all(field in row for row in rows):
-            return field
+    present = [f for f in _NATURAL_KEYS if all(f in row for row in rows)]
+
+    def unique(fields):
+        return all(
+            len({tuple(str(r[f]) for f in fields) for r in side}) == len(side)
+            for side in (before, after)
+        )
+
+    for f in present:
+        if unique((f,)):
+            return (f,)
+    if len(present) > 1 and unique(tuple(present)):
+        return tuple(present)
     return None
