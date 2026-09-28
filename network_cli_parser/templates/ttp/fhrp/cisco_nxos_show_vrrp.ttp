@@ -1,0 +1,3 @@
+<group name="groups*">
+{{ interface }}  {{ vr }}  {{ ip_version }}  {{ priority }}  {{ adv_interval }} s {{ preempt }}  {{ state }}  {{ virtual_ip }}
+</group>

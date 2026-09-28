@@ -1,0 +1,19 @@
+N9K-CAMA-WAN-1# show ip eigrp topology active
+IP-EIGRP Topology Table for AS(100)/ID(10.100.1.1)
+Codes: P - Passive, A - Active, U - Update, Q - Query, R - Reply,
+       r - reply Status, s - sia Status
+
+A 172.16.50.0/24, 1 successors, FD is Inaccessible, Q
+        1 replies, active 00:02:14, query-origin: Local origin
+         via Connected (Infinity/Infinity), Eth1/5
+    Remaining replies:
+         via 10.1.12.2, r, Eth1/1
+
+A 172.16.60.0/24, 0 successors, FD is Inaccessible, Q
+        2 replies, active 00:00:47, query-origin: Local origin
+         via Summary (Infinity/Infinity), Null0
+    Remaining replies:
+         via 10.1.12.2, r, Eth1/1
+         via 10.1.13.3, r, Eth1/2
+
+N9K-CAMA-WAN-1#

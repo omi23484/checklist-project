@@ -1,0 +1,8 @@
+N9K-CAMA-WAN-1# show vrrp
+Interface     VR   IpVersion Pri    Time  Pre State    VR IP addr
+--------------------------------------------------------------------
+Vlan10        10   IPV4      110    100 s Y   Master   10.10.10.1
+Vlan20        20   IPV4      100    100 s Y   Backup   10.20.20.1
+Vlan30        30   IPV4      100    100 s Y   Init     10.30.30.1
+
+N9K-CAMA-WAN-1#

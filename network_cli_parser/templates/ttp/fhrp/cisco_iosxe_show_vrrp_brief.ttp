@@ -1,0 +1,3 @@
+<group name="groups*">
+{{ interface }}  {{ group }}  {{ priority }}  {{ adv_timer }}  {{ owner | re("Y?") }}  {{ preempt }}  {{ state }}  {{ master_addr }}  {{ virtual_ip }}
+</group>

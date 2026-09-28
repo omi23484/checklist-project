@@ -1,0 +1,23 @@
+<group name="domain">
+vPC domain id                     : {{ vpc_domain_id }}
+Peer status                       : {{ peer_status | re(".+") }}
+vPC keep-alive status             : {{ keepalive_status | re(".+") }}
+Configuration consistency status  : {{ config_consistency_status }}
+Per-vlan consistency status       : {{ per_vlan_consistency_status }}
+Type-2 consistency status         : {{ type2_consistency_status }}
+vPC role                          : {{ vpc_role | re(".+") }}
+Number of vPCs configured         : {{ num_vpcs_configured }}
+Peer Gateway                      : {{ peer_gateway }}
+Dual-active excluded VLANs        : {{ dual_active_excluded_vlans }}
+Graceful Consistency Check        : {{ graceful_consistency_check }}
+Auto-recovery status              : {{ auto_recovery_status | re(".+") }}
+Operational Layer3 Peer-router    : {{ operational_l3_peer_router }}
+</group>
+
+<group name="peer_link">
+{{ id }}    {{ port }}    {{ status }} {{ active_vlans | re(".+") }}
+</group>
+
+<group name="vpcs*">
+{{ id | re("\d+") }}   {{ port }}   {{ status }}     {{ consistency }}     {{ reason | re(".+?") }}  {{ active_vlans | re(".+") }}
+</group>

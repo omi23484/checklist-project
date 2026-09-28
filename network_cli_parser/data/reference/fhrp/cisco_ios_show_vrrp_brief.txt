@@ -1,0 +1,7 @@
+IOS-RTR-1# show vrrp brief
+Interface     Grp Pri Time  Own Pre State   Master addr     Group addr
+Vlan10        10  110 3609      Y   Master  10.10.10.2      10.10.10.1
+Vlan20        20  100 3702      Y   Backup  10.20.20.2      10.20.20.1
+Vlan30        30  100 3644  Y   Y   Master  10.30.30.3      10.30.30.1
+
+IOS-RTR-1#

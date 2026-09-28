@@ -1,0 +1,12 @@
+<group name="groups*">
+{{ interface }} - Group {{ group }} ({{ ip_version }})
+     State is {{ state }}
+     Virtual IP address is {{ virtual_ip }}
+     Priority {{ priority | re("[^,]+") }}, Configured {{ configured_priority }}
+     Forwarding threshold(for VPC), lower: {{ threshold_lower }} upper: {{ threshold_upper }}
+     Advertisement interval {{ adv_interval }}
+     Preemption {{ preempt }}
+     Virtual MAC address is {{ virtual_mac }}
+     Master router is {{ master_router | re("[^,]+") }}, priority {{ master_priority }}
+     Master router is {{ master_router }}
+</group>

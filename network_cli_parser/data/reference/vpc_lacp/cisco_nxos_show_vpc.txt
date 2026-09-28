@@ -1,0 +1,35 @@
+N9K-CAMA-WAN-1# show vpc
+Legend:
+                (*) - local vPC is down, forwarding via vPC peer-link
+
+vPC domain id                     : 10
+Peer status                       : peer adjacency formed ok
+vPC keep-alive status             : peer is alive
+Configuration consistency status  : success
+Per-vlan consistency status       : success
+Type-2 consistency status         : success
+vPC role                          : primary
+Number of vPCs configured         : 3
+Peer Gateway                      : Enabled
+Dual-active excluded VLANs        : -
+Graceful Consistency Check        : Enabled
+Auto-recovery status              : Enabled (timeout = 240 seconds)
+Delay-restore status              : Timer is off.(timeout = 30s)
+Delay-restore SVI status          : Timer is off.(timeout = 10s)
+Operational Layer3 Peer-router    : Disabled
+
+vPC Peer-link status
+---------------------------------------------------------------------
+id   Port   Status Active vlans
+--   ----   ------ --------------------------------------------------
+1    Po1    up     1,10-20,100-110
+
+vPC status
+----------------------------------------------------------------------------
+id   Port   Status Consistency Reason                    Active vlans
+--   ----   ------ ----------- ------                    ------------
+10   Po10   up     success     success                   1,10-20
+11   Po11   up     success     success                   1,100-110
+12   Po12   down   failed      Compat check not done      -
+
+N9K-CAMA-WAN-1#

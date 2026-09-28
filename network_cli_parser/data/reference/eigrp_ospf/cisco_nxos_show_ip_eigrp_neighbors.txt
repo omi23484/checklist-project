@@ -1,0 +1,8 @@
+N9K-CAMA-WAN-1# show ip eigrp neighbors
+IP-EIGRP neighbors for process 100 VRF default
+H   Address                 Interface            Hold  Uptime    SRTT   RTO  Q   Seq
+                                                   (sec)           (ms)       Cnt  Num
+1   10.1.12.2               Eth1/1               13    3w2d      1      3000 0    45
+0   10.1.13.3               Eth1/2               12    01:14:52  4      3000 0    128
+
+N9K-CAMA-WAN-1#

@@ -1,0 +1,19 @@
+<group name="groups*">
+{{ interface }} - Group {{ group }}
+  State is {{ state }}
+    {{ state_changes }} state changes, last state change {{ last_change }}
+  Virtual IP address is {{ virtual_ip }}
+  Active virtual MAC address is {{ active_mac }} ({{ mac_status | re("[^)]+") }})
+    Local virtual MAC address is {{ local_mac }} ({{ mac_version | re("[^)]+") }})
+  Hello time {{ hello_timer }} sec, hold time {{ hold_timer }} sec
+    Next hello sent in {{ next_hello }} secs
+  Preemption {{ preempt }}
+  Active router is {{ active_router }}
+  Active router is {{ active_router | re("[^,]+") }}, priority {{ active_priority }} (expires in {{ active_expires }} sec)
+  Standby router is {{ standby_router }}
+  Standby router is {{ standby_router | re("[^,]+") }}, priority {{ standby_priority }} (expires in {{ standby_expires }} sec)
+  Priority {{ priority | re("[^ ]+") }} (configured {{ configured_priority }})
+  Priority {{ priority | re("[^ ]+") }} (default {{ default_priority }})
+  Track object {{ track_object }} state {{ track_state }} decrement {{ track_decrement }}
+  Group name is "{{ group_name }}" ({{ group_name_type | re("[^)]+") }})
+</group>

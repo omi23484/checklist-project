@@ -1,0 +1,31 @@
+IOS-RTR-1# show standby
+Vlan10 - Group 10
+  State is Active
+    2 state changes, last state change 00:14:25
+  Virtual IP address is 10.10.10.1
+  Active virtual MAC address is 0000.0c07.ac0a (MAC In Use)
+    Local virtual MAC address is 0000.0c07.ac0a (v1 default)
+  Hello time 3 sec, hold time 10 sec
+    Next hello sent in 1.472 secs
+  Preemption enabled
+  Active router is local
+  Standby router is 10.10.10.3, priority 100 (expires in 8.816 sec)
+  Priority 110 (configured 110)
+  Track object 1 state Up decrement 10
+  Group name is "hsrp-Vl10-10" (default)
+
+Vlan20 - Group 20
+  State is Standby
+    3 state changes, last state change 00:22:10
+  Virtual IP address is 10.20.20.1
+  Active virtual MAC address is 0000.0c07.ac14 (MAC Not In Use)
+    Local virtual MAC address is 0000.0c07.ac14 (v1 default)
+  Hello time 3 sec, hold time 10 sec
+    Next hello sent in 2.208 secs
+  Preemption enabled
+  Active router is 10.20.20.2, priority 110 (expires in 9.328 sec)
+  Standby router is local
+  Priority 100 (default 100)
+  Group name is "hsrp-Vl20-20" (default)
+
+IOS-RTR-1#

@@ -1,0 +1,9 @@
+N9K-CAMA-WAN-1# show ip eigrp topology summary
+IP-EIGRP Topology Summary for AS 100
+  Head serial number: 87
+  Number of routes: 42
+    Interior: 38  System: 0  Redistributed: 4
+  Number of update stubs: 0
+  Number of query stubs: 0
+
+N9K-CAMA-WAN-1#

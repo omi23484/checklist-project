@@ -1,0 +1,33 @@
+N9K-CAMA-WAN-1# show vrrp detail
+
+Vlan10 - Group 10 (IPV4)
+     State is Master
+     Virtual IP address is 10.10.10.1
+     Priority 110, Configured 110
+     Forwarding threshold(for VPC), lower: 1 upper: 110
+     Advertisement interval 1
+     Preemption enabled
+     Virtual MAC address is 0000.5e00.010a
+     Master router is local
+
+Vlan20 - Group 20 (IPV4)
+     State is Backup
+     Virtual IP address is 10.20.20.1
+     Priority 100, Configured 100
+     Forwarding threshold(for VPC), lower: 1 upper: 100
+     Advertisement interval 1
+     Preemption enabled
+     Virtual MAC address is 0000.5e00.0114
+     Master router is 10.20.20.2, priority 110
+
+Vlan30 - Group 30 (IPV4)
+     State is Init
+     Virtual IP address is 10.30.30.1
+     Priority 100, Configured 100
+     Forwarding threshold(for VPC), lower: 1 upper: 100
+     Advertisement interval 1
+     Preemption enabled
+     Virtual MAC address is 0000.5e00.011e
+     Master router is Unknown
+
+N9K-CAMA-WAN-1#

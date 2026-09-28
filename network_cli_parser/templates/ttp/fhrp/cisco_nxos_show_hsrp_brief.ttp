@@ -1,0 +1,3 @@
+<group name="groups*">
+ {{ interface }}      {{ group }}   {{ priority }}  {{ preempt | re("P?") }} {{ state }}   {{ active_addr }}       {{ standby_addr }}      {{ virtual_ip }}      ({{ addr_type }})
+</group>

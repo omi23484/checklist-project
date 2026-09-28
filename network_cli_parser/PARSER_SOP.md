@@ -35,7 +35,8 @@ commands.yaml lookup
     ├── ntc            → NTC Templates (ntc-templates library)
     ├── custom         → Custom TextFSM template
     ├── ttp            → TTP template (supports nested/hierarchical output)
-    ├── hierarchical   → Python regex parser (multicast commands)
+    ├── hierarchical   → Python function parser (func: in multicast_parser.py; currently unused — all
+    │                     registered multicast commands use `ttp`, see §6.6)
     └── auto_discover  → (unknown commands, no YAML entry)
             ├── Step 1: NTC Templates (reconstructed command string)
             ├── Step 2: Convention TextFSM  ({platform}_{cmd}.textfsm anywhere under templates/custom/)
@@ -284,6 +285,8 @@ Result structure: `[{"vrfs": [{"vrf": "default", "neighbors": [{...}]}]}]`
 
 ### 6.3 `commands.yaml` Reference
 
+Three registered platforms: `cisco_nxos`, `cisco_ios`, `cisco_iosxe` (each is a separate top-level YAML key with its own command list — `cisco_iosxe` is NOT an alias of `cisco_ios`, even though many IOS-XE commands share IOS's output format). `cisco_iosxe` is auto-detected from device prompts/banners containing `CSR`, `ISR`, `ASR`, or `Cisco IOS XE Software` (see `utils/normalization.py::detect_platform`), and is a valid `--platform` value everywhere a platform is accepted (`collect`, `parse`, `test-template`).
+
 All five strategy shapes:
 
 ```yaml
@@ -304,17 +307,38 @@ cisco_nxos:
     parser: ttp
     template: cisco_nxos_show_ip_bgp_summary_vrf_all
 
-  # Hierarchical Python parser (multicast VRF nesting)
-  show ip mroute:
-    parser: hierarchical
-    func: parse_mroute
+  # Wildcard key — one entry matches any IP/interface/VRF variant (see §6.3.1)
+  show ip bgp neigh * routes:
+    parser: ttp
+    template: cisco_nxos_show_ip_bgp_neigh_routes
 
   # Skip entirely — preserve raw only
   show tech-support:
     parser: raw_only
 ```
 
+`parser: hierarchical` (+ `func: <name>` pointing at a function in `parsers/multicast_parser.py`) is also a supported strategy shape but has **no active registrations** as of this writing — the multicast commands it was originally written for (`show ip mroute` and friends) were migrated to `parser: ttp` (see §6.6). It remains available for a future command whose output needs full Python control rather than a declarative template.
+
 Keys are raw command strings (spaces, not underscores). The mapper normalizes them at load time. Duplicate normalized keys within a platform emit a warning; the second entry wins.
+
+#### 6.3.1 Wildcard `*` Command Keys
+
+A `*` in a `commands.yaml` key matches any variable part of a command — an IP address, interface name, or VRF name — so one entry covers every variant instead of needing a separate key per value:
+
+```yaml
+cisco_nxos:
+  show ip bgp neigh * routes:
+    parser: ttp
+    template: cisco_nxos_show_ip_bgp_neigh_routes
+  show interface *:
+    parser: ntc
+    template: show interface
+```
+
+- `show ip bgp neigh * routes` matches `show_ip_bgp_neigh_10_0_0_1_routes`, `show_ip_bgp_neigh_192_168_1_1_routes`, etc. — each `*` matches one or more normalized characters (`[a-z0-9_]+`, i.e. letters/digits/underscores — this correctly spans a whole dotted IP after normalization turns `.` into `_`).
+- **Exact entries always take precedence** over wildcard entries — if both `show ip bgp neigh 10.0.0.1 routes` (exact) and `show ip bgp neigh * routes` (wildcard) are registered, the exact one wins for that specific IP.
+- Wildcard entries live in a separate internal registry (`command_mapper._WILDCARD_REGISTRY`) checked only after an exact-match lookup misses.
+- **Wildcards are excluded from `collect`'s command list** — `_load_platform_commands()` in `report.py` only reads the exact registry, since a literal `*` can't be sent to a live device over SSH. Wildcard-covered commands only get parsed when they already exist in a raw dump (e.g. from `main.py --input` or a hand-crafted per-neighbor collection step).
 
 ---
 
@@ -355,13 +379,61 @@ cisco_nxos:
 | TTP (hierarchical output) | Drop `.ttp` file; no YAML edit needed |
 | Piped variant | Drop `{platform}_{cmd}_{filter}.textfsm/.ttp` |
 | Should never be parsed | `parser: raw_only` in YAML |
-| Hierarchical multicast | `parser: hierarchical` + function in `multicast_parser.py` |
+| Command has a variable part (IP/interface/VRF) | `*` wildcard key — see §6.3.1 |
+| Needs full Python control, not declarative | `parser: hierarchical` + function in `multicast_parser.py` (currently unused, see §6.3) |
+
+---
+
+### 6.6 Multicast Command Reference (TTP)
+
+Multicast commands (`show ip mroute` and its variants, PIM, MSDP) are among the hardest Cisco CLI outputs to template — deeply nested, inconsistent field ordering across platforms, and NTC Templates has little to no coverage for them. This repo ships a validated TTP template plus real-format raw/parsed reference data for each command below, under `data/reference/multicast/` and `templates/ttp/multicast/`. Use these as worked examples when writing a new multicast (or any nested-output) template.
+
+| Command | NX-OS | IOS | IOS-XE | NTC coverage |
+|---|---|---|---|---|
+| `show ip mroute` | ✅ ttp | ✅ ttp | ✅ ttp | none for count/summary variants |
+| `show ip mroute count` | ✅ ttp | ✅ ttp | ✅ ttp | none |
+| `show ip mroute summary` | ✅ ttp | ✅ ttp | ✅ ttp | none |
+| `show ip pim neighbor` | custom (TextFSM) | ✅ ttp | ✅ ttp | none |
+| `show ip pim rp` (NX-OS) / `show ip pim rp mapping` (IOS/XE) | ✅ ttp | ✅ ttp | ✅ ttp | none |
+| `show ip msdp summary` | ntc | ✅ ttp | ✅ ttp | NX-OS only |
+
+For each row, three files exist per platform under `data/reference/multicast/`:
+- `{platform}_{normalized_cmd}.txt` — realistic raw CLI output
+- `{platform}_{normalized_cmd}_parsed.json` — the exact JSON that template produces against that raw file
+- the template itself: `templates/ttp/multicast/{platform}_{normalized_cmd}.ttp`
+
+**Worked example — `cisco_nxos_show_ip_mroute.ttp`:**
+
+```xml
+<group name="routes*">
+({{ source | re("[^,/]+(?:/\d+)?") }}, {{ group | re("[^)]+") }}), uptime: {{ uptime }}, {{ flags | re(".+") }}
+  Incoming interface: {{ incoming_intf }}, RPF nbr: {{ rpf_nbr | re("[\d.]+") }}, uptime: {{ rpf_uptime }}
+  Incoming interface: {{ incoming_intf }}, RPF nbr: {{ rpf_nbr | re("[\d.]+") }}
+  Outgoing interface list: (count: {{ oif_count }})
+<group name="oif_list*">
+    {{ oif_intf }}, uptime: {{ oif_uptime }}, {{ oif_flags | re(".+") }}
+</group>
+</group>
+```
+
+Parses `(*, 225.1.1.1/32), uptime: 03:48:57, igmp ip pim` blocks into:
+
+```json
+{"routes": [{"source": "*", "group": "225.1.1.1/32", "uptime": "03:48:57", "flags": "igmp ip pim",
+             "incoming_intf": "Vlan101", "rpf_nbr": "10.10.1.2", "rpf_uptime": "03:48:57",
+             "oif_count": "1", "oif_list": [{"oif_intf": "Vlan102", "oif_uptime": "03:48:57", "oif_flags": "igmp"}]}]}
+```
+
+**Two hard-won TTP lessons this template (and the rest of the multicast set) encode:**
+
+1. **Whitespace runs between `{{ }}` tags are flexible, not literal.** A template line with a single space between two variables still matches real Cisco output with 5+ aligned spaces between columns — TTP treats template whitespace as `\s+`. You don't need to count columns.
+2. **Never rely on two alternate template lines to distinguish two record shapes within the same `<group>`.** IOS `show ip mroute` has two visually different route-header formats — `(*, G), uptime/expires, RP x.x.x.x, flags: F` for `(*,G)` entries and `(S, G), uptime/expires, flags: F` (no RP) for `(S,G)` entries. An early version of `cisco_ios_show_ip_mroute.ttp` used two alternate header lines to match each shape — TTP does **not** reliably start a new record when the second alternate line matches; it silently merged fields from consecutive `(*,G)`/`(S,G)` pairs into one record instead of two. The fix: **one** header template line with a trailing `{{ route_info | re(".+") }}` catch-all field that captures `RP x.x.x.x, flags: F` or `flags: F` verbatim — every route line reliably starts a new record, and callers regex/split `route_info` further if they need the RP or flags individually.
 
 ---
 
 ## 7. Report Generator — `report.py`
 
-### Quick reference — all 15 subcommands
+### Quick reference — all 13 subcommands
 
 ```bash
 python report.py COMMAND [OPTIONS]
@@ -439,6 +511,7 @@ devices:
 |----------|-------------|
 | `cisco_nxos` | `cisco_nxos_ssh` |
 | `cisco_ios` | `cisco_ios` |
+| `cisco_iosxe` | `cisco_xe` |
 
 When `commands:` is omitted, all non-`raw_only` commands registered for that platform in `commands.yaml` are collected.
 
@@ -1022,8 +1095,8 @@ checks:
     tags: [bgp, ci-blocking]             # optional
     skip_if:                             # optional
       metadata: hostname
-      condition: not_matches
-      value: "^N9K-"
+      condition: matches                 # no "not_matches" condition exists — use a negative-lookahead regex
+      value: "^(?!N9K-)"
     print: "Version: {{value}}"          # optional
 ```
 
@@ -1739,8 +1812,8 @@ Skip a check based on a metadata condition. Useful to gate platform-specific or 
     value: 2
   skip_if:
     metadata: hostname
-    condition: not_matches
-    value: "^WAN-"
+    condition: matches                 # no "not_matches" condition exists — use a negative-lookahead regex
+    value: "^(?!WAN-)"
 
 # Skip VPC check on non-NX-OS devices
 - name: "VPC peer link"
@@ -2114,8 +2187,8 @@ checks:
       value: 2
     skip_if:
       metadata: hostname
-      condition: not_matches
-      value: "^WAN-"
+      condition: matches                 # no "not_matches" condition exists — use a negative-lookahead regex
+      value: "^(?!WAN-)"
     tags: [bgp, wan]
 
   # ── Severity: info ────────────────────────────────────────────────────────────
@@ -2174,6 +2247,22 @@ Use `--format both` to also write per-device `{hostname}_health.json` alongside 
 
 Changed commands show before/after raw side by side. `delta-all` also writes an `index.html` summary table.
 
+### Simple/executive dashboard (`health_simple.html`, `health_report_simple.html`)
+
+Written alongside the detailed report by default (`--report-mode both`, the default for both `health` and `health-all`; use `--report-mode simple` for this file only, `detailed` to suppress it). Generated by `render_health_simple()` / `render_health_all_simple()` — deliberately takes only the check `report`, never the raw `snapshot`, so it's structurally impossible for raw CLI output or parsed JSON to leak into it.
+
+| Section | Description |
+|---------|-------------|
+| Summary cards | Same Total / Passed / Failed / Errors cards as the detailed report |
+| Check table | Status badge · Check Name · Command · Severity · Tags — **no raw values, no paths, no config data** |
+| Failures | Count only, e.g. `"3 of 5 values failed"` — never the offending value itself |
+
+Safe to forward externally (management, tickets) without exposing device config, IPs, or credentials embedded in raw output.
+
+### Trend report (`health-trend`, `trend.html`)
+
+Written by `render_health_trend()` from a directory of historical `health --format json` runs (`--runs-dir`). One row per check, one column per run date (ascending), cell colour-coded pass/fail/error/skip/absent, with a small pass-rate sparkline per row. Shows check stability over time — useful for spotting a flaky check versus a real regression.
+
 ### Interactive HTML filtering
 
 Every health report has a filter bar above the check list:
@@ -2188,16 +2277,19 @@ Clicking a status button shows only cards with that status. The search box filte
 
 ## 10. Exit Codes and CI/CD Integration
 
-| Subcommand | Exit 1 when |
-|------------|-------------|
-| `health` | Any critical check fails or errors |
-| `health-all` | Any device has a critical failure or error |
-| `health-diff` | Any check regressed (pass → fail) |
-| `validate` | Any fatal validation error |
-| `search` | No matches found (query not present in any snapshot) |
-| `parse` | Template returned `no_template`, `failed`, or `raw_only` |
-| `collect` (SSH) | Any device failed to connect or collect |
-| All others | Always 0 (errors printed to stderr) |
+| Subcommand | Exit 1 when | Other exit codes |
+|------------|-------------|-------------------|
+| `health` | Any critical check fails or errors | |
+| `health-all` | Any device has a critical failure or error | |
+| `health-diff` | Any check regressed (pass → fail) | |
+| `health-trend` | `--runs-dir` doesn't exist, has no `.json` files, or none parse | |
+| `validate` | Any fatal validation error | |
+| `search` | No matches found (query not present in any snapshot) | Exit **2** if `--query` is empty/whitespace |
+| `parse` | Template returned `no_template`, `failed`, or `raw_only` | |
+| `test-template` | Template file not found, unrecognized extension, parse exception, or auto-discovery found nothing | |
+| `delta-all` | Zero devices matched between `--before-dir`/`--after-dir` (a comparison of nothing is treated as a CI failure, not a silent no-op) | |
+| `collect` (SSH) | Any device failed to connect or collect | |
+| All others (`coverage`, `baseline`, `delta`, `collect` offline mode) | Always 0 (errors printed to stderr) | |
 
 ### CI/CD pipeline examples
 
@@ -2268,6 +2360,7 @@ python playbook.py --playbook network_cli_parser/playbooks/daily.csv --only-type
 | `type` | string | Which script/subcommand to call |
 | `args` | string | CLI arguments passed verbatim |
 | `continue_on_error` | `yes` / `no` | `no` = abort playbook on non-zero exit |
+| `on_failure` | string (optional) | Shell command to run only when this step exits non-zero — see below |
 | `description` | string | Notes — ignored by runner |
 
 ### Step types
@@ -2293,6 +2386,25 @@ python playbook.py --playbook network_cli_parser/playbooks/daily.csv --only-type
 | `{today}` | Today in YYYY-MM-DD | `2026-05-03` |
 | `{yesterday}` | Yesterday in YYYY-MM-DD | `2026-05-02` |
 | `{timestamp}` | Current datetime | `20260503_143000` |
+
+**Step-local placeholders — valid only inside the `on_failure` column:**
+
+| Variable | Expands to | Example |
+|----------|-----------|---------|
+| `{step}` | The failed step's number | `3` |
+| `{name}` | The failed step's `name` column | `Health checks` |
+| `{exit_code}` | The step's numeric exit code | `1` |
+
+### `on_failure` — Failure Hooks
+
+`on_failure` runs a shell command only when the step it's attached to exits non-zero — log it, fire a webhook, write a ticket, without adding a dedicated shell step for every possible failure path. The step-local placeholders above are available in addition to the standard variable substitution. The hook's own exit code is printed but never fails the playbook, and an empty cell means no hook.
+
+```csv
+step,name,enabled,type,args,continue_on_error,on_failure,description
+3,Health checks,yes,health-all,--dir data/json/{date}/ --default-checks checks/base.yaml,yes,curl -s -X POST $SLACK_HOOK -d "{\"text\":\"Step {step} ({name}) failed with exit {exit_code}\"}",Assert health; notify Slack on failure without aborting
+```
+
+In `--dry-run` mode, a step with an `on_failure` hook prints the resolved hook command annotated `(if step fails)` — since dry-run always simulates success, the hook itself is never executed, only previewed. In `--list` mode, an `ON_FAIL` column shows `Y`/`N` per step.
 
 ### Example CSV
 
