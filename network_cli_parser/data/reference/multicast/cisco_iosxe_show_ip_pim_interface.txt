@@ -1,0 +1,9 @@
+CSR1K# show ip pim interface
+
+Address         Interface                Version/Mode       Nbr   Query DR
+                                                              Count Intvl
+192.168.1.1     GigabitEthernet1         v2/Sparse-Dense    1     30    192.168.1.1
+10.10.10.2      GigabitEthernet2         v2/Sparse-Dense    1     30    10.10.10.1
+172.16.1.2      GigabitEthernet3         v2/Sparse-Dense    1     30    172.16.1.2
+
+CSR1K#

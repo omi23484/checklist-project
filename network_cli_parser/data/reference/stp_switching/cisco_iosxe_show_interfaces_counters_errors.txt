@@ -1,0 +1,13 @@
+CSR1K# show interfaces counters errors
+
+Port           Align-Err    FCS-Err   Xmit-Err    Rcv-Err  UnderSize  OutDiscards
+Gi1/0/1                 0          0         0          0          0            0
+Gi1/0/2                 0         14         0         14          0            0
+Po1                     0          0         0          0          0            0
+
+Port           Single-Col  Multi-Col   Late-Col  Excess-Col  Carri-Sen     Runts   Giants
+Gi1/0/1                 0          0         0          0          0         0        0
+Gi1/0/2                 0          0         0          0          0         0        0
+Po1                     0          0         0          0          0         0        0
+
+CSR1K#

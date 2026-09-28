@@ -1,0 +1,9 @@
+N9K-CAMA-WAN-1# show spanning-tree blockedports
+
+Name                 Blocked Interfaces List
+-------------------- ------------------------------------
+VLAN0030             Ethernet1/10
+
+Number of blocked ports (segments) in the system : 1
+
+N9K-CAMA-WAN-1#

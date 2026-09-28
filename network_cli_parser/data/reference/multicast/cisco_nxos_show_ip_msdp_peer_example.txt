@@ -1,0 +1,17 @@
+N9K-CAMA-WAN-1# show ip msdp peer 172.16.253.19
+MSDP Peer 172.16.253.19 (rtp5-rp1.example.com), AS 65001
+  Description:
+  Connection status: State: Up, Resets: 9, Connection source: Loopback0 (172.16.253.1)
+  Uptime(Downtime): 1d10h, Messages sent/received: 4368/4290
+  Output messages discarded: 0
+  Connection and counters cleared: never
+  SA Filtering:
+    Input (S,G) filter: none, route-map: none
+    Output (S,G) filter: none, route-map: none
+  SA-Requests:
+    Input filter: none
+  Peer ttl threshold: 0
+  SAs learned from this peer: 111
+  Input queue size: 0, Output queue size: 0
+
+N9K-CAMA-WAN-1#

@@ -1,0 +1,4 @@
+<group name="interfaces*">
+{{ ip_address }}     {{ interface }}       {{ version_mode }}    {{ nbr_count }}     {{ query_interval }}    {{ dr_address }}
+</group>
+</output>

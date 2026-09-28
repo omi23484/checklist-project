@@ -1,0 +1,49 @@
+{
+  "interfaces": [
+    {
+      "port": "Gi1/0/1",
+      "name": "Uplink-to-Core",
+      "status": "connected",
+      "vlan": "1",
+      "duplex": "a-full",
+      "speed": "a-1000",
+      "type": "10/100/1000BaseTX"
+    },
+    {
+      "port": "Gi1/0/2",
+      "name": "Server-Farm-A",
+      "status": "connected",
+      "vlan": "100",
+      "duplex": "a-full",
+      "speed": "a-1000",
+      "type": "10/100/1000BaseTX"
+    },
+    {
+      "port": "Gi1/0/3",
+      "name": "--",
+      "status": "notconnect",
+      "vlan": "1",
+      "duplex": "auto",
+      "speed": "auto",
+      "type": "10/100/1000BaseTX"
+    },
+    {
+      "port": "Gi1/0/4",
+      "name": "--",
+      "status": "disabled",
+      "vlan": "1",
+      "duplex": "auto",
+      "speed": "auto",
+      "type": "10/100/1000BaseTX"
+    },
+    {
+      "port": "Po1",
+      "name": "Core-Uplink",
+      "status": "connected",
+      "vlan": "trunk",
+      "duplex": "a-full",
+      "speed": "a-1000",
+      "type": "N/A"
+    }
+  ]
+}

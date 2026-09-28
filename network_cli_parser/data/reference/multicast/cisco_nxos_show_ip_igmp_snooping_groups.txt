@@ -1,0 +1,9 @@
+N9K-CAMA-WAN-1# show ip igmp snooping groups
+Type: S - Static, D - Dynamic, R - Router port, F - Fabricpath core port
+Vlan  Group Address    Ver  Type  Port list
+101   225.1.1.1        v2   D     Eth1/1, Eth1/2
+101   239.5.5.5        v3   D     Po10
+102   224.0.1.40       v2   D     Eth1/3
+100   */*              -    R     Eth1/48
+
+N9K-CAMA-WAN-1#

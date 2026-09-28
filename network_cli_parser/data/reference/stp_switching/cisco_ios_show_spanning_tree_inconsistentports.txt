@@ -1,0 +1,10 @@
+IOS-RTR-1# show spanning-tree inconsistentports
+
+Name                 Interface              Inconsistency
+-------------------- ---------------------- ------------------
+VLAN0010             FastEthernet0/1        Port Type Inconsistent
+VLAN0010             FastEthernet0/2        PVID Inconsistent
+
+Number of inconsistent ports (segments) in the system : 2
+
+IOS-RTR-1#

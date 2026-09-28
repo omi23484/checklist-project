@@ -1,0 +1,16 @@
+Switch is in {{ stp_mode }} mode
+Root bridge for: {{ root_bridge_for | re(".+") }}
+Port Type Default                    is {{ port_type_default }}
+Edge Port [PortFast] BPDU Guard Default is {{ bpdu_guard_default }}
+Edge Port [PortFast] BPDU Filter Default is {{ bpdu_filter_default }}
+Bridge Assurance                     is {{ bridge_assurance }}
+Loopguard Default                    is {{ loopguard_default }}
+Pathcost method used                 is {{ pathcost_method }}
+
+<group name="vlans*">
+{{ vlan | re("VLAN\d+") }}  {{ blocking | re("\d+") }}  {{ listening | re("\d+") }}  {{ learning | re("\d+") }}  {{ forwarding | re("\d+") }}  {{ stp_active | re("\d+") }}
+</group>
+
+<group name="totals">
+{{ total_vlans | re("\d+") }} vlans  {{ total_blocking | re("\d+") }}  {{ total_listening | re("\d+") }}  {{ total_learning | re("\d+") }}  {{ total_forwarding | re("\d+") }}  {{ total_active | re("\d+") }}
+</group>

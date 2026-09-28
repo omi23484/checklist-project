@@ -1,0 +1,3 @@
+<group name="groups*">
+{{ interface }}      {{ group }}  {{ fwd }}   {{ priority }} {{ state }}   {{ address }}      {{ active_router }}       {{ standby_router }}
+</group>

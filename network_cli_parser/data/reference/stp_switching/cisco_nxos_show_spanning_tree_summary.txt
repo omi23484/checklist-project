@@ -1,0 +1,19 @@
+N9K-CAMA-WAN-1# show spanning-tree summary
+Switch is in rapid-pvst mode
+Root bridge for: VLAN0010, VLAN0020
+Port Type Default                    is disabled
+Edge Port [PortFast] BPDU Guard Default is disabled
+Edge Port [PortFast] BPDU Filter Default is disabled
+Bridge Assurance                     is enabled
+Loopguard Default                    is disabled
+Pathcost method used                 is short
+
+Name                   Blocking Listening Learning Forwarding STP Active
+---------------------- -------- --------- -------- ---------- ----------
+VLAN0010                      0         0        0          5          5
+VLAN0020                      0         0        0          3          3
+VLAN0030                      1         0        0          4          5
+---------------------- -------- --------- -------- ---------- ----------
+3 vlans                       1         0        0         12         13
+
+N9K-CAMA-WAN-1#

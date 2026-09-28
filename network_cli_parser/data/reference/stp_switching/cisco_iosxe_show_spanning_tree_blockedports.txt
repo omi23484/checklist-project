@@ -1,0 +1,9 @@
+CSR1K# show spanning-tree blockedports
+
+Name                 Blocked Interfaces List
+-------------------- ------------------------------------
+VLAN0020             FastEthernet0/24
+
+Number of blocked ports (segments) in the system : 1
+
+CSR1K#

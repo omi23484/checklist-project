@@ -1,0 +1,22 @@
+{
+  "vlans": [
+    {
+      "total_count": "12",
+      "static_count": "0",
+      "dynamic_count": "12",
+      "vlan": "1"
+    },
+    {
+      "total_count": "46",
+      "static_count": "1",
+      "dynamic_count": "45",
+      "vlan": "10"
+    },
+    {
+      "total_count": "88",
+      "static_count": "0",
+      "dynamic_count": "88",
+      "vlan": "20"
+    }
+  ]
+}

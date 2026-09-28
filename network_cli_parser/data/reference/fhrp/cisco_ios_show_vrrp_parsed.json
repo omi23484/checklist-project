@@ -1,0 +1,38 @@
+{
+  "groups": [
+    {
+      "master_down_interval": "3.609",
+      "master_adv_interval": "1.000",
+      "master_router": "10.10.10.1",
+      "master_priority": "110",
+      "track_object": "1",
+      "track_state": "Up",
+      "track_decrement": "10",
+      "priority": "110",
+      "preempt": "enabled",
+      "adv_interval": "1.000",
+      "virtual_mac": "0000.5E00.010A",
+      "virtual_ip": "10.10.10.1",
+      "state": "Master",
+      "interface": "Vlan10",
+      "group": "10",
+      "address_family": "IPv4"
+    },
+    {
+      "master_down_interval": "3.702",
+      "master_down_expires": "3.216",
+      "master_adv_interval": "1.000",
+      "master_router": "10.20.20.2",
+      "master_priority": "110",
+      "priority": "100",
+      "preempt": "enabled",
+      "adv_interval": "1.000",
+      "virtual_mac": "0000.5E00.0114",
+      "virtual_ip": "10.20.20.1",
+      "state": "Backup",
+      "interface": "Vlan20",
+      "group": "20",
+      "address_family": "IPv4"
+    }
+  ]
+}

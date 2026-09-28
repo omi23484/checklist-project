@@ -1,0 +1,4 @@
+<group name="vlans*">
+{{ vlan | re("\d+") }}  {{ count | re("\d+") }}
+</group>
+Total MAC Addresses in Use:      {{ total_mac_count | re("\d+") }}

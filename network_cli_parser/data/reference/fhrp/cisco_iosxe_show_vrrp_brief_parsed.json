@@ -1,0 +1,37 @@
+{
+  "groups": [
+    {
+      "interface": "Gi1",
+      "group": "10",
+      "priority": "110",
+      "adv_timer": "3609",
+      "owner": "",
+      "preempt": "Y",
+      "state": "Master",
+      "master_addr": "10.10.10.2",
+      "virtual_ip": "10.10.10.1"
+    },
+    {
+      "interface": "Gi2",
+      "group": "20",
+      "priority": "100",
+      "adv_timer": "3702",
+      "owner": "",
+      "preempt": "Y",
+      "state": "Backup",
+      "master_addr": "10.20.20.2",
+      "virtual_ip": "10.20.20.1"
+    },
+    {
+      "interface": "Gi3",
+      "group": "30",
+      "priority": "100",
+      "adv_timer": "3644",
+      "owner": "Y",
+      "preempt": "Y",
+      "state": "Master",
+      "master_addr": "10.30.30.3",
+      "virtual_ip": "10.30.30.1"
+    }
+  ]
+}

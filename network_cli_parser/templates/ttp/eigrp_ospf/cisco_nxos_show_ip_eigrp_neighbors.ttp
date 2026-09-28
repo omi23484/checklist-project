@@ -1,3 +1,3 @@
 <group name="neighbors*">
-{{ handle }}   {{ neighbor }}               {{ interface }}               {{ hold }}    {{ uptime }}  {{ srtt }}      {{ rto }} {{ q_cnt }}    {{ seq_num }}
+{{ handle | re("\d+") }}   {{ neighbor | re("[\d.]+") }}               {{ interface }}               {{ hold }}    {{ uptime }}  {{ srtt }}      {{ rto }} {{ q_cnt }}    {{ seq_num }}
 </group>

@@ -1,0 +1,10 @@
+N9K-CAMA-WAN-1# show spanning-tree root
+
+                                        Root    Hello Max Fwd
+Vlan                   Root ID         Cost    Time  Age Dly  Root Port
+---------------- -------------------- -------  ----- --- ---  --------------
+VLAN0010         32778 0023.04ee.be01     4      2    20  15  Port-channel1
+VLAN0020         32788 0023.04ee.be01     4      2    20  15  Port-channel1
+VLAN0030         28682 0023.04ee.be01     4      2    20  15  Ethernet1/10
+
+N9K-CAMA-WAN-1#

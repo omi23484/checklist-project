@@ -1,0 +1,22 @@
+IOS-RTR-1# show spanning-tree summary
+Switch is in pvst mode
+Root bridge for: VLAN0001
+Extended system ID is enabled
+Portfast Default is disabled
+PortFast BPDU Guard Default is disabled
+Portfast BPDU Filter Default is disabled
+Loopguard Default is disabled
+EtherChannel misconfig guard is enabled
+UplinkFast is disabled
+BackboneFast is disabled
+Configured Pathcost method used is short
+
+Name                   Blocking Listening Learning Forwarding STP Active
+---------------------- -------- --------- -------- ---------- ----------
+VLAN0001                      0         0        0          3          3
+VLAN0010                      0         0        0          2          2
+VLAN0020                      1         0        0          2          3
+---------------------- -------- --------- -------- ---------- ----------
+3 vlans                       1         0        0          7          8
+
+IOS-RTR-1#

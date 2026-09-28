@@ -1,0 +1,64 @@
+{
+  "groups": [
+    {
+      "interface": "Gi1",
+      "group": "10",
+      "fwd": "-",
+      "priority": "120",
+      "state": "Active",
+      "address": "10.10.10.1",
+      "active_router": "local",
+      "standby_router": "10.10.10.3"
+    },
+    {
+      "interface": "Gi1",
+      "group": "10",
+      "fwd": "1",
+      "priority": "-",
+      "state": "Active",
+      "address": "0007.b400.0a01",
+      "active_router": "local",
+      "standby_router": "-"
+    },
+    {
+      "interface": "Gi1",
+      "group": "10",
+      "fwd": "2",
+      "priority": "-",
+      "state": "Listen",
+      "address": "0007.b400.0a02",
+      "active_router": "10.10.10.3",
+      "standby_router": "-"
+    },
+    {
+      "interface": "Gi2",
+      "group": "20",
+      "fwd": "-",
+      "priority": "100",
+      "state": "Standby",
+      "address": "10.20.20.1",
+      "active_router": "10.20.20.2",
+      "standby_router": "local"
+    },
+    {
+      "interface": "Gi2",
+      "group": "20",
+      "fwd": "1",
+      "priority": "-",
+      "state": "Listen",
+      "address": "0007.b400.1401",
+      "active_router": "10.20.20.2",
+      "standby_router": "-"
+    },
+    {
+      "interface": "Gi2",
+      "group": "20",
+      "fwd": "2",
+      "priority": "-",
+      "state": "Active",
+      "address": "0007.b400.1402",
+      "active_router": "local",
+      "standby_router": "-"
+    }
+  ]
+}

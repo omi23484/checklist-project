@@ -1,0 +1,7 @@
+<group name="trunk_interfaces*">
+{{ port | re("\S*\d\S*") }}  {{ mode }}  {{ encapsulation | re("802\.1q|isl|negotiate") }}  {{ status | re("trunking|not-trunking") }}  {{ native_vlan | re("\d+") }}
+</group>
+
+<group name="vlans_allowed*">
+{{ port | re("\S*\d\S*") }}  {{ vlans | re("[\d,-]+") }}
+</group>

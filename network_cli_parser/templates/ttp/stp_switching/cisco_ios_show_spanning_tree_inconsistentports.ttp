@@ -1,0 +1,4 @@
+<group name="inconsistent_ports*">
+{{ vlan | re("VLAN\d+") }}  {{ interface | re("\S*\d\S*") }}  {{ inconsistency | re(".+") }}
+</group>
+Number of inconsistent ports (segments) in the system : {{ total_inconsistent_ports | re("\d+") }}

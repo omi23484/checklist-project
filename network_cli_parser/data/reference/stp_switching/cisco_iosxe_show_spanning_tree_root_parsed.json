@@ -1,0 +1,34 @@
+{
+  "vlans": [
+    {
+      "vlan": "VLAN0001",
+      "priority": "32769",
+      "root_mac": "001a.a1ff.0000",
+      "cost": "4",
+      "hello_time": "2",
+      "max_age": "20",
+      "fwd_delay": "15",
+      "root_port": "GigabitEthernet1/0/1"
+    },
+    {
+      "vlan": "VLAN0010",
+      "priority": "32778",
+      "root_mac": "001a.a1ff.0000",
+      "cost": "4",
+      "hello_time": "2",
+      "max_age": "20",
+      "fwd_delay": "15",
+      "root_port": "GigabitEthernet1/0/1"
+    },
+    {
+      "vlan": "VLAN0020",
+      "priority": "32788",
+      "root_mac": "001a.a1ff.0000",
+      "cost": "4",
+      "hello_time": "2",
+      "max_age": "20",
+      "fwd_delay": "15",
+      "root_port": "GigabitEthernet1/0/1"
+    }
+  ]
+}

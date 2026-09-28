@@ -1,0 +1,13 @@
+N9K-CAMA-WAN-1# show interface status
+
+--------------------------------------------------------------------------------
+Port          Name               Status     Vlan      Duplex  Speed   Type
+--------------------------------------------------------------------------------
+mgmt0         --                 connected  routed    full    1000    --
+Eth1/1        to-Core-SW1        connected  trunk     full    10G     10Gbase-SR
+Eth1/2        to-Core-SW2        connected  trunk     full    10G     10Gbase-SR
+Eth1/10       Server-Uplink      connected  30        full    1000    10Gbase-T
+Eth1/11       --                 xcvrAbsent 1         auto    auto    --
+Eth1/12       --                 disabled   1         auto    auto    --
+
+N9K-CAMA-WAN-1#

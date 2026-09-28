@@ -1,0 +1,10 @@
+IOS-RTR-1# show spanning-tree root
+
+                                        Root    Hello Max Fwd
+Vlan                   Root ID         Cost    Time  Age Dly  Root Port
+---------------- -------------------- -------  ----- --- ---  --------------
+VLAN0001         32769 001a.a1ff.0000     4      2    20  15  GigabitEthernet1/0/1
+VLAN0010         32778 001a.a1ff.0000     4      2    20  15  GigabitEthernet1/0/1
+VLAN0020         32788 001a.a1ff.0000     4      2    20  15  GigabitEthernet1/0/1
+
+IOS-RTR-1#

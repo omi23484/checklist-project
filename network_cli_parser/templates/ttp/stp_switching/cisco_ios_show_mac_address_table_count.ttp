@@ -1,0 +1,7 @@
+<group name="vlans*">
+Mac Entries for Vlan {{ vlan | re("\d+") }}:
+Dynamic Address Count: {{ dynamic_count | re("\d+") }}
+Static  Address Count: {{ static_count | re("\d+") }}
+Total Mac Addresses In Use: {{ total_count | re("\d+") }}
+</group>
+Total Mac Addresses In System: {{ grand_total | re("\d+") }}

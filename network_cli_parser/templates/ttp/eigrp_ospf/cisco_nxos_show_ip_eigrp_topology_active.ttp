@@ -1,7 +1,7 @@
 <group name="routes*">
 A {{ prefix }}, {{ successors }} successors, FD is {{ fd }}, {{ state | re(".+") }}
         {{ reply_count }} replies, active {{ active_time }}, query-origin: {{ query_origin | re(".+") }}
-         via {{ via | re("[^(]+") }}({{ fd_via }}/{{ ad_via }}), {{ via_interface }}
+     via {{ via | re("[^(]+") }}({{ fd_via }}/{{ ad_via }}), {{ via_interface }}
 <group name="remaining_replies*">
          via {{ reply_neighbor | re("[\d.]+") }}, {{ reply_status }}, {{ reply_interface }}
 </group>

@@ -1,0 +1,36 @@
+{
+  "trunk_interfaces": [
+    {
+      "port": "Eth1/1",
+      "native_vlan": "1",
+      "status": "trunking",
+      "port_channel": "Po1"
+    },
+    {
+      "port": "Eth1/2",
+      "native_vlan": "1",
+      "status": "trunking",
+      "port_channel": "Po1"
+    },
+    {
+      "port": "Eth1/10",
+      "native_vlan": "1",
+      "status": "trunking",
+      "port_channel": "--"
+    }
+  ],
+  "vlans_allowed": [
+    {
+      "port": "Eth1/1",
+      "vlans": "10,20,30"
+    },
+    {
+      "port": "Eth1/2",
+      "vlans": "10,20,30"
+    },
+    {
+      "port": "Eth1/10",
+      "vlans": "10,20,30,40"
+    }
+  ]
+}

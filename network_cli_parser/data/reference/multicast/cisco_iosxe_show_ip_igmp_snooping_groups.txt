@@ -1,0 +1,9 @@
+CSR1K# show ip igmp snooping groups
+
+Vlan     Group                    Type    Version     Port List
+-----------------------------------------------------------------------
+104      224.1.4.2                igmp    v2          Gi2/0/1, Gi1/0/15
+104      239.255.1.1              igmp    v3          Gi2/0/1
+1        224.0.1.40               igmp    v2          Gi1/0/24
+
+CSR1K#

@@ -1,0 +1,50 @@
+{
+  "groups": [
+    {
+      "master_router": "local",
+      "virtual_mac": "0000.5e00.010a",
+      "preempt": "enabled",
+      "adv_interval": "1",
+      "threshold_lower": "1",
+      "threshold_upper": "110",
+      "priority": "110",
+      "configured_priority": "110",
+      "virtual_ip": "10.10.10.1",
+      "state": "Master",
+      "interface": "Vlan10",
+      "group": "10",
+      "ip_version": "IPV4"
+    },
+    {
+      "master_router": "10.20.20.2",
+      "master_priority": "110",
+      "virtual_mac": "0000.5e00.0114",
+      "preempt": "enabled",
+      "adv_interval": "1",
+      "threshold_lower": "1",
+      "threshold_upper": "100",
+      "priority": "100",
+      "configured_priority": "100",
+      "virtual_ip": "10.20.20.1",
+      "state": "Backup",
+      "interface": "Vlan20",
+      "group": "20",
+      "ip_version": "IPV4"
+    },
+    {
+      "master_router": "Unknown",
+      "virtual_mac": "0000.5e00.011e",
+      "preempt": "enabled",
+      "adv_interval": "1",
+      "threshold_lower": "1",
+      "threshold_upper": "100",
+      "priority": "100",
+      "configured_priority": "100",
+      "virtual_ip": "10.30.30.1",
+      "state": "Init",
+      "interface": "Vlan30",
+      "group": "30",
+      "ip_version": "IPV4"
+    }
+  ]
+}

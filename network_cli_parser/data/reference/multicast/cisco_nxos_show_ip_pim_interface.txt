@@ -1,0 +1,10 @@
+N9K-CAMA-WAN-1# show ip pim interface
+PIM Interface Status for VRF "default"
+
+Interface              IP Address      PIM DR Address     Nbr Count  Border
+Vlan101                10.10.1.1       10.10.1.1          1          no
+Vlan102                10.10.2.1       10.10.2.2          2          no
+Ethernet1/1            172.16.1.1      172.16.1.1         0          no
+Loopback0              10.0.0.1        10.0.0.1           0          no
+
+N9K-CAMA-WAN-1#

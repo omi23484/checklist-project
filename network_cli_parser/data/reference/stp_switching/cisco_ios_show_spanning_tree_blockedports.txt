@@ -1,0 +1,9 @@
+IOS-RTR-1# show spanning-tree blockedports
+
+Name                 Blocked Interfaces List
+-------------------- ------------------------------------
+VLAN0020             FastEthernet0/24
+
+Number of blocked ports (segments) in the system : 1
+
+IOS-RTR-1#

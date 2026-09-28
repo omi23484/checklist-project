@@ -1,0 +1,5 @@
+MSDP Source-Active Cache - {{ total_entries }} entries
+<group name="sa_entries*">
+({{ source | re("[^,]+") }}, {{ group | re("[^)]+") }}), RP {{ rp | re("[^,]+") }}, MBGP/AS {{ asn | re("[^,]+") }}, {{ uptime | re("[^/]+") }}/{{ expires }}
+</group>
+</output>

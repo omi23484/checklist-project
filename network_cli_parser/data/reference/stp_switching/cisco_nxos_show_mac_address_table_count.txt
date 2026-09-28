@@ -1,0 +1,13 @@
+N9K-CAMA-WAN-1# show mac address-table count
+
+MAC Entries for all vlans :
+
+VLAN         Unicast MAC Count
+-----------  -----------------
+10                          42
+20                          17
+30                         103
+
+Total MAC Addresses in Use:      162
+
+N9K-CAMA-WAN-1#

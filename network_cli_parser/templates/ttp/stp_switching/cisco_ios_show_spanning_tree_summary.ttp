@@ -1,0 +1,19 @@
+Switch is in {{ stp_mode }} mode
+Root bridge for: {{ root_bridge_for | re(".+") }}
+Extended system ID is {{ extended_system_id }}
+Portfast Default is {{ portfast_default }}
+PortFast BPDU Guard Default is {{ bpdu_guard_default }}
+Portfast BPDU Filter Default is {{ bpdu_filter_default }}
+Loopguard Default is {{ loopguard_default }}
+EtherChannel misconfig guard is {{ etherchannel_misconfig_guard }}
+UplinkFast is {{ uplinkfast }}
+BackboneFast is {{ backbonefast }}
+Configured Pathcost method used is {{ pathcost_method }}
+
+<group name="vlans*">
+{{ vlan | re("VLAN\d+") }}  {{ blocking | re("\d+") }}  {{ listening | re("\d+") }}  {{ learning | re("\d+") }}  {{ forwarding | re("\d+") }}  {{ stp_active | re("\d+") }}
+</group>
+
+<group name="totals">
+{{ total_vlans | re("\d+") }} vlans  {{ total_blocking | re("\d+") }}  {{ total_listening | re("\d+") }}  {{ total_learning | re("\d+") }}  {{ total_forwarding | re("\d+") }}  {{ total_active | re("\d+") }}
+</group>

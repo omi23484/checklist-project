@@ -1,0 +1,10 @@
+IOS-RTR-1# show interfaces status
+
+Port      Name               Status       Vlan       Duplex  Speed  Type
+Gi1/0/1   Uplink-to-Core     connected    1          a-full  a-1000 10/100/1000BaseTX
+Gi1/0/2   Server-Farm-A      connected    100        a-full  a-1000 10/100/1000BaseTX
+Gi1/0/3   --                 notconnect   1          auto    auto   10/100/1000BaseTX
+Gi1/0/4   --                 disabled     1          auto    auto   10/100/1000BaseTX
+Po1       Core-Uplink        connected    trunk      a-full  a-1000 N/A
+
+IOS-RTR-1#

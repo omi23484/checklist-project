@@ -1,0 +1,63 @@
+{
+  "error_counters": [
+    {
+      "port": "Eth1/1",
+      "align_err": "0",
+      "fcs_err": "0",
+      "xmit_err": "0",
+      "rcv_err": "0",
+      "undersize": "0",
+      "out_discards": "0"
+    },
+    {
+      "port": "Eth1/2",
+      "align_err": "0",
+      "fcs_err": "12",
+      "xmit_err": "0",
+      "rcv_err": "12",
+      "undersize": "0",
+      "out_discards": "0"
+    },
+    {
+      "port": "Eth1/10",
+      "align_err": "0",
+      "fcs_err": "0",
+      "xmit_err": "0",
+      "rcv_err": "0",
+      "undersize": "0",
+      "out_discards": "143"
+    }
+  ],
+  "collision_counters": [
+    {
+      "port": "Eth1/1",
+      "single_col": "0",
+      "multi_col": "0",
+      "late_col": "0",
+      "excess_col": "0",
+      "carri_sen": "0",
+      "runts": "0",
+      "giants": "0"
+    },
+    {
+      "port": "Eth1/2",
+      "single_col": "0",
+      "multi_col": "0",
+      "late_col": "0",
+      "excess_col": "0",
+      "carri_sen": "0",
+      "runts": "0",
+      "giants": "0"
+    },
+    {
+      "port": "Eth1/10",
+      "single_col": "0",
+      "multi_col": "0",
+      "late_col": "0",
+      "excess_col": "0",
+      "carri_sen": "0",
+      "runts": "0",
+      "giants": "0"
+    }
+  ]
+}

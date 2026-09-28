@@ -1,0 +1,4 @@
+<group name="groups*">
+{{ vlan }}   {{ group_address }}       {{ type }}    {{ version }}     {{ port_list | re(".+") }}
+</group>
+</output>

@@ -1,0 +1,3 @@
+<group name="interfaces*">
+{{ port | re("\S*\d\S*") }}  {{ name | re("\S+") }}  {{ status | re("[a-zA-Z]+") }}  {{ vlan }}  {{ duplex }}  {{ speed }}  {{ type | re(".+") }}
+</group>

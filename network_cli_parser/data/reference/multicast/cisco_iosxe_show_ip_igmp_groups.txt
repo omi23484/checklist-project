@@ -1,0 +1,9 @@
+CSR1K# show ip igmp groups
+
+IGMP Connected Group Membership
+Group Address    Interface                Uptime    Expires   Last Reporter
+239.1.2.3        GigabitEthernet1         00:22:37  00:02:14  10.1.0.6
+224.0.1.40       GigabitEthernet2         1d02h     00:02:03  172.31.100.1
+225.1.1.1        GigabitEthernet3         01:10:30  00:02:45  10.1.0.9
+
+CSR1K#

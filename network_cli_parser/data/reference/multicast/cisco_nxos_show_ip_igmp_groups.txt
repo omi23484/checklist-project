@@ -1,0 +1,10 @@
+N9K-CAMA-WAN-1# show ip igmp groups
+IGMP Connected Group Membership for VRF "default" - 4 total entries
+Type: S - Static, D - Dynamic, L - Local, T - SSM Translated
+Group Address    Type  Interface       Uptime    Expires   Last Reporter
+225.1.1.1        D     Vlan101         03:48:57  00:03:12  10.10.1.5
+239.1.2.3        L     Loopback0       01:05:12  never     10.0.0.1
+239.5.5.5        D     Vlan102         00:22:10  00:02:45  10.10.2.8
+224.0.1.40       D     Ethernet1/1     1d02h     00:02:01  10.20.1.2
+
+N9K-CAMA-WAN-1#

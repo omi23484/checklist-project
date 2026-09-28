@@ -1,0 +1,23 @@
+IOS-RTR-1# show mac address-table count
+
+Mac Entries for Vlan 1:
+---------------------------
+Dynamic Address Count:       12
+Static  Address Count:        0
+Total Mac Addresses In Use:  12
+
+Mac Entries for Vlan 10:
+---------------------------
+Dynamic Address Count:       45
+Static  Address Count:        1
+Total Mac Addresses In Use:  46
+
+Mac Entries for Vlan 20:
+---------------------------
+Dynamic Address Count:       88
+Static  Address Count:        0
+Total Mac Addresses In Use:  88
+
+Total Mac Addresses In System: 146
+
+IOS-RTR-1#

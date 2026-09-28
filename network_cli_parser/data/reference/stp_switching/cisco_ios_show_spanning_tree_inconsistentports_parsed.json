@@ -1,0 +1,14 @@
+{
+  "inconsistent_ports": [
+    {
+      "vlan": "VLAN0010",
+      "interface": "FastEthernet0/1",
+      "inconsistency": "Port Type Inconsistent"
+    },
+    {
+      "vlan": "VLAN0010",
+      "interface": "FastEthernet0/2",
+      "inconsistency": "PVID Inconsistent"
+    }
+  ]
+}

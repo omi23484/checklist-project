@@ -1,0 +1,15 @@
+MSDP Peer {{ peer_address }} ({{ peer_name | re("[^)]+") }}), AS {{ asn }}
+  Description: {{ description | re(".*") }}
+  Connection status: State: {{ state | re("[^,]+") }}, Resets: {{ resets }}, Connection source: {{ connect_source | re("[^(]+") }} ({{ connect_source_ip }})
+  Uptime(Downtime): {{ uptime_downtime | re("[^,]+") }}, Messages sent/received: {{ msgs_sent }}/{{ msgs_received }}
+  Output messages discarded: {{ discarded }}
+  Connection and counters cleared: {{ counters_cleared | re(".+") }}
+  SA Filtering:
+    Input (S,G) filter: {{ sa_input_filter | re("[^,]+") }}, route-map: {{ sa_input_routemap }}
+    Output (S,G) filter: {{ sa_output_filter | re("[^,]+") }}, route-map: {{ sa_output_routemap }}
+  SA-Requests:
+    Input filter: {{ sa_request_filter }}
+  Peer ttl threshold: {{ ttl_threshold }}
+  SAs learned from this peer: {{ sa_learned }}
+  Input queue size: {{ input_queue | re("[^,]+") }}, Output queue size: {{ output_queue }}
+</output>

@@ -1,0 +1,36 @@
+{
+  "vlans": [
+    {
+      "vlan": "VLAN0001",
+      "blocking": "0",
+      "listening": "0",
+      "learning": "0",
+      "forwarding": "3",
+      "stp_active": "3"
+    },
+    {
+      "vlan": "VLAN0010",
+      "blocking": "0",
+      "listening": "0",
+      "learning": "0",
+      "forwarding": "2",
+      "stp_active": "2"
+    },
+    {
+      "vlan": "VLAN0020",
+      "blocking": "1",
+      "listening": "0",
+      "learning": "0",
+      "forwarding": "2",
+      "stp_active": "3"
+    }
+  ],
+  "totals": {
+    "total_vlans": "3",
+    "total_blocking": "1",
+    "total_listening": "0",
+    "total_learning": "0",
+    "total_forwarding": "7",
+    "total_active": "8"
+  }
+}

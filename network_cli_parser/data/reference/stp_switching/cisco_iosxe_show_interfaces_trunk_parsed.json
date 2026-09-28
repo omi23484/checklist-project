@@ -1,0 +1,63 @@
+{
+  "trunk_interfaces": [
+    {
+      "port": "Gi1/0/1",
+      "mode": "on",
+      "encapsulation": "802.1q",
+      "status": "trunking",
+      "native_vlan": "1"
+    },
+    {
+      "port": "Gi1/0/2",
+      "mode": "on",
+      "encapsulation": "802.1q",
+      "status": "trunking",
+      "native_vlan": "1"
+    },
+    {
+      "port": "Po1",
+      "mode": "on",
+      "encapsulation": "802.1q",
+      "status": "trunking",
+      "native_vlan": "1"
+    }
+  ],
+  "vlans_allowed": [
+    {
+      "port": "Gi1/0/1",
+      "vlans": "10,20,30"
+    },
+    {
+      "port": "Gi1/0/2",
+      "vlans": "10,20,30"
+    },
+    {
+      "port": "Po1",
+      "vlans": "10,20,30,40"
+    },
+    {
+      "port": "Gi1/0/1",
+      "vlans": "10,20,30"
+    },
+    {
+      "port": "Gi1/0/2",
+      "vlans": "10,20,30"
+    },
+    {
+      "port": "Po1",
+      "vlans": "10,20,30,40"
+    },
+    {
+      "port": "Gi1/0/1",
+      "vlans": "10,20,30"
+    },
+    {
+      "port": "Gi1/0/2",
+      "vlans": "10,20,30"
+    },
+    {
+      "port": "Po1",
+      "vlans": "10,20,30,40"
+    }
+  ]
+}

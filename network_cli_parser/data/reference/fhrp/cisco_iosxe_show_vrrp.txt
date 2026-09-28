@@ -1,0 +1,25 @@
+CSR1K# show vrrp
+GigabitEthernet1 - Group 10 - Address-Family IPv4
+  State is Master
+  Virtual IP address is 10.10.10.1
+  Virtual MAC address is 0000.5E00.010A
+  Advertisement interval is 1.000 sec
+  Preemption enabled
+  Priority is 110
+  Track object 1 state Up decrement 10
+  Master Router is 10.10.10.1 (local), priority is 110
+  Master Advertisement interval is 1.000 sec
+  Master Down interval is 3.609 sec
+
+GigabitEthernet2 - Group 20 - Address-Family IPv4
+  State is Backup
+  Virtual IP address is 10.20.20.1
+  Virtual MAC address is 0000.5E00.0114
+  Advertisement interval is 1.000 sec
+  Preemption enabled
+  Priority is 100
+  Master Router is 10.20.20.2, priority is 110
+  Master Advertisement interval is 1.000 sec
+  Master Down interval is 3.702 sec (expires in 3.216 sec)
+
+CSR1K#

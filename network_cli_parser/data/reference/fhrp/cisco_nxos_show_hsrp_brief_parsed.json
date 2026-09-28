@@ -1,0 +1,37 @@
+{
+  "groups": [
+    {
+      "interface": "Vlan10",
+      "group": "10",
+      "priority": "110",
+      "preempt": "P",
+      "state": "Active",
+      "active_addr": "local",
+      "standby_addr": "10.10.10.2",
+      "virtual_ip": "10.10.10.1",
+      "addr_type": "conf"
+    },
+    {
+      "interface": "Vlan20",
+      "group": "20",
+      "priority": "100",
+      "preempt": "",
+      "state": "Standby",
+      "active_addr": "10.20.20.2",
+      "standby_addr": "local",
+      "virtual_ip": "10.20.20.1",
+      "addr_type": "conf"
+    },
+    {
+      "interface": "Vlan30",
+      "group": "30",
+      "priority": "120",
+      "preempt": "P",
+      "state": "Active",
+      "active_addr": "local",
+      "standby_addr": "unknown",
+      "virtual_ip": "10.30.30.1",
+      "addr_type": "conf"
+    }
+  ]
+}

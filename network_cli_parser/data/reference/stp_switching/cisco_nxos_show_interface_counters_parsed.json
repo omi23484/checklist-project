@@ -1,0 +1,90 @@
+{
+  "in_counters": [
+    {
+      "port": "mgmt0",
+      "in_octets": "853430396",
+      "in_ucast_pkts": "2076402",
+      "in_mcast_pkts": "0",
+      "in_bcast_pkts": "503"
+    },
+    {
+      "port": "Eth1/1",
+      "in_octets": "48291022981",
+      "in_ucast_pkts": "40233819",
+      "in_mcast_pkts": "12933",
+      "in_bcast_pkts": "890"
+    },
+    {
+      "port": "Eth1/2",
+      "in_octets": "39281774213",
+      "in_ucast_pkts": "35218832",
+      "in_mcast_pkts": "9821",
+      "in_bcast_pkts": "712"
+    },
+    {
+      "port": "mgmt0",
+      "in_octets": "102934822",
+      "in_ucast_pkts": "887312",
+      "in_mcast_pkts": "0",
+      "in_bcast_pkts": "0"
+    },
+    {
+      "port": "Eth1/1",
+      "in_octets": "51829304812",
+      "in_ucast_pkts": "42192837",
+      "in_mcast_pkts": "15029",
+      "in_bcast_pkts": "934"
+    },
+    {
+      "port": "Eth1/2",
+      "in_octets": "40182933821",
+      "in_ucast_pkts": "36129482",
+      "in_mcast_pkts": "10233",
+      "in_bcast_pkts": "801"
+    }
+  ],
+  "out_counters": [
+    {
+      "port": "mgmt0",
+      "out_octets": "853430396",
+      "out_ucast_pkts": "2076402",
+      "out_mcast_pkts": "0",
+      "out_bcast_pkts": "503"
+    },
+    {
+      "port": "Eth1/1",
+      "out_octets": "48291022981",
+      "out_ucast_pkts": "40233819",
+      "out_mcast_pkts": "12933",
+      "out_bcast_pkts": "890"
+    },
+    {
+      "port": "Eth1/2",
+      "out_octets": "39281774213",
+      "out_ucast_pkts": "35218832",
+      "out_mcast_pkts": "9821",
+      "out_bcast_pkts": "712"
+    },
+    {
+      "port": "mgmt0",
+      "out_octets": "102934822",
+      "out_ucast_pkts": "887312",
+      "out_mcast_pkts": "0",
+      "out_bcast_pkts": "0"
+    },
+    {
+      "port": "Eth1/1",
+      "out_octets": "51829304812",
+      "out_ucast_pkts": "42192837",
+      "out_mcast_pkts": "15029",
+      "out_bcast_pkts": "934"
+    },
+    {
+      "port": "Eth1/2",
+      "out_octets": "40182933821",
+      "out_ucast_pkts": "36129482",
+      "out_mcast_pkts": "10233",
+      "out_bcast_pkts": "801"
+    }
+  ]
+}

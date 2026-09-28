@@ -1,0 +1,8 @@
+{
+  "blocked_ports": [
+    {
+      "vlan": "VLAN0030",
+      "interfaces": "Ethernet1/10"
+    }
+  ]
+}

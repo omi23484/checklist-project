@@ -1,0 +1,18 @@
+IOS-RTR-1# show ip msdp peer 172.16.253.19
+MSDP Peer 172.16.253.19 (rtp5-rp1.cisco.com), AS 65001 (configured AS)
+Description:
+Connection status: State: Up, Resets: 9, Connection source: Loopback2 (172.16.253.1)
+Uptime(Downtime): 1d10h, Messages sent/received: 436765/429062
+Output messages discarded: 0
+Connection and counters cleared 1w2d ago
+SA Filtering: Input (S,G) filter: none, route-map: none
+Input RP filter: none, route-map: none
+Output (S,G) filter: none, route-map: none
+Output RP filter: none, route-map: none
+SA-Requests: Input filter: none
+Sending SA-Requests to peer: disabled
+Peer ttl threshold: 0
+SAs learned from this peer: 111, SAs limit: 500
+Input queue size: 0, Output queue size: 0
+
+IOS-RTR-1#
