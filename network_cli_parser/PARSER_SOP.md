@@ -75,8 +75,8 @@ checklist-project/                        ← repository root
 │
 └── network_cli_parser/
     ├── main.py                           ← parser entry point
-    ├── report.py                         ← report generator (15 subcommands)
-    ├── commands.yaml                     ← command registry (platform → command → strategy)
+    ├── report.py                         ← report generator (13 subcommands)
+    ├── commands.yaml                     ← command registry (platform → command → strategy, 157 entries)
     ├── requirements.txt
     ├── PARSER_SOP.md                     ← this file
     │
@@ -86,15 +86,21 @@ checklist-project/                        ← repository root
     │   ├── ntc_engine.py                 ← wrapper around ntc-templates library
     │   ├── custom_engine.py              ← TextFSM engine + auto-discovery
     │   ├── ttp_engine.py                 ← TTP engine + auto-discovery
-    │   └── multicast_parser.py           ← Python parsers for multicast commands
+    │   └── multicast_parser.py           ← hierarchical parser functions (currently unused, see §6.3)
     │
     ├── templates/
     │   ├── custom/                       ← TextFSM templates (.textfsm)
     │   │   ├── routing/
     │   │   ├── interfaces/
     │   │   └── ...                       ← any subdirectory; rglob scans them all
-    │   └── ttp/                          ← TTP templates (.ttp)
-    │       └── routing/
+    │   └── ttp/                          ← TTP templates (.ttp), 115 files
+    │       ├── routing/
+    │       ├── multicast/                ← mroute/pim/msdp, all 3 platforms (§6.6)
+    │       ├── vpc_lacp/                 ← §6.7
+    │       ├── fhrp/                     ← §6.7
+    │       ├── stp_switching/            ← §6.7
+    │       ├── eigrp_ospf/               ← §6.7
+    │       └── bgp_neighbor_cmds/        ← §6.7
     │
     ├── utils/
     │   ├── normalization.py              ← platform detection, hostname, cmd normalization
@@ -116,8 +122,15 @@ checklist-project/                        ← repository root
     └── data/
         ├── raw/
         │   └── <date>/                   ← input CLI dump .txt files
-        └── json/
-            └── <date>/                   ← output JSON snapshots
+        ├── json/
+        │   └── <date>/                   ← output JSON snapshots
+        └── reference/                    ← worked-example raw + parsed JSON per template, mirrors templates/ttp/*
+            ├── multicast/
+            ├── vpc_lacp/
+            ├── fhrp/
+            ├── stp_switching/
+            ├── eigrp_ospf/
+            └── bgp_neighbor_cmds/
 ```
 
 ---
@@ -428,6 +441,80 @@ Parses `(*, 225.1.1.1/32), uptime: 03:48:57, igmp ip pim` blocks into:
 
 1. **Whitespace runs between `{{ }}` tags are flexible, not literal.** A template line with a single space between two variables still matches real Cisco output with 5+ aligned spaces between columns — TTP treats template whitespace as `\s+`. You don't need to count columns.
 2. **Never rely on two alternate template lines to distinguish two record shapes within the same `<group>`.** IOS `show ip mroute` has two visually different route-header formats — `(*, G), uptime/expires, RP x.x.x.x, flags: F` for `(*,G)` entries and `(S, G), uptime/expires, flags: F` (no RP) for `(S,G)` entries. An early version of `cisco_ios_show_ip_mroute.ttp` used two alternate header lines to match each shape — TTP does **not** reliably start a new record when the second alternate line matches; it silently merged fields from consecutive `(*,G)`/`(S,G)` pairs into one record instead of two. The fix: **one** header template line with a trailing `{{ route_info | re(".+") }}` catch-all field that captures `RP x.x.x.x, flags: F` or `flags: F` verbatim — every route line reliably starts a new record, and callers regex/split `route_info` further if they need the RP or flags individually.
+
+---
+
+### 6.7 Extended Feature Coverage (VPC/LACP, FHRP, STP, EIGRP/OSPF/ISIS, BGP neighbor sub-commands, IGMP)
+
+Beyond multicast (§6.6), this repo ships 97 additional validated TTP templates covering commands that have **no NTC Templates coverage at all** (confirmed against ntc-templates 9.3.0) — built from a gap analysis against a broader command inventory (`features.csv`-style: what a full network audit tool actually runs). Same structure as §6.6 for every entry: `data/reference/{bucket}/{platform}_{cmd}.txt` (raw), `_parsed.json` (output), `templates/ttp/{bucket}/{platform}_{cmd}.ttp` (template).
+
+**`data/reference/vpc_lacp/` · `templates/ttp/vpc_lacp/`** — 12 templates
+
+| Command | NX-OS | IOS | IOS-XE |
+|---|---|---|---|
+| `show vpc` | ✅ | — | — |
+| `show vpc role` | ✅ | — | — |
+| `show vpc consistency-parameters global` | ✅ | — | — |
+| `show vpc peer-keepalive` | ✅ | — | — |
+| `show lacp neighbor` | ✅ | ✅ | ✅ |
+| `show lacp counters` | ✅ | ✅ | ✅ |
+| `show etherchannel summary` | — | ✅ | ✅ |
+
+Note: `show etherchannel summary`'s space-separated port-member list (`Gi1/0/1(P) Gi1/0/2(P) ...`) can't be split with a nested `<group>` on the same physical line — TTP nested groups only match on *subsequent* lines. Solved with a TTP `<macro>` block (inline Python, self-contained in the template file) invoked via `{{ ports_raw | macro("split_ports") }}`. See `cisco_ios_show_etherchannel_summary.ttp` for the worked example — a new pattern beyond the multicast set's gotchas.
+
+**`data/reference/fhrp/` · `templates/ttp/fhrp/`** — 13 templates
+
+| Command | NX-OS | IOS | IOS-XE |
+|---|---|---|---|
+| `show hsrp brief` | ✅ | — | — |
+| `show standby brief` / `show standby` | — | ✅ | ✅ |
+| `show vrrp brief` | — | ✅ | ✅ |
+| `show vrrp` / `show vrrp detail` | ✅ | ✅ | ✅ |
+| `show glbp brief` | — | ✅ | ✅ |
+
+**`data/reference/stp_switching/` · `templates/ttp/stp_switching/`** — 24 templates
+
+| Command | NX-OS | IOS | IOS-XE |
+|---|---|---|---|
+| `show spanning-tree summary` | ✅ | ✅ | ✅ |
+| `show spanning-tree root` | ✅ | ✅ | ✅ |
+| `show spanning-tree blockedports` | ✅ | ✅ | ✅ |
+| `show spanning-tree inconsistentports` | — | ✅ | ✅ |
+| `show interface(s) trunk` | ✅ | ✅ | ✅ |
+| `show interface(s) status` | ✅ | ✅ | ✅ |
+| `show mac address-table count` | ✅ | ✅ | ✅ |
+| `show interface counters` | ✅ | — | — |
+| `show interface(s) counters errors` | ✅ | ✅ | ✅ |
+
+**`data/reference/eigrp_ospf/` · `templates/ttp/eigrp_ospf/`** — 25 templates
+
+| Command | NX-OS | IOS | IOS-XE |
+|---|---|---|---|
+| `show ip eigrp neighbors` | ✅ | ✅ | ✅ |
+| `show ip eigrp topology summary` / `active` | ✅ | ✅ | ✅ |
+| `show ip eigrp interfaces` | — | ✅ | ✅ |
+| `show ip ospf` | ✅ | ✅ | ✅ |
+| `show ip ospf neighbors detail` | ✅ | — | — |
+| `show ip ospf statistics` | ✅ | — | — |
+| `show ip ospf event-history adjacency` | ✅ | — | — |
+| `show ip ospf traffic` | — | ✅ | ✅ |
+| `show ip ospf database database-summary` | — | ✅ | ✅ |
+| `show isis neighbors` / `detail` | — | ✅ | ✅ |
+
+**`data/reference/bgp_neighbor_cmds/` · `templates/ttp/bgp_neighbor_cmds/`** — 7 templates (wildcard commands)
+
+| Command | NX-OS | IOS | IOS-XE |
+|---|---|---|---|
+| `show ip bgp neighbors * routes` | ✅ | ✅ | ✅ |
+| `show ip bgp neighbors * advertised-routes` | ✅ | ✅ | ✅ |
+| `show bgp sessions` | ✅ | — | — |
+
+`ntc-templates` does cover the plain `show ip bgp neighbors <ip>` command, but not either per-neighbor sub-command — the `routes`/`advertised-routes` output is structurally different (a route table, not a neighbor summary). Registered in `commands.yaml` as wildcard keys (`show ip bgp neighbors * routes`); the underlying template filename drops the IP entirely since one template serves any neighbor (e.g. `cisco_nxos_show_ip_bgp_neighbors_routes.ttp`) — see §6.3.1.
+
+**Two more hard-won TTP lessons found while building this set (beyond the two in §6.6):**
+
+3. **A literal `|` inside `re("...")` breaks TTP.** TTP treats `|` as its own filter-chain separator even inside a regex string literal — `re("up|down")` silently mis-splits into two bogus filter calls. Use a character class instead: `re("[a-z]+")` or list the alternatives without `|`.
+4. **The wildcard `*` in a `commands.yaml` key must match more than `[a-z0-9_]`.** `normalize_command()` only collapses whitespace to `_` — it never touches `.`, `/`, or `-`. A wildcard covering a real IP address (`10.0.0.1`), interface name (`Gi1/0/1`), or hyphenated token needs a character class that includes those, e.g. `[^\s]+` (see `parsers/command_mapper.py::_load_registry`, fixed after this bug caused every BGP-neighbor and MSDP-peer wildcard entry to silently fall through to `auto_discover`).
 
 ---
 
