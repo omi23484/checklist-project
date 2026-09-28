@@ -4,7 +4,6 @@ Maps normalized command names to their parsing strategy.
 Strategy dict shapes (from commands.yaml):
   {"parser": "ntc",          "template": "<ntc command string>"}
   {"parser": "custom",       "template": "<template file stem>"}
-  {"parser": "hierarchical", "func":     "<multicast_parser function name>"}
   {"parser": "raw_only"}
   {"parser": "auto_discover"}   # returned for commands not in commands.yaml
 

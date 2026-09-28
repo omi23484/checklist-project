@@ -35,8 +35,6 @@ commands.yaml lookup
     ├── ntc            → NTC Templates (ntc-templates library)
     ├── custom         → Custom TextFSM template
     ├── ttp            → TTP template (supports nested/hierarchical output)
-    ├── hierarchical   → Python function parser (func: in multicast_parser.py; currently unused — all
-    │                     registered multicast commands use `ttp`, see §6.6)
     └── auto_discover  → (unknown commands, no YAML entry)
             ├── Step 1: NTC Templates (reconstructed command string)
             ├── Step 2: Convention TextFSM  ({platform}_{cmd}.textfsm anywhere under templates/custom/)
@@ -85,8 +83,7 @@ checklist-project/                        ← repository root
     │   ├── splitter.py                   ← splits CLI dump into {cmd: raw_output} dict
     │   ├── ntc_engine.py                 ← wrapper around ntc-templates library
     │   ├── custom_engine.py              ← TextFSM engine + auto-discovery
-    │   ├── ttp_engine.py                 ← TTP engine + auto-discovery
-    │   └── multicast_parser.py           ← hierarchical parser functions (currently unused, see §6.3)
+    │   └── ttp_engine.py                 ← TTP engine + auto-discovery
     │
     ├── templates/
     │   ├── custom/                       ← TextFSM templates (.textfsm)
@@ -300,7 +297,7 @@ Result structure: `[{"vrfs": [{"vrf": "default", "neighbors": [{...}]}]}]`
 
 Three registered platforms: `cisco_nxos`, `cisco_ios`, `cisco_iosxe` (each is a separate top-level YAML key with its own command list — `cisco_iosxe` is NOT an alias of `cisco_ios`, even though many IOS-XE commands share IOS's output format). `cisco_iosxe` is auto-detected from device prompts/banners containing `CSR`, `ISR`, `ASR`, or `Cisco IOS XE Software` (see `utils/normalization.py::detect_platform`), and is a valid `--platform` value everywhere a platform is accepted (`collect`, `parse`, `test-template`).
 
-All five strategy shapes:
+All four strategy shapes:
 
 ```yaml
 cisco_nxos:
@@ -329,8 +326,6 @@ cisco_nxos:
   show tech-support:
     parser: raw_only
 ```
-
-`parser: hierarchical` (+ `func: <name>` pointing at a function in `parsers/multicast_parser.py`) is also a supported strategy shape but has **no active registrations** as of this writing — the multicast commands it was originally written for (`show ip mroute` and friends) were migrated to `parser: ttp` (see §6.6). It remains available for a future command whose output needs full Python control rather than a declarative template.
 
 Keys are raw command strings (spaces, not underscores). The mapper normalizes them at load time. Duplicate normalized keys within a platform emit a warning; the second entry wins.
 
@@ -393,7 +388,6 @@ cisco_nxos:
 | Piped variant | Drop `{platform}_{cmd}_{filter}.textfsm/.ttp` |
 | Should never be parsed | `parser: raw_only` in YAML |
 | Command has a variable part (IP/interface/VRF) | `*` wildcard key — see §6.3.1 |
-| Needs full Python control, not declarative | `parser: hierarchical` + function in `multicast_parser.py` (currently unused, see §6.3) |
 
 ---
 

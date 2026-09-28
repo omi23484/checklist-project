@@ -13,7 +13,6 @@ import sys
 import traceback
 
 from parsers import command_mapper, custom_engine, ntc_engine, splitter, ttp_engine
-from parsers import multicast_parser as mp
 from utils import json_builder, normalization
 
 
@@ -79,21 +78,6 @@ def _parse_command(platform: str, cmd: str, raw: str) -> tuple[dict, str]:
 
     if parser_type == "auto_discover":
         return _auto_discover(platform, cmd, raw)
-
-    if parser_type == "hierarchical":
-        func_name = strategy.get("func")
-        if not func_name:
-            print(f"[WARN] hierarchical strategy for '{cmd}' missing 'func' key")
-            return {}, "failed"
-        func = getattr(mp, func_name, None)
-        if func is None:
-            print(f"[WARN] multicast_parser has no function '{func_name}'")
-            return {}, "failed"
-        try:
-            return func(raw), "parsed"
-        except Exception:
-            traceback.print_exc()
-            return {}, "failed"
 
     if parser_type == "ntc":
         template = strategy.get("template")
