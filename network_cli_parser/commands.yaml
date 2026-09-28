@@ -71,6 +71,9 @@ cisco_nxos:
   show ip pim neigh:
     parser: custom
     template: cisco_nxos_show_ip_pim_neigh
+  show ip pim rp:
+    parser: ttp
+    template: cisco_nxos_show_ip_pim_rp
   show ip mroute summary:
     parser: ttp
     template: cisco_nxos_show_ip_mroute_summary
@@ -125,6 +128,15 @@ cisco_ios:
   show ip mroute:
     parser: ttp
     template: cisco_ios_show_ip_mroute
+  show ip pim neighbor:
+    parser: ttp
+    template: cisco_ios_show_ip_pim_neighbor
+  show ip pim rp mapping:
+    parser: ttp
+    template: cisco_ios_show_ip_pim_rp_mapping
+  show ip msdp summary:
+    parser: ttp
+    template: cisco_ios_show_ip_msdp_summary
   show logging:
     parser: raw_only
   show processes cpu history:
@@ -179,6 +191,15 @@ cisco_iosxe:
   show ip mroute:
     parser: ttp
     template: cisco_iosxe_show_ip_mroute
+  show ip pim neighbor:
+    parser: ttp
+    template: cisco_iosxe_show_ip_pim_neighbor
+  show ip pim rp mapping:
+    parser: ttp
+    template: cisco_iosxe_show_ip_pim_rp_mapping
+  show ip msdp summary:
+    parser: ttp
+    template: cisco_iosxe_show_ip_msdp_summary
   show logging:
     parser: raw_only
   show processes cpu history:

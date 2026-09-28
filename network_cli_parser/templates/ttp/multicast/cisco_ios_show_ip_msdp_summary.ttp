@@ -1,0 +1,3 @@
+<group name="peers*">
+{{ peer_address | re("[\d.*]+") }}    {{ asn }}   {{ state }}       {{ uptime_downtime }}      {{ reset_count }}      {{ sa_count }}    {{ peer_name }}
+</group>

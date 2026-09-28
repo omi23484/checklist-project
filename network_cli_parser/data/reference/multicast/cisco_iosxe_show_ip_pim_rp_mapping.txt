@@ -1,0 +1,14 @@
+CSR1K# show ip pim rp mapping
+PIM Group-to-RP Mappings
+
+Group(s) 224.0.1.40/32
+  RP 192.168.100.1 (?), v2v1
+  Info source: local, via Auto-RP
+  Uptime: 2d03h, expires: never
+
+Group(s) 239.0.0.0/8
+  RP 192.168.100.1 (?), v2v1
+  Info source: 192.168.100.1 (?), elected via Auto-RP
+  Uptime: 01:15:00, expires: 00:02:47
+
+CSR1K#

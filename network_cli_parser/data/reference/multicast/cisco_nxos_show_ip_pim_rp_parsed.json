@@ -1,0 +1,22 @@
+{
+  "rps": [
+    {
+      "rp": "10.0.0.1",
+      "rp_id": "0",
+      "uptime": "04:12:30",
+      "expires": "never",
+      "priority": "0",
+      "rp_source": "(local)",
+      "group_ranges": "224.0.0.0/4"
+    },
+    {
+      "rp": "10.0.0.2",
+      "rp_id": "0",
+      "uptime": "02:05:11",
+      "expires": "00:02:30",
+      "priority": "192",
+      "rp_source": "10.0.0.2",
+      "group_ranges": "239.1.0.0/16"
+    }
+  ]
+}

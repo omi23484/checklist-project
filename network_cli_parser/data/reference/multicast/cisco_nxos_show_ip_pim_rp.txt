@@ -1,0 +1,13 @@
+N9K-CAMA-WAN-1# show ip pim rp
+PIM RP Status Information for VRF "default"
+BSR disabled
+Auto-RP disabled
+BSR RP Candidate policy: None
+BSR RP policy: None
+Auto-RP Announce policy: None
+Auto-RP Discovery policy: None
+
+RP: 10.0.0.1, (0), uptime: 04:12:30, expires: never, priority: 0, RP-source: (local), group ranges: 224.0.0.0/4
+RP: 10.0.0.2, (0), uptime: 02:05:11, expires: 00:02:30, priority: 192, RP-source: 10.0.0.2, group ranges: 239.1.0.0/16
+
+N9K-CAMA-WAN-1#

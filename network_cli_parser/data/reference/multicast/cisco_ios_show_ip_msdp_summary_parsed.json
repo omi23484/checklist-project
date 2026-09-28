@@ -1,0 +1,31 @@
+{
+  "peers": [
+    {
+      "peer_address": "172.16.253.19",
+      "asn": "65001",
+      "state": "Up",
+      "uptime_downtime": "1d10h",
+      "reset_count": "9",
+      "sa_count": "111",
+      "peer_name": "rtp5-rp1"
+    },
+    {
+      "peer_address": "172.16.170.110",
+      "asn": "65001",
+      "state": "Up",
+      "uptime_downtime": "12:36:17",
+      "reset_count": "5",
+      "sa_count": "10",
+      "peer_name": "ams-rp1"
+    },
+    {
+      "peer_address": "192.168.255.2",
+      "asn": "65002",
+      "state": "Down",
+      "uptime_downtime": "00:42:49",
+      "reset_count": "0",
+      "sa_count": "0",
+      "peer_name": "?"
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+<group name="neighbors*">
+{{ neighbor | re("[\d.]+") }}       {{ interface }}       {{ uptime | re("[^/]+") }}/{{ expires }} {{ version }}    {{ dr_priority }} / {{ mode | re(".+") }}
+</group>

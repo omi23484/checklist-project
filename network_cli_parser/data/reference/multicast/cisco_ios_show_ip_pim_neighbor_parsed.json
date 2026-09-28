@@ -1,0 +1,31 @@
+{
+  "neighbors": [
+    {
+      "neighbor": "192.168.1.1",
+      "interface": "GigabitEthernet0/1",
+      "uptime": "02:19:41",
+      "expires": "00:01:38",
+      "version": "v2",
+      "dr_priority": "1",
+      "mode": "DR S P G"
+    },
+    {
+      "neighbor": "10.10.10.1",
+      "interface": "GigabitEthernet0/0",
+      "uptime": "01:45:12",
+      "expires": "00:01:42",
+      "version": "v2",
+      "dr_priority": "1",
+      "mode": "S P G"
+    },
+    {
+      "neighbor": "172.16.1.1",
+      "interface": "GigabitEthernet0/0",
+      "uptime": "00:58:05",
+      "expires": "00:01:35",
+      "version": "v2",
+      "dr_priority": "1",
+      "mode": "S P G"
+    }
+  ]
+}

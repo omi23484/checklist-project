@@ -1,0 +1,24 @@
+{
+  "mappings": [
+    {
+      "uptime": "2d03h",
+      "expires": "never",
+      "info_source": "local",
+      "mechanism": "Auto-RP",
+      "rp": "192.168.100.1",
+      "rp_name": "?",
+      "rp_version": "v2v1",
+      "group_range": "224.0.1.40/32"
+    },
+    {
+      "uptime": "01:15:00",
+      "expires": "00:02:47",
+      "info_source": "192.168.100.1 (?)",
+      "mechanism": "Auto-RP",
+      "rp": "192.168.100.1",
+      "rp_name": "?",
+      "rp_version": "v2v1",
+      "group_range": "239.0.0.0/8"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+PIM RP Status Information for VRF "{{ vrf }}"
+
+<group name="rps*">
+RP: {{ rp | re("[\d.]+") }}, ({{ rp_id }}), uptime: {{ uptime }}, expires: {{ expires }}, priority: {{ priority }}, RP-source: {{ rp_source | re("[^,]+") }}, group ranges: {{ group_ranges }}
+</group>

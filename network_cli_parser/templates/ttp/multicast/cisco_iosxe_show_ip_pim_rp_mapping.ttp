@@ -1,0 +1,7 @@
+<group name="mappings*">
+Group(s) {{ group_range }}
+  RP {{ rp | re("[\d.]+") }} ({{ rp_name }}), {{ rp_version }}
+  Info source: {{ info_source | re("[^,]+") }}, via {{ mechanism }}
+  Info source: {{ info_source | re("[^,]+") }}, elected via {{ mechanism }}
+  Uptime: {{ uptime }}, expires: {{ expires }}
+</group>

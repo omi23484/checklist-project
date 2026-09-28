@@ -1,0 +1,9 @@
+CSR1K# show ip msdp summary
+MSDP Peer Status Summary
+Peer Address     AS      State    Uptime/    Reset  SA     Peer Name
+                                   Downtime   Count  Count
+172.16.253.19    65001   Up       1d10h      9      111    rtp5-rp1
+172.16.170.110   65001   Up       12:36:17   5      10     ams-rp1
+192.168.255.2    65002   Down     00:42:49   0      0      ?
+
+CSR1K#
