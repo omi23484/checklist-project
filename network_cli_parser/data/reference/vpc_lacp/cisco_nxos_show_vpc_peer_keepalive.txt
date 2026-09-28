@@ -1,0 +1,21 @@
+N9K-CAMA-WAN-1# show vpc peer-keepalive
+vPC keep-alive status                                : peer is alive
+--Peer is alive for                                   : (395704) seconds, (852) msec
+--Send status                                         : Success
+--Last send at                                        : 2026.09.28 10:15:32 738 ms
+--Sent on interface                                   : mgmt0
+--Receive status                                      : Success
+--Last receive at                                     : 2026.09.28 10:15:32 741 ms
+--Received on interface                               : mgmt0
+--Last update from peer                               : (0) seconds, (912) msec
+
+vPC Keep-alive parameters
+--Destination                                         : 10.10.10.2
+--Keepalive interval                                  : 1000 msec
+--Keepalive timeout                                   : 5 seconds
+--Keepalive hold timeout                              : 3 seconds
+--Keepalive vrf                                        : management
+--Keepalive udp port                                  : 3200
+--Keepalive tos                                        : 192
+
+N9K-CAMA-WAN-1#

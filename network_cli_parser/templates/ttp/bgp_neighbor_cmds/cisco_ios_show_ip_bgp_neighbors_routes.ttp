@@ -1,0 +1,7 @@
+BGP table version is {{ bgp_table_version }}, local router ID is {{ router_id }}
+
+<group name="routes*">
+{{ status }} {{ network }} {{ next_hop }} {{ metric }} {{ local_pref }} {{ weight }} {{ as_path | re("(?:[0-9]+\s)*") }}{{ origin | re("[ie?&amp;]") }}
+</group>
+
+Total number of prefixes {{ total_prefixes }}

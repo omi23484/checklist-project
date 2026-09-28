@@ -1,0 +1,25 @@
+{
+  "groups": [
+    {
+      "vlan": "104",
+      "group_address": "224.1.4.2",
+      "type": "igmp",
+      "version": "v2",
+      "port_list": "Gi2/0/1, Gi1/0/15"
+    },
+    {
+      "vlan": "104",
+      "group_address": "239.255.1.1",
+      "type": "igmp",
+      "version": "v3",
+      "port_list": "Gi2/0/1"
+    },
+    {
+      "vlan": "1",
+      "group_address": "224.0.1.40",
+      "type": "igmp",
+      "version": "v2",
+      "port_list": "Gi1/0/24"
+    }
+  ]
+}

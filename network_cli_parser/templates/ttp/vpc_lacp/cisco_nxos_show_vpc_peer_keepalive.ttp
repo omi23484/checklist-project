@@ -1,0 +1,18 @@
+<group name="peer_keepalive">
+vPC keep-alive status                                : {{ status | re(".+") }}
+--Peer is alive for                                   : {{ alive_for | re(".+") }}
+--Send status                                         : {{ send_status }}
+--Last send at                                        : {{ last_send_at | re(".+") }}
+--Sent on interface                                   : {{ sent_on_interface }}
+--Receive status                                      : {{ receive_status }}
+--Last receive at                                     : {{ last_receive_at | re(".+") }}
+--Received on interface                               : {{ received_on_interface }}
+--Last update from peer                               : {{ last_update_from_peer | re(".+") }}
+--Destination                                         : {{ destination }}
+--Keepalive interval                                  : {{ keepalive_interval | re(".+") }}
+--Keepalive timeout                                   : {{ keepalive_timeout | re(".+") }}
+--Keepalive hold timeout                              : {{ keepalive_hold_timeout | re(".+") }}
+--Keepalive vrf                                        : {{ keepalive_vrf }}
+--Keepalive udp port                                  : {{ keepalive_udp_port }}
+--Keepalive tos                                        : {{ keepalive_tos }}
+</group>

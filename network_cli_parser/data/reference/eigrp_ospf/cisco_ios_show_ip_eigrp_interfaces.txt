@@ -1,0 +1,9 @@
+IOS-RTR-1# show ip eigrp interfaces
+EIGRP-IPv4 Interfaces for AS(100)
+                        Xmit Queue   Mean   Pacing Time   Multicast    Pending
+Interface        Peers  Un/Reliable SRTT   Un/Reliable   Flow Timer   Routes
+Gi0/1                1     0/0        12      0/10           0            0
+Gi0/2                1     0/0         8      0/10           0            0
+Lo0                  0     0/0         0      0/0             0            0
+
+IOS-RTR-1#

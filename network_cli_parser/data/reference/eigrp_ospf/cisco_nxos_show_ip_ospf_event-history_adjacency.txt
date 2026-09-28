@@ -1,0 +1,9 @@
+N9K-CAMA-WAN-1# show ip ospf event-history adjacency
+OSPF Adjacency events for Process "100"
+
+2026 Sep 20 14:22:10.123212 ospf 100 [3212]: RID: 10.100.1.1, Nbr: 10.100.1.2 Nbr event NBR_EVENT_2_WAY on Eth1/1
+2026 Sep 20 14:22:10.098211 ospf 100 [3212]: RID: 10.100.1.1, Nbr: 10.100.1.2 Nbr Down Str/Nbr state: NBR_DOWN_INTERFACE_DOWN/DOWN
+2026 Sep 20 14:20:01.552341 ospf 100 [3212]: RID: 10.100.1.1, Nbr: 10.100.1.2 Nbr state changed from LOADING to FULL
+2026 Sep 20 14:19:58.221004 ospf 100 [3212]: RID: 10.100.1.1, Nbr: 10.100.1.3 Nbr event NBR_EVENT_ADJ_OK on Eth1/2
+
+N9K-CAMA-WAN-1#

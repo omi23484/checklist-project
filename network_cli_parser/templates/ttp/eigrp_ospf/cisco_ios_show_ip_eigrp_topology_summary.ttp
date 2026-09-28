@@ -1,0 +1,8 @@
+<group name="summary">
+EIGRP-IPv4 Topology Summary for AS({{ as_number }})/ID({{ router_id }})
+  Head serial number: {{ head_serial_number }}
+  Number of routes: {{ total_routes }}
+    Interior: {{ interior_routes }}  System: {{ system_routes }}  Redistributed: {{ redistributed_routes }}
+  Number of update stubs: {{ update_stubs }}
+  Number of query stubs: {{ query_stubs }}
+</group>

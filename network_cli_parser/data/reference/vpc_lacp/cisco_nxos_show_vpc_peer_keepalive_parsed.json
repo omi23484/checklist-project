@@ -1,0 +1,20 @@
+{
+  "peer_keepalive": {
+    "keepalive_tos": "192",
+    "keepalive_udp_port": "3200",
+    "keepalive_vrf": "management",
+    "keepalive_hold_timeout": "3 seconds",
+    "keepalive_timeout": "5 seconds",
+    "keepalive_interval": "1000 msec",
+    "destination": "10.10.10.2",
+    "last_update_from_peer": "(0) seconds, (912) msec",
+    "received_on_interface": "mgmt0",
+    "last_receive_at": "2026.09.28 10:15:32 741 ms",
+    "receive_status": "Success",
+    "sent_on_interface": "mgmt0",
+    "last_send_at": "2026.09.28 10:15:32 738 ms",
+    "send_status": "Success",
+    "alive_for": "(395704) seconds, (852) msec",
+    "status": "peer is alive"
+  }
+}

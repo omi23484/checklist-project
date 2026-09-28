@@ -1,18 +1,6 @@
 {
   "parameters": [
     {
-      "name": "        Type",
-      "type": "1",
-      "local_value": ":",
-      "peer_value": "vPC will be suspended in case of mismatch"
-    },
-    {
-      "name": "-----------------------------",
-      "type": "----",
-      "local_value": "-------------------------",
-      "peer_value": "-------------------------"
-    },
-    {
       "name": "QoS",
       "type": "2",
       "local_value": "([],[],[],[],[],[])",

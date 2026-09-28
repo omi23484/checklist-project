@@ -1,0 +1,32 @@
+{
+  "interfaces": [
+    {
+      "interface": "Vlan101",
+      "ip_address": "10.10.1.1",
+      "dr_address": "10.10.1.1",
+      "nbr_count": "1",
+      "border": "no"
+    },
+    {
+      "interface": "Vlan102",
+      "ip_address": "10.10.2.1",
+      "dr_address": "10.10.2.2",
+      "nbr_count": "2",
+      "border": "no"
+    },
+    {
+      "interface": "Ethernet1/1",
+      "ip_address": "172.16.1.1",
+      "dr_address": "172.16.1.1",
+      "nbr_count": "0",
+      "border": "no"
+    },
+    {
+      "interface": "Loopback0",
+      "ip_address": "10.0.0.1",
+      "dr_address": "10.0.0.1",
+      "nbr_count": "0",
+      "border": "no"
+    }
+  ]
+}

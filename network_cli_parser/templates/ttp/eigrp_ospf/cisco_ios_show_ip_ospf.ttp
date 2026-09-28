@@ -1,0 +1,15 @@
+<group name="process">
+ Routing Process "{{ process_name }}" with ID {{ router_id }}
+ Start time: {{ start_time }}, Time elapsed: {{ time_elapsed }}
+ Initial SPF schedule delay {{ spf_delay_msecs }} msecs
+ Minimum hold time between two consecutive SPFs {{ spf_hold_msecs }} msecs
+ Number of external LSA {{ external_lsa_count }}. Checksum Sum {{ external_lsa_checksum }}
+ Number of areas in this router is {{ area_count }}. {{ normal_area_count }} normal {{ stub_area_count }} stub {{ nssa_area_count }} nssa
+<group name="areas*">
+    Area {{ area_id }}
+        Number of interfaces in this area is {{ interface_count }}
+        SPF algorithm last executed {{ spf_last_run }} ago
+        SPF algorithm executed {{ spf_run_count }} times
+        Number of LSA {{ lsa_count }}. Checksum Sum {{ lsa_checksum }}
+</group>
+</group>

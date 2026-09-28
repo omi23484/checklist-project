@@ -1,0 +1,32 @@
+{
+  "groups": [
+    {
+      "vlan": "101",
+      "group_address": "225.1.1.1",
+      "version": "v2",
+      "type": "D",
+      "port_list": "Eth1/1, Eth1/2"
+    },
+    {
+      "vlan": "101",
+      "group_address": "239.5.5.5",
+      "version": "v3",
+      "type": "D",
+      "port_list": "Po10"
+    },
+    {
+      "vlan": "102",
+      "group_address": "224.0.1.40",
+      "version": "v2",
+      "type": "D",
+      "port_list": "Eth1/3"
+    },
+    {
+      "vlan": "100",
+      "group_address": "*/*",
+      "version": "-",
+      "type": "R",
+      "port_list": "Eth1/48"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+N9K-CAMA-WAN-1# show ip ospf statistics
+ OSPF Process ID 100 VRF default
+------------------------------------------
+Area 0.0.0.0: SPF algorithm executed 42 times
+
+Summary OSPF SPF statistic
+ Delta T     Intra D-Intra  Summ D-Summ    Ext D-Ext  Total  Reason
+ 00:05:12       0      0      0      0     0     0     0     R,
+ 00:03:47       0      1      0      0     0     0     1     R, N,
+ 00:01:02       1      0      0      0     0     0     1     R,
+
+N9K-CAMA-WAN-1#

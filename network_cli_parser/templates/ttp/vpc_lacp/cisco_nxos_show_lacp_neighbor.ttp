@@ -1,0 +1,7 @@
+<group name="interfaces*">
+port-channel{{ port_channel }} neighbors
+<group name="peers*">
+{{ local_port }}  {{ partner_system_id }}    {{ partner_port_number }}            {{ age }}    {{ flags }}
+        {{ partner_port_priority }}                   {{ partner_oper_key }}                 {{ partner_port_state }}
+</group>
+</group>

@@ -1,0 +1,31 @@
+IOS-RTR-1# show ip ospf database database-summary
+       OSPF Router with ID (10.100.1.1) (Process ID 100)
+
+  Area 0 database summary
+       LSA Type      Count    Delete   Maxage
+       Router        5        0        0
+       Network       2        0        0
+       Summary Net   8        2        2
+       Summary ASBR  0        0        0
+       Type-7 Ext    0        0        0
+         Prefixes redistributed in Type-7  0
+       Opaque Link   0        0        0
+       Opaque Area   0        0        0
+       Subtotal      15       2        2
+
+  Process 100 database summary
+       LSA Type      Count    Delete   Maxage
+       Router        5        0        0
+       Network       2        0        0
+       Summary Net   8        2        2
+       Summary ASBR  0        0        0
+       Type-7 Ext    0        0        0
+       Opaque Link   0        0        0
+       Opaque Area   0        0        0
+       Type-5 Ext    4        0        0
+         Prefixes redistributed in Type-5  0
+       Opaque AS     0        0        0
+       Non-self      16
+       Total         19       2        2
+
+IOS-RTR-1#

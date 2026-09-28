@@ -1,0 +1,9 @@
+Tag {{ tag }}:
+<group name="neighbors*">
+{{ system_id }}      {{ type }}   {{ interface }}         {{ ip_address }}        {{ state }}    {{ holdtime }}       {{ circuit_id }}
+  Area Address(es): {{ area_address }}
+  SNPA: {{ snpa }}
+  State Changed: {{ state_changed }}
+  LAN Priority: {{ lan_priority }}
+  Format: {{ format }}
+</group>

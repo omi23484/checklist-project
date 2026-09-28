@@ -1,0 +1,11 @@
+Total peers {{ total_peers }}, established peers {{ total_established_peers }}
+ASN {{ local_asn }}
+
+<group name="vrfs*">
+VRF {{ vrf }}, local ASN {{ vrf_asn }}
+peers {{ peer_count }}, established peers {{ established_count }}, local router-id {{ router_id }}
+
+<group name="peers*">
+{{ neighbor | re("\d+\.\d+\.\d+\.\d+") }} {{ remote_asn | re("\d+") }} {{ flaps }} {{ last_updn }}|{{ last_read }}|{{ last_writ }} {{ state }} {{ port_local }}/{{ port_remote }} {{ notif_sent }}/{{ notif_recv }}
+</group>
+</group>

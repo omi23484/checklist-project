@@ -1,0 +1,25 @@
+{
+  "groups": [
+    {
+      "group_address": "239.1.2.3",
+      "interface": "GigabitEthernet1",
+      "uptime": "00:22:37",
+      "expires": "00:02:14",
+      "last_reporter": "10.1.0.6"
+    },
+    {
+      "group_address": "224.0.1.40",
+      "interface": "GigabitEthernet2",
+      "uptime": "1d02h",
+      "expires": "00:02:03",
+      "last_reporter": "172.31.100.1"
+    },
+    {
+      "group_address": "225.1.1.1",
+      "interface": "GigabitEthernet3",
+      "uptime": "01:10:30",
+      "expires": "00:02:45",
+      "last_reporter": "10.1.0.9"
+    }
+  ]
+}

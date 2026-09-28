@@ -1,0 +1,18 @@
+switch# show bgp sessions
+Total peers 3, established peers 2
+ASN 65001
+
+VRF default, local ASN 65001
+peers 2, established peers 2, local router-id 10.0.0.1
+State: I-Idle, A-Active, O-Open, E-Established, C-Closing, S-Shutdown
+Neighbor        ASN    Flaps LastUpDn|LastRead|LastWrit St Port(L/R)  Notif(S/R)
+10.0.0.2        65001  0     04:12:33|00:00:12|00:00:28 E  179/54021  0/0
+10.0.0.3        65002  1     01:03:07|00:00:05|00:00:19 E  179/54332  0/0
+
+VRF PROD, local ASN 65001
+peers 1, established peers 0, local router-id 10.1.1.1
+State: I-Idle, A-Active, O-Open, E-Established, C-Closing, S-Shutdown
+Neighbor        ASN    Flaps LastUpDn|LastRead|LastWrit St Port(L/R)  Notif(S/R)
+10.1.1.2        65010  0     never|never|never          I  0/0        0/0
+
+switch#

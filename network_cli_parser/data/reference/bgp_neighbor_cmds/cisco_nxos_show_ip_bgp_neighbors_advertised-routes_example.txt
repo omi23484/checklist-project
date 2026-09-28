@@ -1,0 +1,13 @@
+switch# show ip bgp neighbors 10.0.0.1 advertised-routes
+BGP routing table information for VRF default, address family IPv4 Unicast
+BGP table version is 128, Local Router ID is 10.255.255.1
+Status: s-suppressed, x-deleted, S-stale, d-dampened, h-history, *-valid, >-best
+Path type: i-internal, e-external, c-confed, l-local, a-aggregate, r-redist, I-injected
+Origin codes: i - IGP, e - EGP, ? - incomplete, | - multipath, & - backup
+
+   Network            Next Hop            Metric     LocPrf     Weight Path
+*>l192.168.1.0/24      0.0.0.0                  0        100      32768 i
+*>l192.168.2.0/24      0.0.0.0                  0        100      32768 i
+*>e10.20.30.0/24       10.0.0.9                 0        100          0 65010 i
+
+switch#

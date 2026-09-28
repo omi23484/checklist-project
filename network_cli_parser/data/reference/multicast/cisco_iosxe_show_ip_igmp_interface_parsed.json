@@ -1,0 +1,43 @@
+{
+  "interfaces": [
+    {
+      "querier_router": "192.168.1.1 (this system)",
+      "ttl_threshold": "0",
+      "mroute_status": "enabled on interface",
+      "joins": "22",
+      "leaves": "18",
+      "access_group": "not set",
+      "last_member_query_interval": "1000",
+      "max_query_response": "10",
+      "querier_timeout": "120",
+      "query_interval": "60",
+      "cgmp_status": "disabled on interface",
+      "igmp_version": "2",
+      "igmp_status": "enabled on interface",
+      "ip_address": "192.168.1.1/24",
+      "interface": "GigabitEthernet1",
+      "link_status": "up",
+      "line_protocol": "up"
+    },
+    {
+      "querier_router": "10.10.10.1",
+      "dr_address": "10.10.10.1",
+      "ttl_threshold": "0",
+      "mroute_status": "enabled on interface",
+      "joins": "5",
+      "leaves": "2",
+      "access_group": "not set",
+      "last_member_query_interval": "1000",
+      "max_query_response": "10",
+      "querier_timeout": "120",
+      "query_interval": "60",
+      "cgmp_status": "disabled on interface",
+      "igmp_version": "2",
+      "igmp_status": "enabled on interface",
+      "ip_address": "10.10.10.2/30",
+      "interface": "GigabitEthernet2",
+      "link_status": "up",
+      "line_protocol": "up"
+    }
+  ]
+}

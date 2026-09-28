@@ -1,0 +1,28 @@
+{
+  "interfaces": [
+    {
+      "ip_address": "192.168.1.1",
+      "interface": "GigabitEthernet0/1",
+      "version_mode": "v2/Sparse-Dense",
+      "nbr_count": "1",
+      "query_interval": "30",
+      "dr_address": "192.168.1.1"
+    },
+    {
+      "ip_address": "10.10.10.2",
+      "interface": "GigabitEthernet0/0",
+      "version_mode": "v2/Sparse-Dense",
+      "nbr_count": "1",
+      "query_interval": "30",
+      "dr_address": "10.10.10.1"
+    },
+    {
+      "ip_address": "172.16.1.2",
+      "interface": "GigabitEthernet0/2",
+      "version_mode": "v2/Sparse-Dense",
+      "nbr_count": "1",
+      "query_interval": "30",
+      "dr_address": "172.16.1.2"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+N9K-CAMA-WAN-1# show lacp counters
+NOTE: Clear lacp counters to get accurate statistics
+------------------------------------------------------------------------------
+                                LACPDUs        Markers/Resp   LACPDUs
+Port                          Sent   Recv      Recv    Sent   Pkts Err
+------------------------------------------------------------------------------
+port-channel10
+  Ethernet1/1                 4451   4450       0       0     0    0
+  Ethernet1/3                 4450   4449       0       0     0    0
+port-channel11
+  Ethernet1/2                 4448   4447       0       0     0    0
+
+N9K-CAMA-WAN-1#

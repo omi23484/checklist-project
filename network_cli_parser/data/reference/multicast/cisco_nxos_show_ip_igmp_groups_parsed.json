@@ -1,0 +1,36 @@
+{
+  "groups": [
+    {
+      "group_address": "225.1.1.1",
+      "type": "D",
+      "interface": "Vlan101",
+      "uptime": "03:48:57",
+      "expires": "00:03:12",
+      "last_reporter": "10.10.1.5"
+    },
+    {
+      "group_address": "239.1.2.3",
+      "type": "L",
+      "interface": "Loopback0",
+      "uptime": "01:05:12",
+      "expires": "never",
+      "last_reporter": "10.0.0.1"
+    },
+    {
+      "group_address": "239.5.5.5",
+      "type": "D",
+      "interface": "Vlan102",
+      "uptime": "00:22:10",
+      "expires": "00:02:45",
+      "last_reporter": "10.10.2.8"
+    },
+    {
+      "group_address": "224.0.1.40",
+      "type": "D",
+      "interface": "Ethernet1/1",
+      "uptime": "1d02h",
+      "expires": "00:02:01",
+      "last_reporter": "10.20.1.2"
+    }
+  ]
+}

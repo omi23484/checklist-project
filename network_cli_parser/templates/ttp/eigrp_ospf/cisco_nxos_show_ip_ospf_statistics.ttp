@@ -1,0 +1,9 @@
+<group name="process">
+ OSPF Process ID {{ process_id }} VRF {{ vrf }}
+<group name="areas*">
+Area {{ area_id }}: SPF algorithm executed {{ spf_run_count }} times
+</group>
+<group name="spf_events*">
+ {{ delta_t | re("\d+:\d+:\d+") }}       {{ intra }}      {{ d_intra }}      {{ summ }}      {{ d_summ }}     {{ ext }}     {{ d_ext }}     {{ total }}     {{ reason | re(".+") }}
+</group>
+</group>

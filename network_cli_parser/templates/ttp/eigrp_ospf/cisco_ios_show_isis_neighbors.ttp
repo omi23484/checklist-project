@@ -1,0 +1,4 @@
+Tag {{ tag }}:
+<group name="neighbors*">
+{{ system_id }}      {{ type }}   {{ interface }}         {{ ip_address }}        {{ state }}    {{ holdtime }}       {{ circuit_id }}
+</group>

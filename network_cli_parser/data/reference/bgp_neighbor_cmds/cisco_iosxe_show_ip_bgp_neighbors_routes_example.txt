@@ -1,0 +1,16 @@
+CSR1KV#show ip bgp neighbors 10.0.0.1 routes
+BGP table version is 91, local router ID is 192.168.10.1
+Status codes: s suppressed, d damped, h history, * valid, > best, i - internal,
+              r RIB-failure, S Stale, m multipath, b backup-path, f RT-Filter,
+              x best-external, a additional-path, c RIB-compressed,
+Origin codes: i - IGP, e - EGP, ? - incomplete
+RPKI validation codes: V valid, I invalid, N Not found
+
+     Network          Next Hop            Metric LocPrf Weight Path
+ *>  10.30.10.0/24    10.0.0.1                 0    120      0 65031 i
+ *>  10.30.20.0/24    10.0.0.1                 0    120      0 65031 i
+ *>  10.30.30.0/24    10.0.0.1                 0    120      0 65031 65099 i
+
+Total number of prefixes 3
+
+CSR1KV#

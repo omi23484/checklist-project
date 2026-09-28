@@ -1,3 +1,3 @@
 <group name="groups*">
-{{ group_address }}    {{ interface }}       {{ uptime }}  {{ expires }}  {{ last_reporter }}
+{{ group_address | re("[\d.]+") }}    {{ interface }}       {{ uptime }}  {{ expires }}  {{ last_reporter }}
 </group>

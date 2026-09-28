@@ -1,0 +1,44 @@
+{
+  "interfaces": [
+    {
+      "port_channel": "10",
+      "peers": [
+        {
+          "partner_port_priority": "32768",
+          "partner_oper_key": "0xa",
+          "partner_port_state": "0x3d",
+          "local_port": "Eth1/1",
+          "partner_system_id": "32768,8c60.4f27.2342",
+          "partner_port_number": "0x101",
+          "age": "9821",
+          "flags": "SA"
+        },
+        {
+          "partner_port_priority": "32768",
+          "partner_oper_key": "0xa",
+          "partner_port_state": "0x3d",
+          "local_port": "Eth1/3",
+          "partner_system_id": "32768,8c60.4f27.2342",
+          "partner_port_number": "0x103",
+          "age": "9821",
+          "flags": "SA"
+        }
+      ]
+    },
+    {
+      "port_channel": "11",
+      "peers": [
+        {
+          "partner_port_priority": "32768",
+          "partner_oper_key": "0xb",
+          "partner_port_state": "0x3d",
+          "local_port": "Eth1/2",
+          "partner_system_id": "32768,8c60.4f27.2342",
+          "partner_port_number": "0x102",
+          "age": "9820",
+          "flags": "SA"
+        }
+      ]
+    }
+  ]
+}

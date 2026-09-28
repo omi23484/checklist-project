@@ -1,0 +1,41 @@
+{
+  "port_channels": [
+    {
+      "port_channel": "10",
+      "members": [
+        {
+          "interface": "Ethernet1/1",
+          "lacpdu_sent": "4451",
+          "lacpdu_recv": "4450",
+          "marker_resp_recv": "0",
+          "marker_resp_sent": "0",
+          "pkts": "0",
+          "err": "0"
+        },
+        {
+          "interface": "Ethernet1/3",
+          "lacpdu_sent": "4450",
+          "lacpdu_recv": "4449",
+          "marker_resp_recv": "0",
+          "marker_resp_sent": "0",
+          "pkts": "0",
+          "err": "0"
+        }
+      ]
+    },
+    {
+      "port_channel": "11",
+      "members": [
+        {
+          "interface": "Ethernet1/2",
+          "lacpdu_sent": "4448",
+          "lacpdu_recv": "4447",
+          "marker_resp_recv": "0",
+          "marker_resp_sent": "0",
+          "pkts": "0",
+          "err": "0"
+        }
+      ]
+    }
+  ]
+}

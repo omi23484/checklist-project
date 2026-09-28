@@ -1,0 +1,23 @@
+{
+  "input_queue": "0",
+  "output_queue": "0",
+  "sa_learned": "111",
+  "ttl_threshold": "0",
+  "sa_request_filter": "none",
+  "sa_output_filter": "none",
+  "sa_output_routemap": "none",
+  "sa_input_filter": "none",
+  "sa_input_routemap": "none",
+  "counters_cleared": "never",
+  "discarded": "0",
+  "uptime_downtime": "1d10h",
+  "msgs_sent": "4368",
+  "msgs_received": "4290",
+  "state": "Up",
+  "resets": "9",
+  "connect_source": "Loopback0",
+  "connect_source_ip": "172.16.253.1",
+  "peer_address": "172.16.253.19",
+  "peer_name": "rtp5-rp1.example.com",
+  "asn": "65001"
+}

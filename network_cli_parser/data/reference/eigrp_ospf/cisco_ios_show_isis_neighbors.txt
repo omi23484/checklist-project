@@ -1,0 +1,7 @@
+IOS-RTR-1# show isis neighbors
+Tag null:
+System Id      Type Interface     IP Address      State Holdtime Circuit Id
+IOS-RTR-2      L1   Gi0/1         10.12.1.2        UP    24       IOS-RTR-1.01
+IOS-RTR-3      L2   Gi0/2         10.13.1.3        UP    27       IOS-RTR-1.02
+
+IOS-RTR-1#
