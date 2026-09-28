@@ -335,7 +335,7 @@ cisco_nxos:
     template: show interface
 ```
 
-- `show ip bgp neigh * routes` matches `show_ip_bgp_neigh_10_0_0_1_routes`, `show_ip_bgp_neigh_192_168_1_1_routes`, etc. — each `*` matches one or more normalized characters (`[a-z0-9_]+`, i.e. letters/digits/underscores — this correctly spans a whole dotted IP after normalization turns `.` into `_`).
+- `show ip bgp neigh * routes` matches `show_ip_bgp_neigh_10.0.0.1_routes`, `show_ip_bgp_neigh_192.168.1.1_routes`, etc. — each `*` matches one or more non-whitespace characters. `normalize_command()` only collapses whitespace to `_`; it never touches `.`, `/`, or `-`, so a real IP keeps its literal dots, an interface keeps its `/`, and a wildcard has to match those characters too — not just letters/digits/underscores.
 - **Exact entries always take precedence** over wildcard entries — if both `show ip bgp neigh 10.0.0.1 routes` (exact) and `show ip bgp neigh * routes` (wildcard) are registered, the exact one wins for that specific IP.
 - Wildcard entries live in a separate internal registry (`command_mapper._WILDCARD_REGISTRY`) checked only after an exact-match lookup misses.
 - **Wildcards are excluded from `collect`'s command list** — `_load_platform_commands()` in `report.py` only reads the exact registry, since a literal `*` can't be sent to a live device over SSH. Wildcard-covered commands only get parsed when they already exist in a raw dump (e.g. from `main.py --input` or a hand-crafted per-neighbor collection step).

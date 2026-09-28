@@ -11,10 +11,12 @@
 #   parser: raw_only     (preserve raw text, skip structured parsing)
 #
 # Wildcard keys — use * to match any variable part (IP address, interface, VRF, etc.):
-#   show ip bgp neigh * routes:       matches show_ip_bgp_neigh_10_0_0_1_routes, etc.
-#   show interface *:                 matches show_interface_gi1_1, show_interface_eth0, etc.
+#   show ip bgp neigh * routes:       matches show_ip_bgp_neigh_10.0.0.1_routes, etc.
+#   show interface *:                 matches show_interface_gigabitethernet1/0/1, etc.
 #   show ip ospf neighbor * detail:   matches any neighbour IP
-#   Each * matches one or more normalized characters (letters, digits, underscores).
+#   Each * matches one or more non-whitespace characters — normalize_command() only
+#   collapses whitespace to '_'; it does NOT touch '.', '/', or '-', so the wildcard
+#   must match those too (real IPs like 10.0.0.1, interfaces like Gi1/0/1, etc.).
 #   Exact entries always take precedence over wildcard entries.
 #   Wildcard entries are NOT sent to devices during 'collect' (can't run * on a device).
 #
@@ -83,6 +85,99 @@ cisco_nxos:
   show ip mroute:
     parser: ttp
     template: cisco_nxos_show_ip_mroute
+  show vpc:
+    parser: ttp
+    template: cisco_nxos_show_vpc
+  show vpc role:
+    parser: ttp
+    template: cisco_nxos_show_vpc_role
+  show vpc consistency-parameters global:
+    parser: ttp
+    template: cisco_nxos_show_vpc_consistency-parameters_global
+  show vpc peer-keepalive:
+    parser: ttp
+    template: cisco_nxos_show_vpc_peer-keepalive
+  show lacp neighbor:
+    parser: ttp
+    template: cisco_nxos_show_lacp_neighbor
+  show lacp counters:
+    parser: ttp
+    template: cisco_nxos_show_lacp_counters
+  show hsrp brief:
+    parser: ttp
+    template: cisco_nxos_show_hsrp_brief
+  show vrrp:
+    parser: ttp
+    template: cisco_nxos_show_vrrp
+  show vrrp detail:
+    parser: ttp
+    template: cisco_nxos_show_vrrp_detail
+  show spanning-tree summary:
+    parser: ttp
+    template: cisco_nxos_show_spanning-tree_summary
+  show spanning-tree root:
+    parser: ttp
+    template: cisco_nxos_show_spanning-tree_root
+  show spanning-tree blockedports:
+    parser: ttp
+    template: cisco_nxos_show_spanning-tree_blockedports
+  show interface trunk:
+    parser: ttp
+    template: cisco_nxos_show_interface_trunk
+  show interface status:
+    parser: ttp
+    template: cisco_nxos_show_interface_status
+  show mac address-table count:
+    parser: ttp
+    template: cisco_nxos_show_mac_address-table_count
+  show interface counters:
+    parser: ttp
+    template: cisco_nxos_show_interface_counters
+  show interface counters errors:
+    parser: ttp
+    template: cisco_nxos_show_interface_counters_errors
+  show ip eigrp neighbors:
+    parser: ttp
+    template: cisco_nxos_show_ip_eigrp_neighbors
+  show ip eigrp topology summary:
+    parser: ttp
+    template: cisco_nxos_show_ip_eigrp_topology_summary
+  show ip eigrp topology active:
+    parser: ttp
+    template: cisco_nxos_show_ip_eigrp_topology_active
+  show ip ospf:
+    parser: ttp
+    template: cisco_nxos_show_ip_ospf
+  show ip ospf neighbors detail:
+    parser: ttp
+    template: cisco_nxos_show_ip_ospf_neighbors_detail
+  show ip ospf statistics:
+    parser: ttp
+    template: cisco_nxos_show_ip_ospf_statistics
+  show ip ospf event-history adjacency:
+    parser: ttp
+    template: cisco_nxos_show_ip_ospf_event-history_adjacency
+  show ip bgp neighbors * routes:
+    parser: ttp
+    template: cisco_nxos_show_ip_bgp_neighbors_routes
+  show ip bgp neighbors * advertised-routes:
+    parser: ttp
+    template: cisco_nxos_show_ip_bgp_neighbors_advertised-routes
+  show bgp sessions:
+    parser: ttp
+    template: cisco_nxos_show_bgp_sessions
+  show ip igmp groups:
+    parser: ttp
+    template: cisco_nxos_show_ip_igmp_groups
+  show ip igmp snooping groups:
+    parser: ttp
+    template: cisco_nxos_show_ip_igmp_snooping_groups
+  show ip msdp peer *:
+    parser: ttp
+    template: cisco_nxos_show_ip_msdp_peer
+  show ip pim interface:
+    parser: ttp
+    template: cisco_nxos_show_ip_pim_interface
   show processes cpu history:
     parser: raw_only
   show logging last 100:
@@ -137,6 +232,105 @@ cisco_ios:
   show ip msdp summary:
     parser: ttp
     template: cisco_ios_show_ip_msdp_summary
+  show etherchannel summary:
+    parser: ttp
+    template: cisco_ios_show_etherchannel_summary
+  show lacp neighbor:
+    parser: ttp
+    template: cisco_ios_show_lacp_neighbor
+  show lacp counters:
+    parser: ttp
+    template: cisco_ios_show_lacp_counters
+  show standby brief:
+    parser: ttp
+    template: cisco_ios_show_standby_brief
+  show standby:
+    parser: ttp
+    template: cisco_ios_show_standby
+  show vrrp brief:
+    parser: ttp
+    template: cisco_ios_show_vrrp_brief
+  show vrrp:
+    parser: ttp
+    template: cisco_ios_show_vrrp
+  show glbp brief:
+    parser: ttp
+    template: cisco_ios_show_glbp_brief
+  show spanning-tree summary:
+    parser: ttp
+    template: cisco_ios_show_spanning-tree_summary
+  show spanning-tree root:
+    parser: ttp
+    template: cisco_ios_show_spanning-tree_root
+  show spanning-tree inconsistentports:
+    parser: ttp
+    template: cisco_ios_show_spanning-tree_inconsistentports
+  show spanning-tree blockedports:
+    parser: ttp
+    template: cisco_ios_show_spanning-tree_blockedports
+  show interfaces trunk:
+    parser: ttp
+    template: cisco_ios_show_interfaces_trunk
+  show interfaces status:
+    parser: ttp
+    template: cisco_ios_show_interfaces_status
+  show mac address-table count:
+    parser: ttp
+    template: cisco_ios_show_mac_address-table_count
+  show interfaces counters errors:
+    parser: ttp
+    template: cisco_ios_show_interfaces_counters_errors
+  show ip eigrp neighbors:
+    parser: ttp
+    template: cisco_ios_show_ip_eigrp_neighbors
+  show ip eigrp topology summary:
+    parser: ttp
+    template: cisco_ios_show_ip_eigrp_topology_summary
+  show ip eigrp topology active:
+    parser: ttp
+    template: cisco_ios_show_ip_eigrp_topology_active
+  show ip eigrp interfaces:
+    parser: ttp
+    template: cisco_ios_show_ip_eigrp_interfaces
+  show ip ospf:
+    parser: ttp
+    template: cisco_ios_show_ip_ospf
+  show ip ospf traffic:
+    parser: ttp
+    template: cisco_ios_show_ip_ospf_traffic
+  show ip ospf database database-summary:
+    parser: ttp
+    template: cisco_ios_show_ip_ospf_database_database-summary
+  show isis neighbors:
+    parser: ttp
+    template: cisco_ios_show_isis_neighbors
+  show isis neighbors detail:
+    parser: ttp
+    template: cisco_ios_show_isis_neighbors_detail
+  show ip bgp neighbors * routes:
+    parser: ttp
+    template: cisco_ios_show_ip_bgp_neighbors_routes
+  show ip bgp neighbors * advertised-routes:
+    parser: ttp
+    template: cisco_ios_show_ip_bgp_neighbors_advertised-routes
+  show ip igmp interface:
+    parser: ttp
+    template: cisco_ios_show_ip_igmp_interface
+  show ip igmp groups:
+    parser: ttp
+    template: cisco_ios_show_ip_igmp_groups
+  show ip igmp snooping groups:
+    parser: ttp
+    template: cisco_ios_show_ip_igmp_snooping_groups
+  show ip pim interface:
+    parser: ttp
+    template: cisco_ios_show_ip_pim_interface
+  show ip msdp peer *:
+    parser: ttp
+    template: cisco_ios_show_ip_msdp_peer
+  show ip msdp sa-cache:
+    parser: ttp
+    template: cisco_ios_show_ip_msdp_sa-cache
   show logging:
     parser: raw_only
   show processes cpu history:
@@ -200,6 +394,105 @@ cisco_iosxe:
   show ip msdp summary:
     parser: ttp
     template: cisco_iosxe_show_ip_msdp_summary
+  show etherchannel summary:
+    parser: ttp
+    template: cisco_iosxe_show_etherchannel_summary
+  show lacp neighbor:
+    parser: ttp
+    template: cisco_iosxe_show_lacp_neighbor
+  show lacp counters:
+    parser: ttp
+    template: cisco_iosxe_show_lacp_counters
+  show standby brief:
+    parser: ttp
+    template: cisco_iosxe_show_standby_brief
+  show standby:
+    parser: ttp
+    template: cisco_iosxe_show_standby
+  show vrrp brief:
+    parser: ttp
+    template: cisco_iosxe_show_vrrp_brief
+  show vrrp:
+    parser: ttp
+    template: cisco_iosxe_show_vrrp
+  show glbp brief:
+    parser: ttp
+    template: cisco_iosxe_show_glbp_brief
+  show spanning-tree summary:
+    parser: ttp
+    template: cisco_iosxe_show_spanning-tree_summary
+  show spanning-tree root:
+    parser: ttp
+    template: cisco_iosxe_show_spanning-tree_root
+  show spanning-tree inconsistentports:
+    parser: ttp
+    template: cisco_iosxe_show_spanning-tree_inconsistentports
+  show spanning-tree blockedports:
+    parser: ttp
+    template: cisco_iosxe_show_spanning-tree_blockedports
+  show interfaces trunk:
+    parser: ttp
+    template: cisco_iosxe_show_interfaces_trunk
+  show interfaces status:
+    parser: ttp
+    template: cisco_iosxe_show_interfaces_status
+  show mac address-table count:
+    parser: ttp
+    template: cisco_iosxe_show_mac_address-table_count
+  show interfaces counters errors:
+    parser: ttp
+    template: cisco_iosxe_show_interfaces_counters_errors
+  show ip eigrp neighbors:
+    parser: ttp
+    template: cisco_iosxe_show_ip_eigrp_neighbors
+  show ip eigrp topology summary:
+    parser: ttp
+    template: cisco_iosxe_show_ip_eigrp_topology_summary
+  show ip eigrp topology active:
+    parser: ttp
+    template: cisco_iosxe_show_ip_eigrp_topology_active
+  show ip eigrp interfaces:
+    parser: ttp
+    template: cisco_iosxe_show_ip_eigrp_interfaces
+  show ip ospf:
+    parser: ttp
+    template: cisco_iosxe_show_ip_ospf
+  show ip ospf traffic:
+    parser: ttp
+    template: cisco_iosxe_show_ip_ospf_traffic
+  show ip ospf database database-summary:
+    parser: ttp
+    template: cisco_iosxe_show_ip_ospf_database_database-summary
+  show isis neighbors:
+    parser: ttp
+    template: cisco_iosxe_show_isis_neighbors
+  show isis neighbors detail:
+    parser: ttp
+    template: cisco_iosxe_show_isis_neighbors_detail
+  show ip bgp neighbors * routes:
+    parser: ttp
+    template: cisco_iosxe_show_ip_bgp_neighbors_routes
+  show ip bgp neighbors * advertised-routes:
+    parser: ttp
+    template: cisco_iosxe_show_ip_bgp_neighbors_advertised-routes
+  show ip igmp interface:
+    parser: ttp
+    template: cisco_iosxe_show_ip_igmp_interface
+  show ip igmp groups:
+    parser: ttp
+    template: cisco_iosxe_show_ip_igmp_groups
+  show ip igmp snooping groups:
+    parser: ttp
+    template: cisco_iosxe_show_ip_igmp_snooping_groups
+  show ip pim interface:
+    parser: ttp
+    template: cisco_iosxe_show_ip_pim_interface
+  show ip msdp peer *:
+    parser: ttp
+    template: cisco_iosxe_show_ip_msdp_peer
+  show ip msdp sa-cache:
+    parser: ttp
+    template: cisco_iosxe_show_ip_msdp_sa-cache
   show logging:
     parser: raw_only
   show processes cpu history:
