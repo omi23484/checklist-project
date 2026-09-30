@@ -1,0 +1,26 @@
+# Compare today against yesterday. Run with:
+#   report.py health-all --dir data/json/<today>/ --default-checks checks/example_vs_yesterday.yaml \
+#     --baseline-dir data/json/<yesterday>/
+# or schedule playbooks/daily_vs_yesterday.csv.
+checks:
+  # Numbers: allow some drift, flag big swings
+  - name: "Multicast routes within 20% of yesterday"
+    command: show_ip_mroute_summary
+    path: "vrfs[*].summary.total_routes"
+    compare_baseline:
+      condition: diff_pct_lte
+      value: 20
+
+  # States: must be identical to yesterday
+  - name: "OSPF neighbor states unchanged"
+    command: show_ip_ospf_neighbors
+    path: "neighbors[*].state"
+    compare_baseline:
+      condition: eq
+
+  # Presence: every PIM neighbor from yesterday still here
+  - name: "No PIM neighbor lost since yesterday"
+    command: show_ip_pim_neigh
+    path: "[*].NEIGHBOR"
+    compare_baseline:
+      condition: eq

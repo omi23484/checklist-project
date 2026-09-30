@@ -1,0 +1,5 @@
+step,name,enabled,type,args,continue_on_error,on_failure,description
+1,Parse today,yes,parse,--input network_cli_parser/data/raw/{date}/,no,,Turn today's dumps into snapshots
+2,Health today,yes,health-all,--dir network_cli_parser/data/json/{date}/ --default-checks network_cli_parser/checks/example_health_checks.yaml --format both --output-dir reports/{date}/,yes,,Absolute health checks
+3,Vs yesterday,yes,health-all,--dir network_cli_parser/data/json/{date}/ --default-checks network_cli_parser/checks/example_vs_yesterday.yaml --baseline-dir network_cli_parser/data/json/{yesterday_date}/ --output-dir reports/{date}/vs-yesterday/,yes,,Values compared with yesterday's snapshots
+4,What changed,yes,delta-all,--before-dir network_cli_parser/data/json/{yesterday_date}/ --after-dir network_cli_parser/data/json/{date}/ --output-dir reports/{date}/delta/,yes,,Field-level changes since yesterday

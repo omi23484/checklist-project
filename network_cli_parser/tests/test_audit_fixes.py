@@ -138,3 +138,19 @@ def test_ospf_database_summary_keeps_process_rows_out_of_areas():
     r = _ttp((ROOT / f"{base}.ttp").read_text(), raw)
     assert [len(a["lsa_types"]) for a in r["areas"]] == [7]
     assert len(r["process_summary"]["lsa_types"]) == 9
+
+
+def test_health_all_with_zero_devices_exits_nonzero(tmp_path, monkeypatch):
+    import argparse
+    import pytest
+    checks = tmp_path / "c.yaml"
+    checks.write_text("checks: []\n")
+    # a real snapshot exists, but --since-days filters it out
+    (tmp_path / "X_01-Jan-20.json").write_text(json.dumps(
+        {"metadata": {"hostname": "X", "collection_time": "01-Jan-20"}, "commands": {}}))
+    args = argparse.Namespace(dir=str(tmp_path), default_checks=str(checks), device_checks_dir=None,
+                              output_dir=str(tmp_path / "o"), output_file=None, format="html",
+                              since_days="1", baseline_dir=None, tags=None, verify_only=True, report_mode="both")
+    with pytest.raises(SystemExit) as e:
+        report.cmd_health_all(args)
+    assert e.value.code == 1

@@ -470,6 +470,10 @@ def cmd_health_all(args: argparse.Namespace) -> None:
     if verify_only:
         print("  [verify-only] no files written")
 
+    # A run that checked zero devices is a failure, not a green CI result
+    if not device_data:
+        print("  [ERROR] no snapshots were checked (none found, or all filtered out)", file=sys.stderr)
+        sys.exit(1)
     if any_failure:
         sys.exit(1)
 

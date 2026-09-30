@@ -109,6 +109,7 @@ checklist-project/                        ← repository root
     │
     ├── checks/
     │   ├── example_health_checks.yaml    ← starter check definitions
+    │   ├── example_vs_yesterday.yaml     ← compare_baseline checks: today vs yesterday
     │   └── devices/                      ← per-device check overrides ({hostname}.yaml)
     │
     ├── playbooks/
@@ -2486,6 +2487,7 @@ python playbook.py --playbook network_cli_parser/playbooks/daily.csv --only-type
 | `{date}` | Today in DD-Mon-YY | `03-May-26` |
 | `{today}` | Today in YYYY-MM-DD | `2026-05-03` |
 | `{yesterday}` | Yesterday in YYYY-MM-DD | `2026-05-02` |
+| `{yesterday_date}` | Yesterday in DD-Mon-YY — same format as `{date}` and the `data/json/<date>/` snapshot folders; use it for `--before-dir` / `--baseline-dir` | `02-May-26` |
 | `{timestamp}` | Current datetime | `20260503_143000` |
 
 **Step-local placeholders — valid only inside the `on_failure` column:**
@@ -2525,6 +2527,7 @@ step,name,enabled,type,args,continue_on_error,description
 | `playbooks/reference.csv` | 30-row cheat-sheet — every step type, all flag variants (`enabled=no`; copy rows to build your own) |
 | `playbooks/example.csv` | 7-step end-to-end: fetch → parse → health-all → coverage → health-diff → delta-all |
 | `playbooks/daily_health.csv` | Minimal 3-step offline: collect → health-all → coverage |
+| `playbooks/daily_vs_yesterday.csv` | Daily: parse today → health-all → compare with yesterday (`checks/example_vs_yesterday.yaml` + `--baseline-dir data/json/{yesterday_date}/`) → delta-all vs yesterday |
 
 ---
 

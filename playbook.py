@@ -45,6 +45,7 @@ checks, compare snapshots, or generate any report.py subcommand output.
   {today}       Today in ISO format:        2026-05-30
   {timestamp}   Current datetime:           20260530_143000
   {yesterday}   Yesterday in ISO format:    2026-05-29
+  {yesterday_date}  Yesterday in filename format: 02-May-26  (matches data/json/<date>/)
 
   The following placeholders are available in 'on_failure' only:
   {step}        The step number of the failed step
@@ -102,6 +103,8 @@ def _build_vars() -> dict[str, str]:
         "{today}":     now.strftime("%Y-%m-%d"),
         "{timestamp}": now.strftime("%Y%m%d_%H%M%S"),
         "{yesterday}": (now - timedelta(days=1)).strftime("%Y-%m-%d"),
+        # same format as {date} / the data/json/<DD-Mon-YY>/ snapshot folders
+        "{yesterday_date}": (now - timedelta(days=1)).strftime("%d-%b-%y"),
     }
 
 
